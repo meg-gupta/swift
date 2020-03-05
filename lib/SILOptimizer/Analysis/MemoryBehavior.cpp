@@ -414,7 +414,9 @@ AliasAnalysis::computeMemoryBehaviorInner(SILInstruction *Inst, SILValue V,
   LLVM_DEBUG(llvm::dbgs() << "GET MEMORY BEHAVIOR FOR:\n    " << *Inst << "    "
                           << *V);
   assert(SEA && "SideEffectsAnalysis must be initialized!");
-  return MemoryBehaviorVisitor(this, SEA, EA, V, InspectionMode).visit(Inst);
+  auto res = MemoryBehaviorVisitor(this, SEA, EA, V, InspectionMode).visit(Inst);
+  LLVM_DEBUG(llvm::dbgs() << res);
+  return res;
 }
 
 MemBehaviorKeyTy AliasAnalysis::toMemoryBehaviorKey(SILInstruction *V1,
