@@ -79,8 +79,9 @@ class TempRValueOptPass : public SILFunctionTransform {
   checkTempObjectDestroy(AllocStackInst *tempObj, CopyAddrInst *copyInst,
                          ValueLifetimeAnalysis::Frontier &tempAddressFrontier);
 
-  bool tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst);
-  std::pair<SILBasicBlock::iterator, bool>
+  std::pair<SILBasicBlock::reverse_iterator, bool>
+  tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst);
+  std::pair<SILBasicBlock::reverse_iterator, bool>
   tryOptimizeStoreIntoTemp(StoreInst *si);
 
   void run() override;
@@ -209,6 +210,7 @@ bool TempRValueOptPass::collectLoads(
         auto argConv = calleeConv.getSILArgumentConvention(calleeArgIdx);
         if (argConv.isInoutConvention()) {
           if (!aa->isNoAlias(operand.get(), srcAddr)) {
+            LLVM_DEBUG(llvm::dbgs()<< "Aliases with inout arg");
             return false;
           }
         }
@@ -329,6 +331,8 @@ bool TempRValueOptPass::checkNoSourceModification(
       return false;
     }
   }
+  
+  LLVM_DEBUG(llvm::dbgs() << "  Why am I here?");
   // For some reason, not all normal uses have been seen between the copy and
   // the end of the initialization block. We should never reach here.
   return false;
@@ -402,19 +406,36 @@ bool TempRValueOptPass::checkTempObjectDestroy(
       if (cai->isTakeOfSrc())
         continue;
     }
+    
+    if (auto *pai = dyn_cast<PartialApplyInst>(lastUser)) {
+      ApplySite apply(pai);
+      auto calleeConv = apply.getSubstCalleeConv();
+      unsigned calleeArgIdx = apply.getCalleeArgIndexOfFirstAppliedArg();
+      for (const auto &operand : apply.getArgumentOperands()) {
+        if (operand.get()->getDefiningInstruction() == tempObj) {
+          auto argConv = calleeConv.getSILArgumentConvention(calleeArgIdx);
+          if (argConv == SILArgumentConvention::Indirect_In_Guaranteed)
+            continue;
+        }
+      }
+    }
     return false;
   }
   return true;
 }
 
 /// Tries to perform the temporary rvalue copy elimination for \p copyInst
-bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
+std::pair<SILBasicBlock::reverse_iterator, bool>
+TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
   if (!copyInst->isInitializationOfDest())
-    return false;
+    return {std::next(copyInst->getReverseIterator()), false};
 
   auto *tempObj = dyn_cast<AllocStackInst>(copyInst->getDest());
   if (!tempObj)
-    return false;
+    return {std::next(copyInst->getReverseIterator()), false};
+
+  LLVM_DEBUG(llvm::dbgs()<<"Considering:");
+  LLVM_DEBUG(copyInst->dump());
 
   // The copy's source address must not be a scoped instruction, like
   // begin_borrow. When the temporary object is eliminated, it's uses are
@@ -433,6 +454,8 @@ bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
   SmallPtrSet<SILInstruction *, 8> loadInsts;
   for (auto *useOper : tempObj->getUses()) {
     SILInstruction *user = useOper->getUser();
+    LLVM_DEBUG(llvm::dbgs()<< "user: ");
+    LLVM_DEBUG(user->dump());
 
     if (user == copyInst)
       continue;
@@ -451,16 +474,16 @@ bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
     }
 
     if (!collectLoads(useOper, user, tempObj, copySrc, loadInsts))
-      return false;
+      return {std::next(copyInst->getReverseIterator()), false};
   }
 
   // Check if the source is modified within the lifetime of the temporary.
   if (!checkNoSourceModification(copyInst, copySrc, loadInsts))
-    return false;
+    return {std::next(copyInst->getReverseIterator()), false};
 
   ValueLifetimeAnalysis::Frontier tempAddressFrontier;
   if (!checkTempObjectDestroy(tempObj, copyInst, tempAddressFrontier))
-    return false;
+    return {std::next(copyInst->getReverseIterator()), false};
 
   LLVM_DEBUG(llvm::dbgs() << "  Success: replace temp" << *tempObj);
 
@@ -494,8 +517,14 @@ bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
         assert(cai->getSrc() == tempObj);
         if (cai->isTakeOfSrc() && !copyInst->isTakeOfSrc())
           cai->setIsTakeOfSrc(IsNotTake);
+        if (stripAccessMarkers(cai->getSrc()) == cai->getDest())
+          toDelete.push_back(user);
       }
       use->set(copySrc);
+      if (cai != copyInst) {
+        if (stripAccessMarkers(cai->getSrc()) == cai->getDest())
+          toDelete.push_back(user);
+      }
       break;
     }
     case SILInstructionKind::LoadInst: {
@@ -544,26 +573,30 @@ bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
   while (!toDelete.empty()) {
     toDelete.pop_back_val()->eraseFromParent();
   }
+  
+  copyInst->dropAllReferences();
   tempObj->eraseFromParent();
-  return true;
+  auto nextIter = std::next(copyInst->getReverseIterator());
+  copyInst->eraseFromParent();
+  return {nextIter, true};
 }
 
-std::pair<SILBasicBlock::iterator, bool>
+std::pair<SILBasicBlock::reverse_iterator, bool>
 TempRValueOptPass::tryOptimizeStoreIntoTemp(StoreInst *si) {
   // If our store is an assign, bail.
   if (si->getOwnershipQualifier() == StoreOwnershipQualifier::Assign)
-    return {std::next(si->getIterator()), false};
+    return {std::next(si->getReverseIterator()), false};
 
   auto *tempObj = dyn_cast<AllocStackInst>(si->getDest());
   if (!tempObj) {
-    return {std::next(si->getIterator()), false};
+    return {std::next(si->getReverseIterator()), false};
   }
 
   // If our tempObj has a dynamic lifetime (meaning it is conditionally
   // initialized, conditionally taken, etc), we can not convert its uses to SSA
   // while eliminating it simply. So bail.
   if (tempObj->hasDynamicLifetime()) {
-    return {std::next(si->getIterator()), false};
+    return {std::next(si->getReverseIterator()), false};
   }
 
   // Scan all uses of the temporary storage (tempObj) to verify they all refer
@@ -592,7 +625,7 @@ TempRValueOptPass::tryOptimizeStoreIntoTemp(StoreInst *si) {
 
     // We pass in SILValue() since we do not have a source address.
     if (!collectLoads(useOper, user, tempObj, SILValue(), loadInsts))
-      return {std::next(si->getIterator()), false};
+      return {std::next(si->getReverseIterator()), false};
   }
 
   // Since store is always a consuming operation, we do not need to worry about
@@ -674,9 +707,11 @@ TempRValueOptPass::tryOptimizeStoreIntoTemp(StoreInst *si) {
     inst->dropAllReferences();
     inst->eraseFromParent();
   }
-  auto nextIter = std::next(si->getIterator());
-  si->eraseFromParent();
+  
+  si->dropAllReferences();
   tempObj->eraseFromParent();
+  auto nextIter = std::next(si->getReverseIterator());
+  si->eraseFromParent();
   return {nextIter, true};
 }
 
@@ -692,61 +727,26 @@ void TempRValueOptPass::run() {
   aa = getPassManager()->getAnalysis<AliasAnalysis>();
   bool changed = false;
 
-  // Find all copy_addr instructions.
-  llvm::SmallVector<CopyAddrInst *, 8> deadCopies;
   for (auto &block : *getFunction()) {
-    // Increment the instruction iterator only after calling
-    // tryOptimizeCopyIntoTemp because the instruction after CopyInst might be
-    // deleted, but copyInst itself won't be deleted until later.
-    for (auto ii = block.begin(); ii != block.end();) {
-      if (auto *copyInst = dyn_cast<CopyAddrInst>(&*ii)) {
-        // In case of success, this may delete instructions, but not the
-        // CopyInst itself.
-        changed |= tryOptimizeCopyIntoTemp(copyInst);
-        // Remove identity copies which either directly result from successfully
-        // calling tryOptimizeCopyIntoTemp or was created by an earlier
-        // iteration, where another copy_addr copied the temporary back to the
-        // source location.
-        if (stripAccessMarkers(copyInst->getSrc()) == copyInst->getDest()) {
-          changed = true;
-          deadCopies.push_back(copyInst);
-        }
-        ++ii;
-        continue;
+    for (auto ii = block.rbegin(); ii != block.rend();) {
+     if (ii->getKind() == SILInstructionKind::CopyAddrInst) {
+        auto copyInst = dyn_cast<CopyAddrInst>(&*ii);
+        bool madeSingleChange;
+      	std::tie(ii, madeSingleChange) = tryOptimizeCopyIntoTemp(copyInst);
+        changed |= madeSingleChange;
+	continue;
       }
-
-      if (auto *si = dyn_cast<StoreInst>(&*ii)) {
+     if (ii->getKind() == SILInstructionKind::StoreInst) {
+        auto *si = cast<StoreInst>(&*ii);
         bool madeSingleChange;
         std::tie(ii, madeSingleChange) = tryOptimizeStoreIntoTemp(si);
         changed |= madeSingleChange;
         continue;
       }
-
       ++ii;
     }
   }
 
-  // Delete the copies and any unused address operands.
-  // The same copy may have been added multiple times.
-  sortUnique(deadCopies);
-  for (auto *deadCopy : deadCopies) {
-    assert(changed);
-    auto *srcInst = deadCopy->getSrc()->getDefiningInstruction();
-    deadCopy->eraseFromParent();
-    // Simplify any access scope markers that were only used by the dead
-    // copy_addr and other potentially unused addresses.
-    if (srcInst) {
-      if (SILValue result = simplifyInstruction(srcInst)) {
-        replaceAllSimplifiedUsesAndErase(
-            srcInst, result, [](SILInstruction *instToKill) {
-              // SimplifyInstruction is not in the business of removing
-              // copy_addr. If it were, then we would need to update deadCopies.
-              assert(!isa<CopyAddrInst>(instToKill));
-              instToKill->eraseFromParent();
-            });
-      }
-    }
-  }
   if (changed) {
     invalidateAnalysis(SILAnalysis::InvalidationKind::Instructions);
   }
