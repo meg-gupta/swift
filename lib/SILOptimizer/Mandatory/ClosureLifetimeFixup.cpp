@@ -475,7 +475,8 @@ static bool tryRewriteToPartialApplyStack(
     auto paramInfo = calleeConv.getParamInfoForSILArg(calleeArgumentIndex);
     if (paramInfo.getConvention() == ParameterConvention::Indirect_In_Guaranteed)
       // go over all the dealloc_stack, remove it
-      for (auto *use : arg.get()->getUses())
+      SmallVector<Operand*, 16> Uses(arg.get()->getUses());
+      for (auto *use : Uses)
         if (auto *deallocInst = dyn_cast<DeallocStackInst>(use->getUser()))
           deallocInst->eraseFromParent();
   }
