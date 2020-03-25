@@ -274,6 +274,13 @@ private:
   /// Add a pass with a given name.
   void addPassForName(StringRef Name);
 
+  /// The PassManager's function worklist is updated such that all the callees
+  /// in function 'F' are present after function 'F'.
+  void updateFunctionWorklist(SILFunction *F);
+
+  void recursivelyUpdateFunctionWorklist(
+      SILFunction *F, llvm::SmallPtrSetImpl<SILFunction *> &visited);
+
   /// Run the \p TransIdx'th SIL module transform over all the functions in
   /// the module.
   void runModulePass(unsigned TransIdx);

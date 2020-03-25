@@ -729,6 +729,56 @@ void SILPassManager::addFunctionToWorklist(SILFunction *F,
 
   StoredLevel = NewLevel;
   FunctionWorklist.push_back(F);
+  // Update FunctionWorklist such that all the callees in function 'F' are
+  // present after it.
+  updateFunctionWorklist(F);
+}
+
+void SILPassManager::updateFunctionWorklist(SILFunction *F) {
+  llvm::SmallPtrSet<SILFunction*, 16> Visited;
+  recursivelyUpdateFunctionWorklist(F, Visited);
+}
+
+// Recursively update PassManager's FunctionWorklist such that all the callees
+// in function 'F' are present after it.
+void SILPassManager::recursivelyUpdateFunctionWorklist(
+    SILFunction *F, SmallPtrSetImpl<SILFunction *> &Visited) {
+  BasicCalleeAnalysis *BCA = getAnalysis<BasicCalleeAnalysis>();
+  auto findFunc = [this](SILFunction *Func) {
+    return std::find_if(FunctionWorklist.begin(), FunctionWorklist.end(),
+                        [Func](WorklistEntry w) { return w.F == Func; });
+  };
+  auto FuncIt = findFunc(F);
+  if (FuncIt == FunctionWorklist.end()) {
+    return;
+  }
+  auto FuncIndex = std::distance(FunctionWorklist.begin(), FuncIt);
+  if (Visited.find(F) != Visited.end()) {
+    return;
+  }
+  Visited.insert(F);
+  for (auto &B : *F) {
+    for (auto &I : B) {
+      auto FAS = FullApplySite::isa(&I);
+      if (!FAS && !isa<StrongReleaseInst>(&I) && !isa<ReleaseValueInst>(&I))
+        continue;
+      auto Callees = FAS ? BCA->getCalleeList(FAS) : BCA->getCalleeList(&I);
+      for (auto *CalleeFn : Callees) {
+        if (CalleeFn != F) {
+          auto CalleeIt = findFunc(CalleeFn);
+          if (CalleeIt != FunctionWorklist.end()) {
+            assert(CalleeIt->F == CalleeFn);
+            auto CalleeIndex = std::distance(FunctionWorklist.begin(), CalleeIt);
+            if (CalleeIndex < FuncIndex) {
+              FunctionWorklist.erase(CalleeIt);
+              FunctionWorklist.insert(std::next(findFunc(F)), CalleeFn);
+              recursivelyUpdateFunctionWorklist(CalleeFn, Visited);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 void SILPassManager::restartWithCurrentFunction(SILTransform *T) {
