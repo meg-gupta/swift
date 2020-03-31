@@ -734,45 +734,48 @@ void SILPassManager::addFunctionToWorklist(SILFunction *F,
   updateFunctionWorklist(F);
 }
 
-void SILPassManager::updateFunctionWorklist(SILFunction *F) {
-  llvm::SmallPtrSet<SILFunction*, 16> Visited;
-  recursivelyUpdateFunctionWorklist(F, Visited);
+void SILPassManager::updateFunctionWorklist(SILFunction *func) {
+  llvm::SmallPtrSet<SILFunction*, 16> visited;
+  recursivelyUpdateFunctionWorklist(func, visited);
 }
 
 // Recursively update PassManager's FunctionWorklist such that all the callees
 // in function 'F' are present after it.
 void SILPassManager::recursivelyUpdateFunctionWorklist(
-    SILFunction *F, SmallPtrSetImpl<SILFunction *> &Visited) {
-  BasicCalleeAnalysis *BCA = getAnalysis<BasicCalleeAnalysis>();
-  auto findFunc = [this](SILFunction *Func) {
+    SILFunction *func, SmallPtrSetImpl<SILFunction *> &visited) {
+  BasicCalleeAnalysis *bca = getAnalysis<BasicCalleeAnalysis>();
+  auto findFunc = [this](SILFunction *func) {
     return std::find_if(FunctionWorklist.begin(), FunctionWorklist.end(),
-                        [Func](WorklistEntry w) { return w.F == Func; });
+                        [func](WorklistEntry w) { return w.F == func; });
   };
-  auto FuncIt = findFunc(F);
-  if (FuncIt == FunctionWorklist.end()) {
+  auto funcIt = findFunc(func);
+  if (funcIt == FunctionWorklist.end()) {
     return;
   }
-  auto FuncIndex = std::distance(FunctionWorklist.begin(), FuncIt);
-  if (Visited.find(F) != Visited.end()) {
+  auto funcIndex = std::distance(FunctionWorklist.begin(), funcIt);
+  if (visited.find(func) != visited.end()) {
     return;
   }
-  Visited.insert(F);
-  for (auto &B : *F) {
-    for (auto &I : B) {
-      auto FAS = FullApplySite::isa(&I);
-      if (!FAS && !isa<StrongReleaseInst>(&I) && !isa<ReleaseValueInst>(&I))
+  visited.insert(func);
+  for (auto &bb : *func) {
+    for (auto &i : bb) {
+      auto applySite = FullApplySite::isa(&i);
+      if (!applySite && !isa<StrongReleaseInst>(&i) &&
+          !isa<ReleaseValueInst>(&i))
         continue;
-      auto Callees = FAS ? BCA->getCalleeList(FAS) : BCA->getCalleeList(&I);
-      for (auto *CalleeFn : Callees) {
-        if (CalleeFn != F) {
-          auto CalleeIt = findFunc(CalleeFn);
-          if (CalleeIt != FunctionWorklist.end()) {
-            assert(CalleeIt->F == CalleeFn);
-            auto CalleeIndex = std::distance(FunctionWorklist.begin(), CalleeIt);
-            if (CalleeIndex < FuncIndex) {
-              FunctionWorklist.erase(CalleeIt);
-              FunctionWorklist.insert(std::next(findFunc(F)), CalleeFn);
-              recursivelyUpdateFunctionWorklist(CalleeFn, Visited);
+      auto callees =
+          applySite ? bca->getCalleeList(applySite) : bca->getCalleeList(&i);
+      for (auto *calleeFn : callees) {
+        if (calleeFn != func) {
+          auto calleeIt = findFunc(calleeFn);
+          if (calleeIt != FunctionWorklist.end()) {
+            assert(calleeIt->F == calleeFn);
+            auto calleeIndex =
+                std::distance(FunctionWorklist.begin(), calleeIt);
+            if (calleeIndex < funcIndex) {
+              FunctionWorklist.erase(calleeIt);
+              FunctionWorklist.insert(std::next(findFunc(func)), calleeFn);
+              recursivelyUpdateFunctionWorklist(calleeFn, visited);
             }
           }
         }
