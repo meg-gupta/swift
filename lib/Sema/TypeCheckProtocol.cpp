@@ -3822,8 +3822,7 @@ ResolveWitnessResult ConformanceChecker::resolveWitnessViaDefault(
     recordOptionalWitness(requirement);
     return ResolveWitnessResult::Success;
   }
-  // Save the missing requirement for later diagnosis.
-  GlobalMissingWitnesses.insert({requirement, {}});
+
   return ResolveWitnessResult::ExplicitFailed;
 }
 
