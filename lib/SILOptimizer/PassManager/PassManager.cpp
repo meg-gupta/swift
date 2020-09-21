@@ -528,6 +528,10 @@ runFunctionPasses(unsigned FromTransIdx, unsigned ToTransIdx) {
   if (SILPrintPassName)
     llvm::dbgs() << "Start function passes at stage: " << StageName << "\n";
 
+  // Compute the bottom up order of the new functions and the callees in
+  // it
+  BottomUpFunctionOrder SubBottomUpOrder(BCA);
+  auto UpdatedBottomUpOrderCount = FunctionWorklist.size() - 1;
   // Run all transforms for all functions, starting at the tail of the worklist.
   while (!FunctionWorklist.empty() && continueTransforming()) {
     unsigned TailIdx = FunctionWorklist.size() - 1;
@@ -537,11 +541,60 @@ runFunctionPasses(unsigned FromTransIdx, unsigned ToTransIdx) {
     if (PipelineIdx >= (ToTransIdx - FromTransIdx)) {
       // All passes did already run for the function. Pop it off the worklist.
       FunctionWorklist.pop_back();
+      UpdatedBottomUpOrderCount--;
       continue;
     }
     assert(!shouldRestartPipeline() &&
         "Did not expect function pipeline set up to restart from beginning!");
 
+    unsigned int TransformIdx =  FromTransIdx + PipelineIdx;
+    auto *SFT = cast<SILFunctionTransform>(Transformations[TransformIdx]);
+    auto passKind = SFT->getPassKind();
+
+    if (TailIdx > UpdatedBottomUpOrderCount &&
+        (passKind == PassKind::EarlyInliner ||
+         passKind == PassKind::PerfInliner ||
+         passKind == PassKind::LateInliner)) {
+      // Initialize BottomUpFunctionOrder with new functions
+      for (auto It = FunctionWorklist.begin() + UpdatedBottomUpOrderCount;
+           It != FunctionWorklist.end(); It++) {
+        SubBottomUpOrder.computeBottomUpOrder(It->F);
+      }
+      auto NewFunctionsBottomUp = SubBottomUpOrder.getBottomUpOrder();
+      SmallPtrSet<SILFunction *, 8> NewBottomUpSet(NewFunctionsBottomUp.begin(),
+                                                   NewFunctionsBottomUp.end());
+
+      // Remove all the functions in the new bottom up order from
+      // FunctionWorklist
+      llvm::DenseMap<SILFunction *, WorklistEntry> FunctionsToReorder;
+      auto RemoveFn = [&FunctionsToReorder,
+                       &NewBottomUpSet](WorklistEntry Entry) {
+        if (NewBottomUpSet.find(Entry.F) == NewBottomUpSet.end()) {
+          return false;
+        }
+        FunctionsToReorder.insert(std::make_pair(Entry.F, Entry));
+        return true;
+      };
+      std::remove_if(FunctionWorklist.begin(), FunctionWorklist.end(),
+                     RemoveFn);
+      FunctionWorklist.erase((FunctionWorklist.begin() +
+                              FunctionWorklist.size() -
+                              FunctionsToReorder.size()),
+                             FunctionWorklist.end());
+
+      // Add back the functions in the new bottom up order to the
+      // FunctionWorklist
+      for (auto it = NewFunctionsBottomUp.rbegin();
+           it != NewFunctionsBottomUp.rend(); it++) {
+        auto Entry = FunctionsToReorder.find(*it);
+        if (Entry == FunctionsToReorder.end()) {
+          continue;
+        }
+        FunctionWorklist.push_back((*Entry).second);
+      }
+
+      UpdatedBottomUpOrderCount = FunctionWorklist.size() - 1;
+    }
     runPassOnFunction(FromTransIdx + PipelineIdx, F);
 
     // Note: Don't get entry reference prior to runPassOnFunction().
@@ -559,42 +612,6 @@ runFunctionPasses(unsigned FromTransIdx, unsigned ToTransIdx) {
     if (TailIdx == (FunctionWorklist.size() - 1))  {
       // No new functions to process
       continue;
-    }
-
-    // Compute the bottom up order of the new functions and the callees in it
-    BottomUpFunctionOrder SubBottomUpOrder(BCA);
-    // Initialize BottomUpFunctionOrder with new functions
-    for (auto It = FunctionWorklist.begin() + TailIdx + 1;
-         It != FunctionWorklist.end(); It++) {
-      SubBottomUpOrder.computeBottomUpOrder(It->F);
-    }
-    auto NewFunctionsBottomUp = SubBottomUpOrder.getBottomUpOrder();
-    SmallPtrSet<SILFunction *, 8> NewBottomUpSet(NewFunctionsBottomUp.begin(),
-                                                 NewFunctionsBottomUp.end());
-
-    // Remove all the functions in the new bottom up order from FunctionWorklist
-    llvm::DenseMap<SILFunction *, WorklistEntry> FunctionsToReorder;
-    auto RemoveFn = [&FunctionsToReorder,
-                     &NewBottomUpSet](WorklistEntry Entry) {
-      if (NewBottomUpSet.find(Entry.F) == NewBottomUpSet.end()) {
-        return false;
-      }
-      FunctionsToReorder.insert(std::make_pair(Entry.F, Entry));
-      return true;
-    };
-    std::remove_if(FunctionWorklist.begin(), FunctionWorklist.end(), RemoveFn);
-    FunctionWorklist.erase((FunctionWorklist.begin() + FunctionWorklist.size() -
-                            FunctionsToReorder.size()),
-                           FunctionWorklist.end());
-
-    // Add back the functions in the new bottom up order to the FunctionWorklist
-    for (auto it = NewFunctionsBottomUp.rbegin();
-         it != NewFunctionsBottomUp.rend(); it++) {
-      auto Entry = FunctionsToReorder.find(*it);
-      if (Entry == FunctionsToReorder.end()) {
-        continue;
-      }
-      FunctionWorklist.push_back((*Entry).second);
     }
   }
 }
