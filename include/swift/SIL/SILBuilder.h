@@ -1266,6 +1266,13 @@ public:
                                                        operand, atomicity));
   }
 
+  ReleaseValueInst *createReleaseValue(SILLocation Loc, SILValue operand) {
+    assert(!hasOwnership());
+    assert(isLoadableOrOpaque(operand->getType()));
+    return insert(new (getModule()) ReleaseValueInst(
+        getSILDebugLocation(Loc), operand, getDefaultAtomicity()));
+  }
+
   ReleaseValueAddrInst *createReleaseValueAddr(SILLocation Loc,
                                                SILValue operand,
                                                Atomicity atomicity) {
@@ -1759,11 +1766,18 @@ public:
     return insert(new (getModule()) StrongRetainInst(getSILDebugLocation(Loc),
                                                        Operand, atomicity));
   }
+
   StrongReleaseInst *createStrongRelease(SILLocation Loc, SILValue Operand,
                                          Atomicity atomicity) {
     assert(!hasOwnership());
     return insert(new (getModule()) StrongReleaseInst(
         getSILDebugLocation(Loc), Operand, atomicity));
+  }
+
+  StrongReleaseInst *createStrongRelease(SILLocation Loc, SILValue Operand) {
+    assert(!hasOwnership());
+    return insert(new (getModule()) StrongReleaseInst(
+        getSILDebugLocation(Loc), Operand, getDefaultAtomicity()));
   }
 
   EndLifetimeInst *createEndLifetime(SILLocation Loc, SILValue Operand) {
@@ -2113,91 +2127,12 @@ public:
     return U.get<DestroyAddrInst *>();
   }
 
-  /// Perform a strong_release instruction at the current location, attempting
-  /// to fold it locally into nearby retain instructions or emitting an explicit
-  /// strong release if necessary.  If this inserts a new instruction, it
-  /// returns it, otherwise it returns null.
-  StrongReleaseInst *emitStrongReleaseAndFold(SILLocation Loc,
-                                              SILValue Operand) {
-    auto U = emitStrongRelease(Loc, Operand);
-    if (U.isNull())
-      return nullptr;
-    if (auto *SRI = U.dyn_cast<StrongReleaseInst *>())
-      return SRI;
-    U.get<StrongRetainInst *>()->eraseFromParent();
-    return nullptr;
-  }
-
-  /// Emit a release_value instruction at the current location, attempting to
-  /// fold it locally into another nearby retain_value instruction.  This
-  /// returns the new instruction if it inserts one, otherwise it returns null.
-  ///
-  /// This instruction doesn't handle strength reduction of release_value into
-  /// a noop / strong_release / unowned_release.  For that, use the
-  /// emitReleaseValueOperation method below or use the TypeLowering API.
-  ReleaseValueInst *emitReleaseValueAndFold(SILLocation Loc, SILValue Operand) {
-    auto U = emitReleaseValue(Loc, Operand);
-    if (U.isNull())
-      return nullptr;
-    if (auto *RVI = U.dyn_cast<ReleaseValueInst *>())
-      return RVI;
-    U.get<RetainValueInst *>()->eraseFromParent();
-    return nullptr;
-  }
-
-  /// Emit a release_value instruction at the current location, attempting to
-  /// fold it locally into another nearby retain_value instruction.  This
-  /// returns the new instruction if it inserts one, otherwise it returns null.
-  ///
-  /// This instruction doesn't handle strength reduction of release_value into
-  /// a noop / strong_release / unowned_release.  For that, use the
-  /// emitReleaseValueOperation method below or use the TypeLowering API.
-  DestroyValueInst *emitDestroyValueAndFold(SILLocation Loc, SILValue Operand) {
-    auto U = emitDestroyValue(Loc, Operand);
-    if (U.isNull())
-      return nullptr;
-    if (auto *DVI = U.dyn_cast<DestroyValueInst *>())
-      return DVI;
-    auto *CVI = U.get<CopyValueInst *>();
-    CVI->replaceAllUsesWith(CVI->getOperand());
-    CVI->eraseFromParent();
-    return nullptr;
-  }
-
-  /// Emit a release_value instruction at the current location, attempting to
-  /// fold it locally into another nearby retain_value instruction. Returns a
-  /// pointer union initialized with a release value inst if it inserts one,
-  /// otherwise returns the retain. It is expected that the caller will remove
-  /// the retain_value. This allows for the caller to update any state before
-  /// the retain_value is destroyed.
-  PointerUnion<RetainValueInst *, ReleaseValueInst *>
-  emitReleaseValue(SILLocation Loc, SILValue Operand);
-
-  /// Emit a strong_release instruction at the current location, attempting to
-  /// fold it locally into another nearby strong_retain instruction. Returns a
-  /// pointer union initialized with a strong_release inst if it inserts one,
-  /// otherwise returns the pointer union initialized with the strong_retain. It
-  /// is expected that the caller will remove the returned strong_retain. This
-  /// allows for the caller to update any state before the release value is
-  /// destroyed.
-  PointerUnion<StrongRetainInst *, StrongReleaseInst *>
-  emitStrongRelease(SILLocation Loc, SILValue Operand);
-
   /// Emit a destroy_addr instruction at \p Loc attempting to fold the
   /// destroy_addr locally into a copy_addr instruction. Returns a pointer union
   /// initialized with the folded copy_addr if the destroy_addr was folded into
   /// a copy_addr. Otherwise, returns the newly inserted destroy_addr.
   PointerUnion<CopyAddrInst *, DestroyAddrInst *>
   emitDestroyAddr(SILLocation Loc, SILValue Operand);
-
-  /// Emit a destroy_value instruction at the current location, attempting to
-  /// fold it locally into another nearby copy_value instruction. Returns a
-  /// pointer union initialized with a destroy_value inst if it inserts one,
-  /// otherwise returns the copy_value. It is expected that the caller will
-  /// remove the copy_value. This allows for the caller to update any state
-  /// before the copy_value is destroyed.
-  PointerUnion<CopyValueInst *, DestroyValueInst *>
-  emitDestroyValue(SILLocation Loc, SILValue Operand);
 
   /// Convenience function for calling emitCopy on the type lowering
   /// for the non-address value.

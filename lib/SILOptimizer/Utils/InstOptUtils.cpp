@@ -1222,29 +1222,13 @@ void swift::releasePartialApplyCapturedArg(SILBuilder &builder, SILLocation loc,
   }
 
   if (arg->getType().hasReferenceSemantics()) {
-    auto u = builder.emitStrongRelease(loc, arg);
-    if (u.isNull())
-      return;
-
-    if (auto *SRI = u.dyn_cast<StrongRetainInst *>()) {
-      callbacks.deleteInst(SRI);
-      return;
-    }
-
-    callbacks.createdNewInst(u.get<StrongReleaseInst *>());
+    auto *newInst = builder.createStrongRelease(loc, arg);
+    callbacks.createdNewInst(newInst);
     return;
   }
 
-  auto u = builder.emitReleaseValue(loc, arg);
-  if (u.isNull())
-    return;
-
-  if (auto *rvi = u.dyn_cast<RetainValueInst *>()) {
-    callbacks.deleteInst(rvi);
-    return;
-  }
-
-  callbacks.createdNewInst(u.get<ReleaseValueInst *>());
+  auto *newInst = builder.createReleaseValue(loc, arg);
+  callbacks.createdNewInst(newInst);
 }
 
 void swift::deallocPartialApplyCapturedArg(SILBuilder &builder, SILLocation loc,

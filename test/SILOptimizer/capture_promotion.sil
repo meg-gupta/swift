@@ -66,15 +66,15 @@ bb0:
 
 // The Baz variable is loaded and retain_value'd, because it is a non-trivial
 // aggregate type
-// CHECK-NEXT: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
+// CHECK: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
 // CHECK-NEXT: retain_value [[LOADBAZ:%.*]] : $Baz
 
 // The Int variable is loaded only, because it is trivial
-// CHECK-NEXT: [[LOADINT:%.*]] = load {{.*}} : $*Int
+// CHECK: [[LOADINT:%.*]] = load {{.*}} : $*Int
 
 // The partial apply has one value argument for each pair of arguments that was
 // previously used to capture and pass the variable by reference
-// CHECK-NEXT: {{.*}} = partial_apply [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
+// CHECK: {{.*}} = partial_apply [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
 
   %17 = function_ref @closure0 : $@convention(thin) (@owned <τ_0_0> { var τ_0_0 } <Foo>, @owned <τ_0_0> { var τ_0_0 } <Baz>, @owned <τ_0_0> { var τ_0_0 } <Int>) -> Int
   strong_retain %1 : $<τ_0_0> { var τ_0_0 } <Foo>
@@ -125,15 +125,15 @@ bb0:
 
 // The Baz variable is loaded and retain_value'd, because it is a non-trivial
 // aggregate type
-// CHECK-NEXT: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
+// CHECK: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
 // CHECK-NEXT: retain_value [[LOADBAZ:%.*]] : $Baz
 
 // The Int variable is loaded only, because it is trivial
-// CHECK-NEXT: [[LOADINT:%.*]] = load {{.*}} : $*Int
+// CHECK: [[LOADINT:%.*]] = load {{.*}} : $*Int
 
 // The partial apply has one value argument for each pair of arguments that was
 // previously used to capture and pass the variable by reference
-// CHECK-NEXT: {{.*}} = partial_apply [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
+// CHECK: {{.*}} = partial_apply [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
 
 
   %17 = function_ref @closure_indirect_result : $@convention(thin) (@owned <τ_0_0> { var τ_0_0 } <Foo>, @owned <τ_0_0> { var τ_0_0 } <Baz>, @owned <τ_0_0> { var τ_0_0 } <Int>) -> @out Int
@@ -385,15 +385,15 @@ bb0:
 
 // The Baz variable is loaded and retain_value'd, because it is a non-trivial
 // aggregate type
-// CHECK-NEXT: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
+// CHECK: [[LOADBAZ:%.*]] = load {{.*}} : $*Baz
 // CHECK-NEXT: retain_value [[LOADBAZ:%.*]] : $Baz
 
 // The Int variable is loaded only, because it is trivial
-// CHECK-NEXT: [[LOADINT:%.*]] = load {{.*}} : $*Int
+// CHECK: [[LOADINT:%.*]] = load {{.*}} : $*Int
 
 // The partial apply has one value argument for each pair of arguments that was
 // previously used to capture and pass the variable by reference
-// CHECK-NEXT: {{.*}} = partial_apply [callee_guaranteed] [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
+// CHECK: {{.*}} = partial_apply [callee_guaranteed] [[CLOSURE_PROMOTE]]([[LOADFOO]], [[LOADBAZ]], [[LOADINT]])
 
   %17 = function_ref @closure0_guaranteed : $@convention(thin) (@guaranteed <τ_0_0> { var τ_0_0 } <Foo>, @guaranteed <τ_0_0> { var τ_0_0 } <Baz>, @guaranteed <τ_0_0> { var τ_0_0 } <Int>) -> Int
   strong_retain %1 : $<τ_0_0> { var τ_0_0 } <Foo>

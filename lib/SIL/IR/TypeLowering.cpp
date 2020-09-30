@@ -977,7 +977,7 @@ namespace {
         return;
       }
 
-      B.emitReleaseValueAndFold(loc, aggValue);
+      B.createReleaseValue(loc, aggValue);
     }
 
     void
@@ -1155,7 +1155,7 @@ namespace {
         B.createDestroyValue(loc, value);
         return;
       }
-      B.emitReleaseValueAndFold(loc, value);
+      B.createReleaseValue(loc, value);
     }
 
     void emitLoweredDestroyValue(SILBuilder &B, SILLocation loc, SILValue value,
@@ -1315,7 +1315,7 @@ namespace {
         B.createDestroyValue(loc, value);
         return;
       }
-      B.emitStrongReleaseAndFold(loc, value);
+      B.createStrongRelease(loc, value);
     }
   };
 

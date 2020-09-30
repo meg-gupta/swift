@@ -10,10 +10,12 @@ public struct ResilientStruct {
 
 // CHECK-LABEL: sil @mem2reg_debug_value_addr
 // CHECK:       bb0(%0 : $*ResilientStruct):
-// CHECK-NEXT:    %1 = load %0 : $*ResilientStruct
-// CHECK-NEXT:    debug_value %1 : $ResilientStruct
-// CHECK-NEXT:    %3 = tuple ()
-// CHECK-NEXT:    return %3 : $()
+// CHECK-NEXT:    [[LOAD:%.]] = load %0 : $*ResilientStruct
+// CHECK-NEXT:    retain_value [[LOAD]] : $ResilientStruct
+// CHECK-NEXT:    debug_value [[LOAD]] : $ResilientStruct
+// CHECK-NEXT:    release_value [[LOAD]] : $ResilientStruct
+// CHECK-NEXT:    [[RES:%.*]] = tuple ()
+// CHECK-NEXT:    return [[RES]] : $()
 
 sil @mem2reg_debug_value_addr : $@convention(thin) (@in_guaranteed ResilientStruct) -> () {
 bb0(%0 : $*ResilientStruct):

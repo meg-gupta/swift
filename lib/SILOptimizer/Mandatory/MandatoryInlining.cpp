@@ -338,13 +338,12 @@ static SILValue cleanupLoadedCalleeValue(SILValue calleeValue, LoadInst *li) {
   if (destroy) {
     if (calleeValue) {
       if (auto *sri = destroy.dyn_cast<StrongReleaseInst *>()) {
-        SILBuilderWithScope(sri).emitStrongReleaseAndFold(sri->getLoc(),
-                                                          calleeValue);
+        SILBuilderWithScope(sri).createStrongRelease(sri->getLoc(),
+                                                     calleeValue);
         sri->eraseFromParent();
       } else {
         auto *dvi = destroy.get<DestroyValueInst *>();
-        SILBuilderWithScope(dvi).emitDestroyValueAndFold(dvi->getLoc(),
-                                                         calleeValue);
+        SILBuilderWithScope(dvi).createDestroyValue(dvi->getLoc(), calleeValue);
         dvi->eraseFromParent();
       }
     }
