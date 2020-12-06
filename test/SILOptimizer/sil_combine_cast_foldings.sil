@@ -92,6 +92,12 @@ bb0(%0 : $*AClass, %1 : $*AnyObject):
   return %4 : $()
 }
 
+sil @function_ref_cast_promote2 : $@convention(thin) (@inout AClass, @in AnyObject) -> () {
+bb0(%0 : $*AClass, %1 : $*AnyObject):
+  unchecked_ref_cast_addr AnyObject in %1 : $*AnyObject to AClass in %0 : $*AClass
+  %4 = tuple ()
+  return %4 : $()
+}
 // Do not promote a ref cast for invalid types. It's a runtime error.
 // CHECK-LABEL: sil @function_ref_cast_struct
 // CHECK: unchecked_ref_cast_addr

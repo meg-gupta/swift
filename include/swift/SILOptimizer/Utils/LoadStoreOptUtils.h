@@ -258,7 +258,22 @@ public:
   SILValue materialize(SILInstruction *Inst) {
     if (CoveringValue)
       return SILValue();
-    return Path.getValue().createExtract(Base, Inst, true);
+    auto Val = Base;
+    if (Inst->getFunction()->hasOwnership() && !Path.getValue().empty()) {
+      // We have to create a @guaranteed scope with begin_borrow in order to
+      // create a struct_extract in OSSA
+      Val = SILBuilderWithScope(Inst).emitBeginBorrowOperation(Inst->getLoc(),
+                                                               Base);
+    }
+    auto Res = Path.getValue().createExtract(Val, Inst, true);
+    if (Val != Base) {
+      // Create an @owned value by creating a copy, so that it can be forwarded
+      // to a load
+      Res =
+          SILBuilderWithScope(Inst).emitCopyValueOperation(Inst->getLoc(), Res);
+      SILBuilderWithScope(Inst).emitEndBorrowOperation(Inst->getLoc(), Val);
+    }
+    return Res;
   }
 
   void print(llvm::raw_ostream &os) override {

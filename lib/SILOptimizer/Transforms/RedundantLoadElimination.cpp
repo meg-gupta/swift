@@ -76,6 +76,7 @@
 #include "swift/SIL/Projection.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBuilder.h"
+#include "swift/SIL/BasicBlockUtils.h"
 #include "swift/SILOptimizer/Analysis/ARCAnalysis.h"
 #include "swift/SILOptimizer/Analysis/AliasAnalysis.h"
 #include "swift/SILOptimizer/Analysis/DominanceAnalysis.h"
@@ -87,6 +88,7 @@
 #include "swift/SILOptimizer/Utils/InstOptUtils.h"
 #include "swift/SILOptimizer/Utils/LoadStoreOptUtils.h"
 #include "swift/SILOptimizer/Utils/SILSSAUpdater.h"
+#include "swift/SILOptimizer/Utils/ValueLifetime.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/None.h"
@@ -155,6 +157,8 @@ static bool isRLEInertInstruction(SILInstruction *Inst) {
   case SILInstructionKind::EndAccessInst:
   case SILInstructionKind::SetDeallocatingInst:
   case SILInstructionKind::DeallocRefInst:
+  case SILInstructionKind::BeginBorrowInst:
+  case SILInstructionKind::EndBorrowInst:
     return true;
   default:
     return false;
@@ -478,8 +482,20 @@ private:
   /// walked, i.e. when the we generate the genset and killset.
   llvm::DenseSet<SILBasicBlock *> BBWithLoads;
 
+  /// Set of proactive copy_value instructions inserted during RLE
+  llvm::DenseSet<CopyValueInst *> proactiveCopies;
+
+  /// Set of new phi args added during RLE to forward an already stored/loaded
+  /// value
+  llvm::DenseSet<SILPhiArgument *> newPhiArgs;
+
+  /// Set of values already being used for forwarding
+  llvm::DenseSet<SILValue> forwardedValues;
+
   /// If set, RLE ignores loads from that array type.
   NominalTypeDecl *ArrayType;
+
+  JointPostDominanceSetComputer &jointPostDomComputer;
 
 #ifndef NDEBUG
   SILPrintContext printCtx;
@@ -488,7 +504,8 @@ private:
 public:
   RLEContext(SILFunction *F, SILPassManager *PM, AliasAnalysis *AA,
              TypeExpansionAnalysis *TE, PostOrderFunctionInfo *PO,
-             EpilogueARCFunctionInfo *EAFI, bool disableArrayLoads);
+             EpilogueARCFunctionInfo *EAFI, bool disableArrayLoads,
+             JointPostDominanceSetComputer &computer);
 
   RLEContext(const RLEContext &) = delete;
   RLEContext(RLEContext &&) = delete;
@@ -568,6 +585,23 @@ public:
     }
     return nullptr;
   }
+
+  /// Creates a copy of \p Op and inserts into NewCopies set
+  SILValue createCopyForRLE(SILInstruction *InsertPt, SILValue Op);
+
+  /// Returns true if we need an additional copy of the \p ForwardingValue
+  /// before the \p RedundantLoad.
+  bool needsAdditionalCopyBeforeRedundantLoad(SILInstruction *RedundantLoad,
+                                              SILValue ForwardingValue);
+
+  /// Insert the ForwardingValue into ForwardedValues set and create copies if
+  /// needed. We cannot re-use an already forwarded value for a subsequent
+  /// redundant load. This utility examines the different cases and creates
+  /// copies if needed.
+  SILValue fixupOwnershipOfForwardingValue(SILValue ForwardingValue,
+                                           LoadInst *RedundantLoad);
+
+  void addToproactiveCopies(CopyValueInst *Copy);
 };
 
 } // end anonymous namespace
@@ -715,6 +749,11 @@ bool BlockState::setupRLE(RLEContext &Ctx, SILInstruction *I, SILValue Mem) {
   if (!TheForwardingValue)
     return false;
 
+  if (I->getFunction()->hasOwnership()) {
+    TheForwardingValue = Ctx.fixupOwnershipOfForwardingValue(TheForwardingValue,
+                                                             cast<LoadInst>(I));
+  }
+
   // Now we have the forwarding value, record it for forwarding!.
   //
   // NOTE: we do not perform the RLE right here because doing so could introduce
@@ -849,11 +888,11 @@ void BlockState::processWrite(RLEContext &Ctx, SILInstruction *I, SILValue Mem,
     return;
   }
 
+  auto *Fn = I->getFunction();
   // Expand the given location and val into individual fields and process
   // them as separate writes.
   LSLocationList Locs;
-  LSLocation::expand(L, &I->getModule(),
-                     TypeExpansionContext(*I->getFunction()), Locs,
+  LSLocation::expand(L, &I->getModule(), TypeExpansionContext(*Fn), Locs,
                      Ctx.getTE());
 
   if (isComputeAvailSetMax(Kind)) {
@@ -871,10 +910,23 @@ void BlockState::processWrite(RLEContext &Ctx, SILInstruction *I, SILValue Mem,
     return;
   }
 
+  if (Fn->hasOwnership()) {
+    // In OSSA, we proactively create a copy of the stored value.
+    // The stored value's lifetime ends at the store in OSSA, and the SSAUpdater
+    // may need to insert a phi arg of the stored value for forwarding. So we
+    // create a copy of the stored value so that the SSAUpdater can only operate
+    // with it. Creating copies proactively simplifies RLE for OSSA considerably
+    auto copy = SILBuilderWithScope(I).emitCopyValueOperation(I->getLoc(), Val);
+    if (copy != Val) {
+      Ctx.addToproactiveCopies(cast<CopyValueInst>(copy));
+      Val = copy;
+    }
+  }
+
   // Are we computing available value or performing RLE?
   LSValueList Vals;
-  LSValue::expand(Val, &I->getModule(), TypeExpansionContext(*I->getFunction()),
-                  Vals, Ctx.getTE());
+  LSValue::expand(Val, &I->getModule(), TypeExpansionContext(*Fn), Vals,
+                  Ctx.getTE());
   if (isComputeAvailValue(Kind) || isPerformingRLE(Kind)) {
     for (unsigned i = 0; i < Locs.size(); ++i) {
       updateForwardSetAndValForWrite(Ctx, Ctx.getLocationBit(Locs[i]),
@@ -903,11 +955,11 @@ void BlockState::processRead(RLEContext &Ctx, SILInstruction *I, SILValue Mem,
   if (!L.isValid())
     return;
 
+  auto *Fn = I->getFunction();
   // Expand the given LSLocation and Val into individual fields and process
   // them as separate reads.
   LSLocationList Locs;
-  LSLocation::expand(L, &I->getModule(),
-                     TypeExpansionContext(*I->getFunction()), Locs,
+  LSLocation::expand(L, &I->getModule(), TypeExpansionContext(*Fn), Locs,
                      Ctx.getTE());
 
   if (isComputeAvailSetMax(Kind)) {
@@ -925,11 +977,26 @@ void BlockState::processRead(RLEContext &Ctx, SILInstruction *I, SILValue Mem,
     return;
   }
 
+  if (Fn->hasOwnership()) {
+    // In OSSA, we proactively create a copy of the loaded value
+    // If not, then for a redundant load, the SSAUpdater can pass the loaded
+    // value as a phi arg and all post dominating uses of the loaded value will
+    // then be referring to a consumed value. Creating copies proactively
+    // simplifies RLE for OSSA considerably
+    auto insertPt = getInsertAfterPoint(Val).getValue();
+    auto copy = SILBuilderWithScope(insertPt).emitCopyValueOperation(
+        insertPt->getLoc(), Val);
+    if (copy != Val) {
+      Ctx.addToproactiveCopies(cast<CopyValueInst>(copy));
+      Val = copy;
+    }
+  }
+
   // Are we computing available values ?.
   bool CanForward = true;
   LSValueList Vals;
-  LSValue::expand(Val, &I->getModule(), TypeExpansionContext(*I->getFunction()),
-                  Vals, Ctx.getTE());
+  LSValue::expand(Val, &I->getModule(), TypeExpansionContext(*Fn), Vals,
+                  Ctx.getTE());
   if (isComputeAvailValue(Kind) || isPerformingRLE(Kind)) {
     for (unsigned i = 0; i < Locs.size(); ++i) {
       if (isTrackingLocation(ForwardSetIn, Ctx.getLocationBit(Locs[i])))
@@ -1104,6 +1171,10 @@ void BlockState::processInstructionWithKind(RLEContext &Ctx,
   LLVM_DEBUG(llvm::dbgs() << "READ " << *Inst);
 }
 
+void RLEContext::addToproactiveCopies(CopyValueInst *copy) {
+  proactiveCopies.insert(copy);
+}
+
 RLEContext::ProcessKind
 RLEContext::
 getProcessFunctionKind(unsigned LoadCount, unsigned StoreCount) {
@@ -1194,10 +1265,13 @@ void BlockState::dump(RLEContext &Ctx) {
 
 RLEContext::RLEContext(SILFunction *F, SILPassManager *PM, AliasAnalysis *AA,
                        TypeExpansionAnalysis *TE, PostOrderFunctionInfo *PO,
-                       EpilogueARCFunctionInfo *EAFI, bool disableArrayLoads)
+                       EpilogueARCFunctionInfo *EAFI, bool disableArrayLoads,
+                       JointPostDominanceSetComputer &computer)
     : Fn(F), PM(PM), AA(AA), TE(TE), PO(PO), EAFI(EAFI),
-      ArrayType(disableArrayLoads ?
-                F->getModule().getASTContext().getArrayDecl() : nullptr)
+      ArrayType(disableArrayLoads
+                    ? F->getModule().getASTContext().getArrayDecl()
+                    : nullptr),
+      jointPostDomComputer(computer)
 #ifndef NDEBUG
       ,
       printCtx(llvm::dbgs(), /*Verbose=*/false, /*Sorted=*/true)
@@ -1298,7 +1372,15 @@ SILValue RLEContext::computePredecessorLocationValue(SILBasicBlock *BB,
     // locations, collect and reduce them into a single value in the current
     // basic block.
     if (Forwarder.isConcreteValues(*this, L)) {
-      Values.push_back({CurBB, Forwarder.reduceValuesAtEndOfBlock(*this, L)});
+      auto Val = Forwarder.reduceValuesAtEndOfBlock(*this, L);
+      if (getFunction()->hasOwnership()) {
+        // In OSSA, we cannot re-use a forwarded value again for forwarding
+        if (forwardedValues.find(Val) != forwardedValues.end()) {
+          // Create a copy of the value
+          Val = createCopyForRLE(&*getInsertAfterPoint(Val).getValue(), Val);
+        }
+      }
+      Values.push_back({CurBB, Val});
       continue;
     }
 
@@ -1514,6 +1596,182 @@ void RLEContext::processBasicBlocksForRLE(bool Optimistic) {
   }
 }
 
+SILValue RLEContext::createCopyForRLE(SILInstruction *InsertPt, SILValue Op) {
+  // Create a copy of Op
+  auto Copy = SILBuilderWithScope(InsertPt).emitCopyValueOperation(
+      InsertPt->getLoc(), Op);
+  // Insert into NewCopies
+  if (Copy != Op)
+    proactiveCopies.insert(cast<CopyValueInst>(Copy));
+  return Copy;
+}
+
+bool RLEContext::needsAdditionalCopyBeforeRedundantLoad(
+    SILInstruction *RedundantLoad, SILValue ForwardingValue) {
+  PointerUnion<SILInstruction *, SILArgument *> Def = nullptr;
+  // ForwardingValue can be either a copy_value or a phi arg only
+  if (isa<CopyValueInst>(ForwardingValue)) {
+    Def = cast<CopyValueInst>(ForwardingValue);
+  } else {
+    Def = cast<SILPhiArgument>(ForwardingValue);
+  }
+  /* If the dominating ForwardingValue is not in the same loop as RedundantLoad,
+   *  we will need to create an additional copy just before the load
+   *  We use ValueLifetimeAnalysis to detect this case.
+   *  Example 1 : loop case
+   *     %1 = def
+   *  loop_header:
+   *   ... = use(%1)
+   *  cond_br loop_header, loop_exit
+   *  loop_exit:
+   *  ... -> frontier will be here
+   *
+   *  Example 2 : diamond case
+   *     %1 = def
+   *     cond_br undef, true_bb, false_bb
+   *  true_bb:
+   *   ... = use(%1)
+   *   ... -> frontier will be here
+   *   br merge_bb
+   *  false_bb:
+   *  ...
+   *   br merge_bb
+   *  If the use point was not at the frontier block, we have the loop case and
+   *  need an additional copy.
+   */
+  SmallVector<SILInstruction *, 1> UserSet{RedundantLoad};
+  ValueLifetimeAnalysis Vla(Def, UserSet);
+  ValueLifetimeAnalysis::Frontier ValFrontier;
+  bool noCriticalEdges =
+      Vla.computeFrontier(ValFrontier, ValueLifetimeAnalysis::DontModifyCFG);
+  // VLA should never require edge splitting in this case.
+  // We do not have critical edges in OSSA, and since the only user we are
+  // providing is the redundant load, VLA will not indicate the need for
+  // splitting when the value is a lifetime ending operand on a TermInst
+  assert(noCriticalEdges);
+  for (auto *End : ValFrontier) {
+    SILInstruction *LastUser = nullptr;
+    if (End != &End->getParent()->front()) {
+      LastUser = &*std::prev(End->getIterator());
+    }
+    if (LastUser == RedundantLoad)
+      return false;
+  }
+  return true;
+}
+
+SILValue RLEContext::fixupOwnershipOfForwardingValue(SILValue forwardingValue,
+                                                     LoadInst *redundantLoad) {
+  // We don't need to track or copy for trivial types
+  if (forwardingValue->getType().isTrivial(*forwardingValue->getFunction()))
+    return forwardingValue;
+
+  if (auto *forwardingCopy = dyn_cast<CopyValueInst>(forwardingValue)) {
+    SILValue newForwardingCopy;
+    // If the forwarding copy is already forwarded, create a copy of it
+    if (forwardedValues.find(forwardingValue) != forwardedValues.end() ||
+        !forwardingCopy->getConsumingUses().empty()) {
+      auto insertPt = getInsertAfterPoint(forwardingCopy).getValue();
+      newForwardingCopy = SILBuilderWithScope(insertPt).createCopyValue(
+          insertPt->getLoc(), forwardingCopy);
+    } else {
+      assert(forwardingCopy->getConsumingUses().empty());
+    }
+    SILValue controlEqCopy;
+    jointPostDomComputer.findJointPostDominatingSet(
+        forwardingCopy->getParent(), redundantLoad->getParent(),
+        [&](SILBasicBlock *loopBlock) {
+          assert(loopBlock == redundantLoad->getParent());
+          auto front = loopBlock->begin();
+          controlEqCopy = SILBuilderWithScope(front).createCopyValue(
+              front->getLoc(),
+              newForwardingCopy ? newForwardingCopy : forwardingCopy);
+        },
+        [&](SILBasicBlock *postDomBlock) {
+          // Insert a destroy_value in the leaking block
+          auto front = postDomBlock->begin();
+          SILBuilderWithScope(front).createDestroyValue(
+              front->getLoc(),
+              newForwardingCopy ? newForwardingCopy : forwardingCopy);
+        });
+    if (controlEqCopy) {
+      forwardingValue = controlEqCopy;
+      forwardedValues.insert(controlEqCopy);
+    }
+    else if (newForwardingCopy) {
+      forwardingValue = newForwardingCopy;
+      forwardedValues.insert(newForwardingCopy);
+    }
+    else {
+      forwardedValues.insert(forwardingCopy);
+      proactiveCopies.erase(forwardingCopy);
+    }
+    return forwardingValue;
+  }
+
+  // If the forwarded value is a phi arg, it is newly created by RLE. Always
+  // create a copy_value of the phi arg and then use it for forwarding. This
+  // avoids re-use of the phi arg by the SSAUpdater for a subsequent redundant
+  // load thereby avoiding multiple consuming uses of the phi arg.
+  if (auto *forwardingPhi = dyn_cast<SILPhiArgument>(forwardingValue)) {
+    newPhiArgs.insert(forwardingPhi);
+    auto insertPt = getInsertAfterPoint(forwardingValue).getValue();
+    auto forwardingCopy = SILBuilderWithScope(insertPt).createCopyValue(
+        insertPt->getLoc(), forwardingPhi);
+    SILValue controlEqCopy;
+    jointPostDomComputer.findJointPostDominatingSet(
+        forwardingValue->getParentBlock(), redundantLoad->getParent(),
+        [&](SILBasicBlock *loopBlock) {
+          assert(loopBlock == redundantLoad->getParent());
+          auto front = loopBlock->begin();
+          SILBuilderWithScope newBuilder(front);
+          controlEqCopy =
+              newBuilder.createCopyValue(front->getLoc(), forwardingCopy);
+        },
+        [&](SILBasicBlock *postDomBlock) {
+          auto front = postDomBlock->begin();
+          SILBuilderWithScope newBuilder(front);
+          newBuilder.createDestroyValue(front->getLoc(), forwardingCopy);
+        }
+        );
+    if (controlEqCopy) {
+      forwardingValue = controlEqCopy;
+      forwardedValues.insert(controlEqCopy);
+      forwardedValues.insert(forwardingValue);
+    }
+    else {
+      forwardingValue = forwardingCopy;
+      forwardedValues.insert(forwardingCopy);
+    }
+    return forwardingValue;
+  }
+
+  // If the forwarded value is a StructInst or a TupleInst, go over all its
+  // operands which are copy_values and mark them as forwarded.
+  // Also in this case, the forwarding value will never be reused, so we don't
+  // have to create a copy.
+  //
+  // The forwarding value is a StructInst when a dominating value of the same
+  // memory is not available, but dominating values of all its fields are
+  // available. Then, LSValue::reduce will create a struct from values of all
+  // its available fields.
+  // Similarly, the forwarding value is a TupleInst, when values of all this
+  // elements are available.
+  if (isa<StructInst>(forwardingValue) || isa<TupleInst>(forwardingValue)) {
+    auto *inst = cast<SingleValueInstruction>(forwardingValue);
+    for (auto &op : inst->getAllOperands()) {
+      auto *opVal = cast<CopyValueInst>(op.get());
+      assert(proactiveCopies.find(opVal) != proactiveCopies.end());
+      proactiveCopies.erase(opVal);
+      forwardedValues.insert(opVal);
+    }
+    return forwardingValue;
+  }
+
+  assert(false && "Unhandled case in RLE");
+  return forwardingValue;
+}
+
 void RLEContext::runIterativeRLE() {
   // Generate the genset and killset for every basic block.
   processBasicBlocksForGenKillSet();
@@ -1587,6 +1845,9 @@ bool RLEContext::run() {
   // Set up the load forwarding.
   processBasicBlocksForRLE(Optimistic);
 
+  assert(Fn->hasOwnership() ||
+         (proactiveCopies.empty() && newPhiArgs.empty() && forwardedValues.empty()));
+
   // Finally, perform the redundant load replacements.
   llvm::SmallVector<SILInstruction *, 16> InstsToDelete;
   bool SILChanged = false;
@@ -1610,9 +1871,17 @@ bool RLEContext::run() {
         continue;
       LLVM_DEBUG(llvm::dbgs() << "Replacing  " << SILValue(Iter->first)
                               << "With " << Iter->second);
+      auto *CurrentLoad = cast<LoadInst>(Iter->first);
+      SILValue NewValue = Iter->second;
+      if (CurrentLoad->getOwnershipQualifier() ==
+          LoadOwnershipQualifier::Take) {
+        SILBuilderWithScope(CurrentLoad)
+            .createDestroyAddr(CurrentLoad->getLoc(),
+                               CurrentLoad->getOperand());
+      }
       SILChanged = true;
-      Iter->first->replaceAllUsesWith(Iter->second);
-      InstsToDelete.push_back(Iter->first);
+      CurrentLoad->replaceAllUsesWith(NewValue);
+      InstsToDelete.push_back(CurrentLoad);
       ++NumForwardedLoads;
     }
   }
@@ -1628,6 +1897,29 @@ bool RLEContext::run() {
       continue;
     recursivelyDeleteTriviallyDeadInstructions(X, true);
   }
+
+  // Go over all the newly created copies in RLE
+  for (auto *Copy : proactiveCopies) {
+    // If a copy's use is empty, it implies we never used it to forward the
+    // loaded/stored value. Delete this copy
+    if (Copy->use_empty()) {
+      Copy->eraseFromParent();
+    } else {
+      // Fixup the lifetime of the Copy by inserting destroy_value using
+      // ValueLifetimeAnalysis
+      fixupLifetimeOfOwnedValue(Copy);
+    }
+  }
+
+  // Go over all the newly created phi args
+  for (auto *Phi : newPhiArgs) {
+    // Fixup the lifetime of the phi arg by inserting destroy_value using
+    // ValueLifetimeAnalysis
+    if (Phi->getConsumingUses().empty()) {
+      fixupLifetimeOfOwnedValue(Phi);
+    }
+  }
+
   return SILChanged;
 }
 
@@ -1650,9 +1942,6 @@ public:
   /// The entry point to the transformation.
   void run() override {
     SILFunction *F = getFunction();
-    // FIXME: Handle ownership.
-    if (F->hasOwnership())
-      return;
 
     LLVM_DEBUG(llvm::dbgs() << "*** RLE on function: " << F->getName()
                             << " ***\n");
@@ -1662,7 +1951,9 @@ public:
     auto *PO = PM->getAnalysis<PostOrderAnalysis>()->get(F);
     auto *EAFI = PM->getAnalysis<EpilogueARCAnalysis>()->get(F);
 
-    RLEContext RLE(F, PM, AA, TE, PO, EAFI, disableArrayLoads);
+    DeadEndBlocks deadEndBlocks(F);
+    JointPostDominanceSetComputer computer(deadEndBlocks);
+    RLEContext RLE(F, PM, AA, TE, PO, EAFI, disableArrayLoads, computer);
     if (RLE.run()) {
       invalidateAnalysis(SILAnalysis::InvalidationKind::Instructions);
     }
