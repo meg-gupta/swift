@@ -72,6 +72,15 @@ public:
     propagateLiveness();
   }
 
+  template <typename RangeTy>
+  ValueLifetimeAnalysis(PointerUnion<SILInstruction *, SILArgument *> def,
+                        const RangeTy &useRange)
+      : defValue(def), userSet() {
+    for (SILInstruction *use : useRange)
+      userSet.insert(use);
+    propagateLiveness();
+  }
+
   ValueLifetimeAnalysis(
       SILArgument *def,
       llvm::iterator_range<ValueBaseUseIterator> useRange)
