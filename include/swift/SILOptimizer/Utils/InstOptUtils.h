@@ -409,6 +409,10 @@ void insertDestroyOfCapturedArguments(
 void insertDeallocOfCapturedArguments(
     PartialApplyInst *pai, SILBuilder &builder);
 
+/// Given a owned value \p Val, insert destroy_value when a lifetime
+/// consuming use is not found at the frontier.
+void fixupLifetimeOfOwnedValue(SILValue Val);
+
 /// This iterator 'looks through' one level of builtin expect users exposing all
 /// users of the looked through builtin expect instruction i.e it presents a
 /// view that shows all users as if there were no builtin expect instructions

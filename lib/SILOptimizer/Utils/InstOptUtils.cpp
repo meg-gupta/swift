@@ -1392,6 +1392,91 @@ static bool keepArgsOfPartialApplyAlive(PartialApplyInst *pai,
   return true;
 }
 
+// Given a newly created value @owned val, insert destroy_value at its frontiers
+// when not already found
+void swift::fixupLifetimeOfOwnedValue(SILValue val) {
+  assert(val.getOwnershipKind() == OwnershipKind::Owned);
+  assert(val->getFunction()->hasOwnership());
+
+  SmallVector<SILInstruction *, 4> userSet;
+  for (auto *use : val->getUses()) {
+    if (auto *borrow = dyn_cast<BeginBorrowInst>(use->getUser())) {
+      auto endBorrows = borrow->getEndBorrows();
+      userSet.append(endBorrows.begin(), endBorrows.end());
+    } else {
+      userSet.push_back(use->getUser());
+    }
+  }
+  PointerUnion<SILInstruction *, SILArgument *> def;
+  if (auto *svi = dyn_cast<SingleValueInstruction>(val)) {
+    def = svi;
+  } else if (auto *mvi = dyn_cast<MultipleValueInstruction>(val)) {
+    def = mvi;
+  } else {
+    def = cast<SILPhiArgument>(val);
+  }
+
+  ValueLifetimeAnalysis vla(def, userSet);
+  ValueLifetimeAnalysis::Frontier valFrontier;
+  vla.computeFrontier(valFrontier, ValueLifetimeAnalysis::DontModifyCFG);
+
+#if NDEBUG
+  // In OSSA, even though we do not have critical edges, VLA adds TermInsts
+  // which are users of val to the criticalEdges that need splitting. But since
+  // such operands will always be lifetime ending in our case, we don't need to
+  // modify the CFG to compute a frontier
+  for (auto edge : vla.getCriticalEdges()) {
+    auto termOps = edge.first->getAllOperands();
+    auto opIt = llvm::find_if(termOps, [&val](Operand &op) {
+      if (op.get() == val)
+        return true;
+      return false;
+    });
+    assert(opIt != termOps.end() && opIt->get() == val &&
+           opIt->isLifetimeEnding());
+  }
+#endif
+
+  // Go over all the frontiers and insert a destroy of the copy if a
+  // lifetime ending instruction was not found at the frontier
+  for (auto *end : valFrontier) {
+    SILInstruction *lastUser = nullptr;
+    if (end != &end->getParent()->front()) {
+      lastUser = &*std::prev(end->getIterator());
+    }
+    // If the lastUser does not end the lifetime of val, we have to insert a
+    // destroy_value of val
+    bool hasLifetimeEnd = false;
+    if (lastUser) {
+      hasLifetimeEnd = llvm::any_of(lastUser->getAllOperands(), [&val](Operand &op) {
+        if (op.get() == val && op.isLifetimeEnding())
+          return true;
+        return false;
+      });
+    } else {
+      // If the frontier is at the beginning of the block, the lastUser can be
+      // lifetime ending only if passed as a phi arg to the block.
+      // Check if any of the incoming values to the phi args are equal to val,
+      // if so we have found a lifetime end, and we don't have to insert a
+      // destroy_value.
+      auto *block = end->getParent();
+      for (auto *arg : block->getArguments()) {
+        SmallVector<SILValue, 8> incomingPhiVals;
+        arg->getIncomingPhiValues(incomingPhiVals);
+        hasLifetimeEnd = llvm::any_of(incomingPhiVals, [&val](SILValue &inVal) {
+          if (inVal == val)
+            return true;
+          return false;
+        });
+      }
+    }
+    // If no lifetime end was found, we need to insert a destroy_value
+    if (!hasLifetimeEnd) {
+      SILBuilderWithScope(end).createDestroyValue(end->getLoc(), val);
+    }
+  }
+}
+
 bool swift::tryDeleteDeadClosure(SingleValueInstruction *closure,
                                  InstModCallbacks callbacks,
                                  bool needKeepArgsAlive) {
