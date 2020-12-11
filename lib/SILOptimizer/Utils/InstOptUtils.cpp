@@ -73,6 +73,10 @@ Optional<SILBasicBlock::iterator> swift::getInsertAfterPoint(SILValue val) {
   if (auto *inst = val->getDefiningInstruction()) {
     return std::next(inst->getIterator());
   }
+  if (isa<MultipleValueInstructionResult>(val)) {
+    return std::next(
+        cast<MultipleValueInstructionResult>(val)->getParent()->getIterator());
+  }
   if (isa<SILArgument>(val)) {
     return cast<SILArgument>(val)->getParentBlock()->begin();
   }
