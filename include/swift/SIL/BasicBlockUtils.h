@@ -90,6 +90,8 @@ public:
     return ReachableBlocks.empty();
   }
 
+  void dump() const;
+
   const SILFunction *getFunction() const { return F; }
 };
 

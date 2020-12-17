@@ -381,6 +381,19 @@ void DeadEndBlocks::compute() {
   }
 }
 
+void DeadEndBlocks::dump() const {
+  if (!isComputed) {
+    llvm::dbgs() << "DeadEndBlocks not computed\n";
+    return;
+  }
+  for (const SILBasicBlock &BB : *F) {
+    if (ReachableBlocks.count(&BB) == 0)
+      llvm::dbgs() << "BB" << BB.getDebugID() << " is unreachable\n";
+    else
+      llvm::dbgs() << "BB" << BB.getDebugID() << " is reachable\n";
+  }
+}
+
 //===----------------------------------------------------------------------===//
 //                  Post Dominance Set Completion Utilities
 //===----------------------------------------------------------------------===//
