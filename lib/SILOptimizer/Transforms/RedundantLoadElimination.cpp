@@ -589,11 +589,6 @@ public:
   /// Creates a copy of \p Op and inserts into NewCopies set
   SILValue createCopyForRLE(SILInstruction *InsertPt, SILValue Op);
 
-  /// Returns true if we need an additional copy of the \p ForwardingValue
-  /// before the \p RedundantLoad.
-  bool needsAdditionalCopyBeforeRedundantLoad(SILInstruction *RedundantLoad,
-                                              SILValue ForwardingValue);
-
   /// Insert the ForwardingValue into ForwardedValues set and create copies if
   /// needed. We cannot re-use an already forwarded value for a subsequent
   /// redundant load. This utility examines the different cases and creates
@@ -1606,60 +1601,6 @@ SILValue RLEContext::createCopyForRLE(SILInstruction *InsertPt, SILValue Op) {
   return Copy;
 }
 
-bool RLEContext::needsAdditionalCopyBeforeRedundantLoad(
-    SILInstruction *RedundantLoad, SILValue ForwardingValue) {
-  PointerUnion<SILInstruction *, SILArgument *> Def = nullptr;
-  // ForwardingValue can be either a copy_value or a phi arg only
-  if (isa<CopyValueInst>(ForwardingValue)) {
-    Def = cast<CopyValueInst>(ForwardingValue);
-  } else {
-    Def = cast<SILPhiArgument>(ForwardingValue);
-  }
-  /* If the dominating ForwardingValue is not in the same loop as RedundantLoad,
-   *  we will need to create an additional copy just before the load
-   *  We use ValueLifetimeAnalysis to detect this case.
-   *  Example 1 : loop case
-   *     %1 = def
-   *  loop_header:
-   *   ... = use(%1)
-   *  cond_br loop_header, loop_exit
-   *  loop_exit:
-   *  ... -> frontier will be here
-   *
-   *  Example 2 : diamond case
-   *     %1 = def
-   *     cond_br undef, true_bb, false_bb
-   *  true_bb:
-   *   ... = use(%1)
-   *   ... -> frontier will be here
-   *   br merge_bb
-   *  false_bb:
-   *  ...
-   *   br merge_bb
-   *  If the use point was not at the frontier block, we have the loop case and
-   *  need an additional copy.
-   */
-  SmallVector<SILInstruction *, 1> UserSet{RedundantLoad};
-  ValueLifetimeAnalysis Vla(Def, UserSet);
-  ValueLifetimeAnalysis::Frontier ValFrontier;
-  bool noCriticalEdges =
-      Vla.computeFrontier(ValFrontier, ValueLifetimeAnalysis::DontModifyCFG);
-  // VLA should never require edge splitting in this case.
-  // We do not have critical edges in OSSA, and since the only user we are
-  // providing is the redundant load, VLA will not indicate the need for
-  // splitting when the value is a lifetime ending operand on a TermInst
-  assert(noCriticalEdges);
-  for (auto *End : ValFrontier) {
-    SILInstruction *LastUser = nullptr;
-    if (End != &End->getParent()->front()) {
-      LastUser = &*std::prev(End->getIterator());
-    }
-    if (LastUser == RedundantLoad)
-      return false;
-  }
-  return true;
-}
-
 SILValue RLEContext::fixupOwnershipOfForwardingValue(SILValue forwardingValue,
                                                      LoadInst *redundantLoad) {
   // We don't need to track or copy for trivial types
@@ -1668,14 +1609,13 @@ SILValue RLEContext::fixupOwnershipOfForwardingValue(SILValue forwardingValue,
 
   if (auto *forwardingCopy = dyn_cast<CopyValueInst>(forwardingValue)) {
     SILValue newForwardingCopy;
-    // If the forwarding copy is already forwarded, create a copy of it
+    // If the forwarding copy is already forwarded or the SSAUpdater created a
+    // consuming use of it, create another copy
     if (forwardedValues.find(forwardingValue) != forwardedValues.end() ||
         !forwardingCopy->getConsumingUses().empty()) {
       auto insertPt = getInsertAfterPoint(forwardingCopy).getValue();
       newForwardingCopy = SILBuilderWithScope(insertPt).createCopyValue(
           insertPt->getLoc(), forwardingCopy);
-    } else {
-      assert(forwardingCopy->getConsumingUses().empty());
     }
     SILValue controlEqCopy;
     jointPostDomComputer.findJointPostDominatingSet(
