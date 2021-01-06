@@ -184,6 +184,7 @@ protected:
         // Found a use of the struct at the given access path.
         if (auto *LoadI = dyn_cast<LoadInst>(UseInst)) {
           StructLoads.push_back(LoadI);
+          StructAddressUsers.push_back(LoadI);
           continue;
         }
 
