@@ -434,10 +434,6 @@ void JointPostDominanceSetComputer::findJointPostDominatingSet(
   // finish the walk, these leaking blocks are a valid (albeit not unique)
   // completion of the post dom set.
   for (auto *block : dominatedBlockSet) {
-    // Skip dead end blocks.
-    if (deadEndBlocks.isDeadEnd(block))
-      continue;
-
     // We require dominatedBlockSet to be a set and thus assert if we hit it to
     // flag user error to our caller.
     bool succeededInserting = visitedBlocks.insert(block);
