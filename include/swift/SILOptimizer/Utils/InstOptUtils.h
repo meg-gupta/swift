@@ -704,6 +704,9 @@ makeCopiedValueAvailable(SILValue value, SILBasicBlock *inBlock,
 SILValue
 makeNewValueAvailable(SILValue value, SILBasicBlock *inBlock,
                       JointPostDominanceSetComputer *jointPostDomComputer);
+void
+endLifetimeAtLeakingBlocks(SILValue value, ArrayRef<SILBasicBlock *> inBlock,
+                      JointPostDominanceSetComputer *jointPostDomComputer);
 
 } // end namespace swift
 
