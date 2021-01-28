@@ -1349,10 +1349,18 @@ SILValue RLEContext::computePredecessorLocationValue(SILBasicBlock *BB,
 
   // Finally, collect all the values for the SILArgument, materialize it using
   // the SSAUpdater.
+  auto ownershipKind = OwnershipKind::None;
+  for (auto V : Values) {
+    if (V.second.getOwnershipKind() == OwnershipKind::Owned) {
+      ownershipKind = OwnershipKind::Owned;
+      break;
+    }
+  }
+
   Updater.initialize(
       L.getType(&BB->getModule(), TypeExpansionContext(*BB->getParent()))
           .getObjectType(),
-      Values[0].second.getOwnershipKind());
+      ownershipKind);
 
   for (auto V : Values) {
     Updater.addAvailableValue(V.first, V.second);
