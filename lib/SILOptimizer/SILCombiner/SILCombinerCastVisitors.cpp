@@ -750,6 +750,9 @@ SILCombiner::visitRawPointerToRefInst(RawPointerToRefInst *rawToRef) {
 SILInstruction *
 SILCombiner::
 visitUncheckedTrivialBitCastInst(UncheckedTrivialBitCastInst *UTBCI) {
+  if (UTBCI->getFunction()->hasOwnership())
+    return;
+
   // (unchecked_trivial_bit_cast Y->Z
   //                                 (unchecked_trivial_bit_cast X->Y x))
   //   ->
