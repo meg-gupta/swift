@@ -459,6 +459,7 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
   // RunningVal is the current value in the stack location.
   // We don't know the value of the alloca until we find the first store.
   SILValue RunningVal = SILValue();
+  SILValue LastRunningVal = SILValue();
   // Keep track of the last StoreInst that we found.
   StoreInst *LastStore = nullptr;
 
@@ -503,27 +504,21 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
       // stack location. So we will create destroy_value in
       // StackAllocationPromoter::fixBranchesAndUses, by getting the live-in
       // value to the block.
-      if (BB->isEntry()) {
-        if (SI->getOwnershipQualifier() == StoreOwnershipQualifier::Assign) {
-          assert(RunningVal);
+      if (SI->getOwnershipQualifier() == StoreOwnershipQualifier::Assign) {
+        if (RunningVal) {
           SILBuilderWithScope(SI).createDestroyValue(SI->getLoc(), RunningVal);
         }
       }
 
       // If we met a store before this one, delete it.
       // If the LastStore was a store with [assign], delete it only if we know
-      // the RunningValue to destroy. If not, it will be deleted in
+      // the RunningValue to destroy. If not, it means it is the first store
+      // [assign] in the block and will be deleted in
       // StackAllocationPromoter::fixBranchesAndUses.
       if (LastStore) {
         if (LastStore->getOwnershipQualifier() ==
             StoreOwnershipQualifier::Assign) {
-          if (RunningVal) {
-            // For entry block, we would have already created the destroy_value,
-            // skip it.
-            if (!BB->isEntry()) {
-              SILBuilderWithScope(LastStore).createDestroyValue(
-                  LastStore->getLoc(), RunningVal);
-            }
+          if (LastRunningVal) {
             LLVM_DEBUG(llvm::dbgs()
                        << "*** Removing redundant store: " << *LastStore);
             ++NumInstRemoved;
@@ -537,6 +532,7 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
         }
       }
 
+      LastRunningVal = RunningVal;
       // The stored value is the new running value.
       RunningVal = SI->getSrc();
       // The current store is now the LastStore
@@ -756,6 +752,8 @@ void StackAllocationPromoter::fixPhiPredBlock(BlockSet &PhiBlocks,
 void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
   // First update uses of the value.
   SmallVector<LoadInst *, 4> collectedLoads;
+  SmallPtrSet<SILBasicBlock *, 4> destroyedBB;
+
   for (auto UI = ASI->use_begin(), E = ASI->use_end(); UI != E;) {
     auto *Inst = UI->getUser();
     ++UI;
@@ -792,8 +790,11 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
     if (!BB->isEntry()) {
       if (auto *SI = dyn_cast<StoreInst>(Inst)) {
         if (SI->getOwnershipQualifier() == StoreOwnershipQualifier::Assign) {
-          SILValue Def = getLiveInValue(PhiBlocks, BB);
-          SILBuilderWithScope(SI).createDestroyValue(SI->getLoc(), Def);
+          if (destroyedBB.find(BB) == destroyedBB.end()) {
+            SILValue Def = getLiveInValue(PhiBlocks, BB);
+            SILBuilderWithScope(SI).createDestroyValue(SI->getLoc(), Def);
+            destroyedBB.insert(BB);
+          }
           continue;
         }
       }
