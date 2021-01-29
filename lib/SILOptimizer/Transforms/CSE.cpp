@@ -1396,6 +1396,8 @@ class SILCSE : public SILFunctionTransform {
     SILOptFunctionBuilder FuncBuilder(*this);
 
     auto *Fn = getFunction();
+    if (Fn->hasOwnership())
+      return;
     DeadEndBlocks DeadEndBBs(Fn);
     JointPostDominanceSetComputer Computer(DeadEndBBs);
     InstModCallbacks callbacks;
