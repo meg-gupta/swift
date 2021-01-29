@@ -121,7 +121,7 @@ SILInstruction *SILCombiner::optimizeBuiltinIsConcrete(BuiltinInst *BI) {
 /// The same for ref_tail_addr.
 SILInstruction *SILCombiner::optimizeBuiltinCOWBufferForReading(BuiltinInst *BI) {
   if (BI->getFunction()->hasOwnership()) {
-    return;
+    return nullptr;
   }
   auto useIter = BI->use_begin();
   while (useIter != BI->use_end()) {

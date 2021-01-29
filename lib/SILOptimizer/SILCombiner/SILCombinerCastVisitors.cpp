@@ -751,7 +751,7 @@ SILInstruction *
 SILCombiner::
 visitUncheckedTrivialBitCastInst(UncheckedTrivialBitCastInst *UTBCI) {
   if (UTBCI->getFunction()->hasOwnership())
-    return;
+    return nullptr;
 
   // (unchecked_trivial_bit_cast Y->Z
   //                                 (unchecked_trivial_bit_cast X->Y x))
