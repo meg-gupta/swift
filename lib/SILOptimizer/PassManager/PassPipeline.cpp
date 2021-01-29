@@ -308,12 +308,6 @@ void addFunctionPasses(SILPassPipelinePlan &P,
   // Promote stack allocations to values.
   P.addMem2Reg();
 
-  // We earlier eliminated ownership if we are not compiling the stdlib. Now
-  // handle the stdlib functions, re-simplifying, eliminating ARC as we do.
-  P.addCopyPropagation();
-  P.addSemanticARCOpts();
-  P.addNonTransparentFunctionOwnershipModelEliminator();
-
   // Run the existential specializer Pass.
   P.addExistentialSpecializer();
 
@@ -425,6 +419,8 @@ void addFunctionPasses(SILPassPipelinePlan &P,
   P.addRetainSinking();
   P.addReleaseHoisting();
   P.addARCSequenceOpts();
+  P.addCopyPropagation();
+  P.addSemanticARCOpts();
 }
 
 static void addPerfDebugSerializationPipeline(SILPassPipelinePlan &P) {
