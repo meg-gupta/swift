@@ -106,8 +106,12 @@ static bool findTransitiveBorrowedUses(
 
   unsigned firstOffset = usePoints.size();
   for (Operand *use : value->getUses()) {
-    if (use->getOperandOwnership() != OperandOwnership::NonUse)
+    if (use->getOperandOwnership() != OperandOwnership::NonUse) {
+      if (isa<StoreBorrowInst>(use->getUser())) {
+        return false;
+      }
       usePoints.push_back(use);
+    }
   }
 
   // NOTE: Use points resizes in this loop so usePoints.size() may be
