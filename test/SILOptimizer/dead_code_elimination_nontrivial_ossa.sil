@@ -324,3 +324,33 @@ bb4:
   return %res : $()
 }
 
+struct TestStruct {
+  var val:Klass
+  var index:Int
+}
+
+sil [ossa] @dce_destructurenotfullydead : $@convention(thin) (@owned TestStruct) -> Int {
+bb0(%0 : @owned $TestStruct):
+  %stk = alloc_stack $TestStruct
+  store %0 to [init] %stk : $*TestStruct
+  %copy = load [take] %stk : $*TestStruct
+  (%2, %3) = destructure_struct %copy : $TestStruct
+  %4 = struct $TestStruct (%2 : $Klass, %3 : $Int)
+  destroy_value %4 : $TestStruct
+  dealloc_stack %stk : $*TestStruct
+  return %3 : $Int
+}
+
+sil [ossa] @dce_borrowlifetime1 : $@convention(thin) (@guaranteed NonTrivialStruct) -> @owned NonTrivialStruct {
+bb0(%0 : @guaranteed $NonTrivialStruct):
+  %copy = copy_value %0 : $NonTrivialStruct
+  %borrow = begin_borrow %copy : $NonTrivialStruct
+  br bb1(%copy : $NonTrivialStruct, %borrow : $NonTrivialStruct)
+
+bb1(%copy2 : @owned $NonTrivialStruct, %borrow2 : @guaranteed $NonTrivialStruct):
+  %newcopy = copy_value %borrow2 : $NonTrivialStruct
+  end_borrow %borrow2 : $NonTrivialStruct
+  destroy_value %copy2 : $NonTrivialStruct
+  return %newcopy : $NonTrivialStruct
+}
+

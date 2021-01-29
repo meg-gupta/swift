@@ -18,6 +18,7 @@
 #include "swift/SIL/SILFunction.h"
 #include "swift/SIL/SILUndef.h"
 #include "swift/SIL/SILBitfield.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SILOptimizer/Analysis/DominanceAnalysis.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
@@ -121,6 +122,8 @@ class DCE {
   llvm::DenseMap<SILValue, SmallPtrSet<SILInstruction *, 4>>
       ReverseDependencies;
 
+  llvm::DenseMap<SILPhiArgument *, SILValue> BorrowDependencies;
+
   /// Tracks if the pass changed branches.
   bool BranchesChanged = false;
   /// Tracks if the pass changed ApplyInsts.
@@ -131,6 +134,7 @@ class DCE {
   /// Record a reverse dependency from \p from to \p to meaning \p to is live
   /// if \p from is also live.
   void addReverseDependency(SILValue from, SILInstruction *to);
+  void addBorrowDependency(BeginBorrowInst *from, SILValue to);
   bool removeDead();
 
   void computeLevelNumbers(PostDomTreeNode *root);
@@ -256,6 +260,10 @@ void DCE::markLive() {
         addReverseDependency(I.getOperand(0), &I);
         break;
       }
+      case SILInstructionKind::BeginBorrowInst: {
+        addBorrowDependency(cast<BeginBorrowInst>(&I), I.getOperand(0));
+        break;
+      }
       default:
         if (seemsUseful(&I))
           markInstructionLive(&I);
@@ -276,6 +284,57 @@ void DCE::addReverseDependency(SILValue from, SILInstruction *to) {
   LLVM_DEBUG(llvm::dbgs() << "Adding reverse dependency from " << from << " to "
                           << to);
   ReverseDependencies[from].insert(to);
+}
+
+void DCE::addBorrowDependency(BeginBorrowInst *from, SILValue to) {
+  LLVM_DEBUG(llvm::dbgs() << "Adding borrow dependency from " << from << " to "
+                          << to);
+
+  auto value = BorrowedValue::get(from);
+
+  SmallVector<std::tuple<Operand *, SILValue>, 4> worklist;
+  // Initialize the worklist with borrow lifetime ending uses
+  value.visitLocalScopeEndingUses([&](Operand *op) {
+    worklist.emplace_back(op, to);
+    return;
+  });
+
+  while (!worklist.empty()) {
+    Operand *borrowLifetimeEndOp;
+    SILValue baseVal;
+    std::tie(borrowLifetimeEndOp, baseVal) = worklist.pop_back_val();
+    auto *borrowLifetimeEndUser = borrowLifetimeEndOp->getUser();
+
+    auto borrowingOperand = BorrowingOperand::get(borrowLifetimeEndOp);
+    if (!borrowingOperand || !borrowingOperand.isReborrow())
+      continue;
+
+    // Process reborrow
+    auto *branchInst = cast<BranchInst>(borrowLifetimeEndUser);
+    auto *succBlock = branchInst->getSingleSuccessorBlock();
+    auto *phiArg = cast<SILPhiArgument>(
+        succBlock->getArgument(borrowLifetimeEndOp->getOperandNumber()));
+
+    SILValue newBaseVal = baseVal;
+    // If the previous base value was also passed as a phi arg, that will be
+    // the new base value.
+    for (auto *arg : succBlock->getArguments()) {
+      if (arg->getIncomingPhiValue(branchInst->getParent()) == baseVal) {
+        newBaseVal = arg;
+        break;
+      }
+    }
+    if (newBaseVal != baseVal) {
+      BorrowDependencies[phiArg] = newBaseVal;
+    }
+    // Find the scope ending uses of the guaranteed phi arg and add it to the
+    // worklist.
+    auto scopedValue = BorrowedValue::get(phiArg);
+    assert(scopedValue);
+    scopedValue.visitLocalScopeEndingUses([&](Operand *op) {
+      worklist.emplace_back(op, newBaseVal);
+    });
+  }
 }
 
 // Mark as live the terminator argument at index ArgIndex in Pred that
@@ -353,6 +412,12 @@ void DCE::propagateLiveBlockArgument(SILArgument *Arg) {
   // Mark all reverse dependencies on the Arg live
   for (auto *depInst : ReverseDependencies.lookup(Arg)) {
     markInstructionLive(depInst);
+  }
+
+  if (auto *phi = dyn_cast<SILPhiArgument>(Arg)) {
+    if (auto depVal = BorrowDependencies.lookup(phi)) {
+      markValueLive(depVal);
+    }
   }
 
   auto *Block = Arg->getParent();
