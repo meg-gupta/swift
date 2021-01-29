@@ -79,6 +79,8 @@ void CopyPropagation::run() {
   if (!f->hasOwnership())
     return;
 
+  return;
+
   // Driver: Find all copied defs.
   llvm::SmallSetVector<SILValue, 16> copiedDefs;
   for (auto &bb : *f) {
