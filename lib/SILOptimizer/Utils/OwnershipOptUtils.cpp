@@ -100,9 +100,20 @@ insertOwnedBaseValueAlongBranchEdge(BranchInst *bi, SILValue innerCopy,
 }
 
 static bool findTransitiveBorrowedUses(
-    SmallVectorImpl<Operand *> &usePoints,
-    SmallVectorImpl<std::pair<SILBasicBlock *, unsigned>> &reborrowPoints,
-    unsigned firstOffset = 0) {
+    SILValue value, SmallVectorImpl<Operand *> &usePoints,
+    SmallVectorImpl<std::pair<SILBasicBlock *, unsigned>> &reborrowPoints) {
+  assert(value.getOwnershipKind() == OwnershipKind::Guaranteed);
+
+  unsigned firstOffset = usePoints.size();
+  for (Operand *use : value->getUses()) {
+    if (use->getOperandOwnership() != OperandOwnership::NonUse) {
+      if (isa<StoreBorrowInst>(use->getUser())) {
+        return false;
+      }
+      usePoints.push_back(use);
+    }
+  }
+
   // NOTE: Use points resizes in this loop so usePoints.size() may be
   // different every time.
   for (unsigned i = firstOffset; i < usePoints.size(); ++i) {
