@@ -1067,6 +1067,10 @@ bool MemoryToRegisters::run() {
         ++I;
         continue;
       }
+      if (F.hasOwnership() && ASI->hasDynamicLifetime()) {
+        ++I;
+        continue;
+      }
 
       bool promoted = promoteSingleAllocation(ASI, DomTreeLevels);
       ++I;
