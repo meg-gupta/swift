@@ -740,3 +740,18 @@ bb3(%borrow : @guaranteed $FakeOptional<Klass>, %mKlass : @owned $FakeOptional<K
   %9999 = tuple()
   return %9999 : $()
 }
+
+sil [ossa] @test_renamed_base_in_diff_branch : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %borrow = begin_borrow %0 : $Klass
+  br bb1(%borrow : $Klass)
+
+bb1(%1 : @guaranteed $Klass):
+  br bb2(%0 : $Klass)
+
+bb2(%2 : @owned $Klass):
+  destroy_value %2 : $Klass
+  end_borrow %1 : $Klass
+  %res = tuple ()
+  return %res : $()
+}

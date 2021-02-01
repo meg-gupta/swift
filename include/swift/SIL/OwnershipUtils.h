@@ -935,6 +935,10 @@ bool getAllOwnedValueIntroducers(SILValue value,
 
 OwnedValueIntroducer getSingleOwnedValueIntroducer(SILValue value);
 
+void findTransitiveReborrowBaseValuePairs(
+    BorrowingOperand initialScopeOperand, SILValue origBaseValue,
+    function_ref<void(SILPhiArgument *, SILValue)> visitReborrowBaseValuePair);
+
 } // namespace swift
 
 #endif
