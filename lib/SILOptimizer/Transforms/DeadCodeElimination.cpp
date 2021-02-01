@@ -18,6 +18,7 @@
 #include "swift/SIL/SILFunction.h"
 #include "swift/SIL/SILUndef.h"
 #include "swift/SIL/SILBitfield.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SILOptimizer/Analysis/DominanceAnalysis.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
@@ -121,6 +122,13 @@ class DCE {
   llvm::DenseMap<SILValue, SmallPtrSet<SILInstruction *, 4>>
       ReverseDependencies;
 
+  // reborrowDependencies tracks the dependency of a reborrowed phiArg with its
+  // renamed base value.
+  // A reborrowed phiArg may have a new base value, if it's original base value
+  // was also passed as a branch operand. The renamed base value should then be
+  // live if the reborrow phiArg was also live.
+  llvm::DenseMap<SILPhiArgument *, SILValue> reborrowDependencies;
+
   /// Tracks if the pass changed branches.
   bool BranchesChanged = false;
   /// Tracks if the pass changed ApplyInsts.
@@ -131,6 +139,9 @@ class DCE {
   /// Record a reverse dependency from \p from to \p to meaning \p to is live
   /// if \p from is also live.
   void addReverseDependency(SILValue from, SILInstruction *to);
+  /// Starting from \p borrowInst find all reborrow dependency of its reborrows
+  /// with their renamed base values.
+  void findReborrowDependencies(BeginBorrowInst *borrowInst);
   bool removeDead();
 
   void computeLevelNumbers(PostDomTreeNode *root);
@@ -256,6 +267,10 @@ void DCE::markLive() {
         addReverseDependency(I.getOperand(0), &I);
         break;
       }
+      case SILInstructionKind::BeginBorrowInst: {
+        findReborrowDependencies(cast<BeginBorrowInst>(&I));
+        break;
+      }
       default:
         if (seemsUseful(&I))
           markInstructionLive(&I);
@@ -276,6 +291,20 @@ void DCE::addReverseDependency(SILValue from, SILInstruction *to) {
   LLVM_DEBUG(llvm::dbgs() << "Adding reverse dependency from " << from << " to "
                           << to);
   ReverseDependencies[from].insert(to);
+}
+
+void DCE::findReborrowDependencies(BeginBorrowInst *borrowInst) {
+  LLVM_DEBUG(llvm::dbgs() << "Finding reborrow dependencies of " << borrowInst
+                          << "\n");
+  auto visitReborrowBaseValuePair = [&](SILPhiArgument *phiArg,
+                                        SILValue baseValue) {
+    reborrowDependencies[phiArg] = baseValue;
+  };
+
+  BorrowingOperand initialScopedOperand(&borrowInst->getOperandRef());
+  findTransitiveReborrowBaseValuePairs(initialScopedOperand,
+                                       borrowInst->getOperand(),
+                                       visitReborrowBaseValuePair);
 }
 
 // Mark as live the terminator argument at index ArgIndex in Pred that
@@ -353,6 +382,12 @@ void DCE::propagateLiveBlockArgument(SILArgument *Arg) {
   // Mark all reverse dependencies on the Arg live
   for (auto *depInst : ReverseDependencies.lookup(Arg)) {
     markInstructionLive(depInst);
+  }
+
+  if (auto *phi = dyn_cast<SILPhiArgument>(Arg)) {
+    if (auto depVal = reborrowDependencies.lookup(phi)) {
+      markValueLive(depVal);
+    }
   }
 
   auto *Block = Arg->getParent();
@@ -523,6 +558,8 @@ bool DCE::removeDead() {
         BranchesChanged = true;
         continue;
       }
+
+      auto *phiArg = cast<SILPhiArgument>(arg);
       // In OSSA, we have to delete a dead phi argument and insert destroy or
       // end_borrow at its predecessors if the incoming values are live.
       // This is not necessary in non-OSSA, and will infact be incorrect.
@@ -530,8 +567,24 @@ bool DCE::removeDead() {
       // lifetime in non-OSSA.
       for (auto *pred : BB.getPredecessorBlocks()) {
         auto *predTerm = pred->getTerminator();
-        auto predArg = predTerm->getAllOperands()[i].get();
-        endLifetimeOfLiveValue(predArg, predTerm);
+        SILInstruction *insertPt = predTerm;
+        if (phiArg->getOwnershipKind() == OwnershipKind::Guaranteed) {
+          // If the phiArg is dead and had reborrow dependencies, its baseValue
+          // may also have been dead and a destroy_value of its baseValue may
+          // have been inserted before the pred's terminator. Make sure to
+          // adjust the insertPt before any destroy_value.
+          if (reborrowDependencies.lookup(phiArg)) {
+            auto predIt = predTerm->getIterator();
+            for (; predIt != pred->begin(); predIt--) {
+              if (&*predIt == predTerm)
+                continue;
+              if (!isa<DestroyValueInst>(predIt))
+                break;
+            }
+            insertPt = &*predIt;
+          }
+        }
+        endLifetimeOfLiveValue(phiArg->getIncomingPhiValue(pred), insertPt);
       }
       erasePhiArgument(&BB, i);
       Changed = true;
