@@ -935,6 +935,19 @@ bool getAllOwnedValueIntroducers(SILValue value,
 
 OwnedValueIntroducer getSingleOwnedValueIntroducer(SILValue value);
 
+using BaseValueSet = SmallPtrSet<SILValue, 8>;
+
+/// Starting from \p initialScopeOperand, find all reborrows and their
+/// corresponding base values, and run the visitor function \p
+/// visitReborrowBaseValuePair on them. \p phiToBaseValuesMap is a map of
+/// reborrow phi arg and corresponding base value that have been visited. Note
+/// that a reborrow phi, can have different base values based on different
+/// control flow paths.
+void findTransitiveReborrowBaseValuePairs(
+    BorrowingOperand initialScopeOperand, SILValue origBaseValue,
+    llvm::DenseMap<SILPhiArgument*, BaseValueSet> &phiToBaseValuesMap,
+    function_ref<void(SILPhiArgument *, SILValue)> visitReborrowBaseValuePair);
+
 } // namespace swift
 
 #endif
