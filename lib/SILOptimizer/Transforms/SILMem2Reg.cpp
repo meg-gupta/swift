@@ -1052,7 +1052,8 @@ bool MemoryToRegisters::promoteSingleAllocation(AllocStackInst *alloc,
 
 bool MemoryToRegisters::run() {
   bool Changed = false;
-
+  if (F.hasOwnership())
+    return false;
   F.verifyCriticalEdges();
 
   // Compute dominator tree node levels for the function.
