@@ -356,7 +356,8 @@ class SILCombine : public SILFunctionTransform {
     auto *DA = PM->getAnalysis<DominanceAnalysis>();
     auto *PCA = PM->getAnalysis<ProtocolConformanceAnalysis>();
     auto *CHA = PM->getAnalysis<ClassHierarchyAnalysis>();
-
+    if (getFunction()->hasOwnership())
+      return;
     SILOptFunctionBuilder FuncBuilder(*this);
     // Create a SILBuilder with a tracking list for newly added
     // instructions, which we will periodically move to our worklist.

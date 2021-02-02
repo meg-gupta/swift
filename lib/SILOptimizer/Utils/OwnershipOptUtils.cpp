@@ -100,20 +100,9 @@ insertOwnedBaseValueAlongBranchEdge(BranchInst *bi, SILValue innerCopy,
 }
 
 static bool findTransitiveBorrowedUses(
-    SILValue value, SmallVectorImpl<Operand *> &usePoints,
-    SmallVectorImpl<std::pair<SILBasicBlock *, unsigned>> &reborrowPoints) {
-  assert(value.getOwnershipKind() == OwnershipKind::Guaranteed);
-
-  unsigned firstOffset = usePoints.size();
-  for (Operand *use : value->getUses()) {
-    if (use->getOperandOwnership() != OperandOwnership::NonUse) {
-      if (isa<StoreBorrowInst>(use->getUser())) {
-        return false;
-      }
-      usePoints.push_back(use);
-    }
-  }
-
+    SmallVectorImpl<Operand *> &usePoints,
+    SmallVectorImpl<std::pair<SILBasicBlock *, unsigned>> &reborrowPoints,
+    unsigned firstOffset = 0) {
   // NOTE: Use points resizes in this loop so usePoints.size() may be
   // different every time.
   for (unsigned i = firstOffset; i < usePoints.size(); ++i) {
@@ -183,6 +172,7 @@ static bool findTransitiveBorrowedUses(
   return true;
 }
 
+
 static bool findTransitiveBorrowedUses(
     SILValue value, SmallVectorImpl<Operand *> &usePoints,
     SmallVectorImpl<std::pair<SILBasicBlock *, unsigned>> &reborrowPoints) {
@@ -190,8 +180,12 @@ static bool findTransitiveBorrowedUses(
 
   unsigned firstOffset = usePoints.size();
   for (Operand *use : value->getUses()) {
-    if (use->getOperandOwnership() != OperandOwnership::NonUse)
+    if (use->getOperandOwnership() != OperandOwnership::NonUse) {
+       if (isa<StoreBorrowInst>(use->getUser())) {
+         return false;
+       }
       usePoints.push_back(use);
+    }
   }
   return findTransitiveBorrowedUses(usePoints, reborrowPoints, firstOffset);
 }
