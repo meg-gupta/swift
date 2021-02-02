@@ -79,7 +79,8 @@ void RedundantPhiEliminationPass::run() {
   SILFunction *F = getFunction();
   if (!F->shouldOptimize())
     return;
-
+  if (F->hasOwnership())
+    return;
   LLVM_DEBUG(llvm::dbgs() << "*** RedundantPhiElimination on function: "
                           << F->getName() << " ***\n");
 
