@@ -1328,12 +1328,20 @@ SILValue RLEContext::computePredecessorLocationValue(SILBasicBlock *BB,
     Values.push_back({CurBB, LSValue::reduce(L, &BB->getModule(), LSValues, IPt)});
   }
 
+  auto ownershipKind = OwnershipKind::None;
+
+  for (auto V : Values) {
+    if (V.second.getOwnershipKind() == OwnershipKind::Owned) {
+      ownershipKind = OwnershipKind::Owned;
+      break;
+    }
+  }
   // Finally, collect all the values for the SILArgument, materialize it using
   // the SSAUpdater.
   Updater.initialize(
       L.getType(&BB->getModule(), TypeExpansionContext(*BB->getParent()))
           .getObjectType(),
-      Values[0].second.getOwnershipKind());
+      ownershipKind);
 
   SmallVector<SILPhiArgument *, 8> insertedPhis;
   Updater.setInsertedPhis(&insertedPhis);
