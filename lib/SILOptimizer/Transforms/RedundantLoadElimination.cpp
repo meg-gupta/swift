@@ -1351,19 +1351,19 @@ SILValue RLEContext::computePredecessorLocationValue(SILBasicBlock *BB,
   }
 
   auto Val = Updater.getValueInMiddleOfBlock(BB);
+  auto res = makeNewValueAvailable(Val, BB);
 
   for (auto *phi : insertedPhis) {
-    if (phi == Val) {
-      continue;
-    }
-    // Fix lifetime of intermediate phis
     SmallVector<SILBasicBlock *, 4> userBBs;
-    for (auto use : phi->getUses()) {
+    for (auto use : phi->getConsumingUses()) {
       userBBs.push_back(use->getParentBlock());
+    }
+    if (phi == Val) {
+      userBBs.push_back(BB);
     }
     endLifetimeAtLeakingBlocks(phi, userBBs);
   }
-  return makeNewValueAvailable(Val, BB);
+  return res;
 }
 
 bool RLEContext::collectLocationValues(SILBasicBlock *BB, LSLocation &L,
