@@ -861,6 +861,8 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
     }
   }
 
+  SmallVector<SILBasicBlock *, 4> consumingBlocks;
+
   for (auto Block : PhiBlocks) {
     auto *phiArg =
         cast<SILPhiArgument>(Block->getArgument(Block->getNumArguments() - 1));
@@ -869,6 +871,12 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
     }
     if (phiArg->use_empty()) {
       erasePhiArgument(Block, Block->getNumArguments() - 1);
+    } else {
+      for (auto consumingUse : phiArg->getConsumingUses()) {
+        consumingBlocks.push_back(consumingUse->getParentBlock());
+      }
+      endLifetimeAtLeakingBlocks(phiArg, consumingBlocks);
+      consumingBlocks.clear();
     }
   }
 }
@@ -1097,7 +1105,6 @@ bool MemoryToRegisters::run() {
         ++I;
         continue;
       }
-
       bool promoted = promoteSingleAllocation(ASI, DomTreeLevels);
       ++I;
       if (promoted) {

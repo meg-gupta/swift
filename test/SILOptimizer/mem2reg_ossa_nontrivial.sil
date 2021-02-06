@@ -772,6 +772,47 @@ bbret(%new : @owned $Klass):
   return %new : $Klass
 }
 
+// CHECK-LABEL: sil [ossa] @test_dynamiclifetime :
+// CHECK-NOT: alloc_stack
+// CHECK-LABEL: } // end sil function 'test_dynamiclifetime'
+sil [ossa] @test_dynamiclifetime : $@convention(thin) () -> () {
+bb0:
+  %2 = alloc_stack $Builtin.Int1
+  %3 = alloc_stack [dynamic_lifetime] $NonTrivialStruct
+  %4 = integer_literal $Builtin.Int1, 0
+  store %4 to [trivial] %2 : $*Builtin.Int1
+  cond_br undef, bb1, bb2
+
+bb1:
+  br bb3
+
+bb2:
+  %func = function_ref @get_nontrivialstruct : $@convention(thin) () -> @owned NonTrivialStruct
+  %val = apply %func() : $@convention(thin) () -> @owned NonTrivialStruct
+  %27 = integer_literal $Builtin.Int1, -1
+  store %27 to [trivial] %2 : $*Builtin.Int1
+  store %val to [init] %3 : $*NonTrivialStruct
+  br bb3
+
+bb3:
+  %32 = load [trivial] %2 : $*Builtin.Int1
+  cond_br %32, bb4, bb5
+
+bb4:
+  %34 = load [take] %3 : $*NonTrivialStruct
+  destroy_value %34 : $NonTrivialStruct
+  br bb6
+
+bb5:
+  br bb6
+
+bb6:
+  dealloc_stack %3 : $*NonTrivialStruct
+  dealloc_stack %2 : $*Builtin.Int1
+  %res = tuple ()
+  return %res : $()
+}
+
 // CHECK-LABEL: sil [ossa] @test_deadphi1 :
 // CHECK-NOT: alloc_stack
 // CHECK-LABEL: } // end sil function 'test_deadphi1'
