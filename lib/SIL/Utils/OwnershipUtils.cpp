@@ -1326,10 +1326,12 @@ void swift::findTransitiveReborrowBaseValuePairs(
 }
 
 void swift::visitTransitiveEndBorrows(
-    BeginBorrowInst *borrowInst,
+    SILInstruction *borrowInst,
     function_ref<void(EndBorrowInst *)> visitEndBorrow) {
+  assert(isa<BeginBorrowInst>(borrowInst) || isa<LoadBorrowInst>(borrowInst));
+
   SmallSetVector<SILValue, 4> worklist;
-  worklist.insert(borrowInst);
+  worklist.insert(cast<SingleValueInstruction>(borrowInst));
 
   while (!worklist.empty()) {
     auto val = worklist.pop_back_val();
