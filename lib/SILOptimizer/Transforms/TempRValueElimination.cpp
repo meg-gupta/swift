@@ -18,9 +18,10 @@
 
 #define DEBUG_TYPE "sil-temp-rvalue-opt"
 
-#include "swift/SIL/DebugUtils.h"
 #include "swift/SIL/BasicBlockUtils.h"
+#include "swift/SIL/DebugUtils.h"
 #include "swift/SIL/MemAccessUtils.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBuilder.h"
 #include "swift/SIL/SILVisitor.h"
@@ -268,9 +269,22 @@ collectLoads(Operand *addressUse, CopyAddrInst *originalCopy,
     loadInsts.insert(user);
     return true;
   }
-  case SILInstructionKind::LoadBorrowInst:
+  case SILInstructionKind::LoadBorrowInst: {
     loadInsts.insert(user);
-    return true;
+    BorrowedValue borrow(cast<LoadBorrowInst>(user));
+    auto visitEndScope = [&](Operand *op) -> bool {
+      auto *opUser = op->getUser();
+      if (auto *endBorrow = dyn_cast<EndBorrowInst>(opUser)) {
+        loadInsts.insert(endBorrow);
+        return true;
+      }
+      // Don't look further if we see a reborrow.
+      assert(cast<BranchInst>(opUser));
+      return false;
+    };
+    auto res = borrow.visitLocalScopeEndingUses(visitEndScope);
+    return res;
+  }
   case SILInstructionKind::FixLifetimeInst:
     // If we have a fixed lifetime on our alloc_stack, we can just treat it like
     // a load and re-write it so that it is on the old memory or old src object.
@@ -481,6 +495,7 @@ bool TempRValueOptPass::tryOptimizeCopyIntoTemp(CopyAddrInst *copyInst) {
   //   copy_addr [take] %tempObj to [initialization] %copySrc   // lastLoadInst
   if (needToInsertDestroy && lastLoadInst != copyInst &&
       !isa<DestroyAddrInst>(lastLoadInst) &&
+      !isa<EndBorrowInst>(lastLoadInst) &&
       aa->mayWriteToMemory(lastLoadInst, copySrc))
     return false;
 
