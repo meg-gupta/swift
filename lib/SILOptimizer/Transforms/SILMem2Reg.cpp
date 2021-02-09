@@ -83,6 +83,10 @@ class StackAllocationPromoter {
   /// Records the last store instruction in each block for a specific
   /// AllocStackInst.
   BlockToInstMap LastStoreInBlock;
+
+  /// Blocks with dealloc_stack of the alloc_stack we are trying to optimize
+  SmallPtrSet<SILBasicBlock *, 4> deallocBlocks;
+
 public:
   /// C'tor.
   StackAllocationPromoter(AllocStackInst *Asi, DominanceInfo *Di,
@@ -495,6 +499,7 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
       if (SI->getDest() != ASI)
         continue;
 
+      deallocBlocks.erase(Inst->getParent());
       // If we see a store [assign], always convert it to a store [init]. This
       // simplifies further processing.
       if (SI->getOwnershipQualifier() == StoreOwnershipQualifier::Assign) {
@@ -556,10 +561,23 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
       }
     }
 
+    // check if running value is dead
+    if (Inst->getFunction()->hasOwnership()) {
+      for (auto &op : Inst->getAllOperands()) {
+        if (op.get() == RunningVal) {
+          if (op.isLifetimeEnding()) {
+            deallocBlocks.insert(Inst->getParent());
+          }
+        }
+      }
+    }
+
     // Stop on deallocation.
     if (auto *DSI = dyn_cast<DeallocStackInst>(Inst)) {
-      if (DSI->getOperand() == ASI)
+      if (DSI->getOperand() == ASI) {
+        deallocBlocks.insert(Inst->getParent());
         break;
+      }
     }
   }
 
@@ -680,6 +698,11 @@ StackAllocationPromoter::getLiveOutValue(BlockSet &PhiBlocks,
   for (DomTreeNode *Node = DT->getNode(StartBB); Node; Node = Node->getIDom()) {
     SILBasicBlock *BB = Node->getBlock();
 
+    // If there was a dealloc_stack in this block, then return undef
+    if (deallocBlocks.contains(BB)) {
+      return SILUndef::get(ASI->getElementType(), *ASI->getFunction());
+    }
+
     // If there is a store (that must come after the phi), use its value.
     BlockToInstMap::iterator it = LastStoreInBlock.find(BB);
     if (it != LastStoreInBlock.end())
@@ -740,6 +763,33 @@ void StackAllocationPromoter::fixPhiPredBlock(BlockSet &PhiBlocks,
 
   addArgumentToBranch(Def, Dest, TI);
   TI->eraseFromParent();
+}
+
+static bool hasOnlyUndefIncomingValues(SILPhiArgument *phiArg) {
+  SmallSetVector<SILPhiArgument *, 4> worklist;
+  SmallVector<SILValue, 4> incomingValues;
+
+  worklist.insert(phiArg);
+
+  for (unsigned idx = 0; idx < worklist.size(); idx++) {
+    auto *phi = worklist[idx];
+    phi->getIncomingPhiValues(incomingValues);
+    for (auto incomingValue : incomingValues) {
+      if (isa<SILUndef>(incomingValue))
+        continue;
+      if (auto *predPhi = dyn_cast<SILPhiArgument>(incomingValue)) {
+        if (!predPhi->isPhiArgument()) {
+          return false;
+        }
+        worklist.insert(predPhi);
+        continue;
+      }
+      return false;
+    }
+    incomingValues.clear();
+  }
+
+  return true;
 }
 
 void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
@@ -811,16 +861,24 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
     }
   }
 
-  // If the owned phi arg we added did not have any uses, create end_lifetime to
-  // end its lifetime. In asserts mode, make sure we have only undef incoming
-  // values for such phi args.
-    for (auto Block : PhiBlocks) {
-      auto *phiArg = cast<SILPhiArgument>(
-          Block->getArgument(Block->getNumArguments() - 1));
-      if (phiArg->use_empty()) {
-        erasePhiArgument(Block, Block->getNumArguments() - 1);
-      }
+  SmallVector<SILBasicBlock *, 4> consumingBlocks;
+
+  for (auto Block : PhiBlocks) {
+    auto *phiArg =
+        cast<SILPhiArgument>(Block->getArgument(Block->getNumArguments() - 1));
+    if (hasOnlyUndefIncomingValues(phiArg)) {
+      phiArg->replaceAllUsesWithUndef();
     }
+    if (phiArg->use_empty()) {
+      erasePhiArgument(Block, Block->getNumArguments() - 1);
+    } else {
+      for (auto consumingUse : phiArg->getConsumingUses()) {
+        consumingBlocks.push_back(consumingUse->getParentBlock());
+      }
+      endLifetimeAtLeakingBlocks(phiArg, consumingBlocks);
+      consumingBlocks.clear();
+    }
+  }
 }
 
 void StackAllocationPromoter::pruneAllocStackUsage() {
@@ -1047,7 +1105,6 @@ bool MemoryToRegisters::run() {
         ++I;
         continue;
       }
-
       bool promoted = promoteSingleAllocation(ASI, DomTreeLevels);
       ++I;
       if (promoted) {
