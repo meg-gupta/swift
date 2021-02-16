@@ -546,6 +546,25 @@ bb0(%0 : $*Klass):
   return %9 : $()
 }
 
+// CHECK-LABEL: sil [ossa] @debug_use : $@convention(thin) (@in Klass) -> () {
+// CHECK: bb0([[ARG:%.*]] : $*Klass):
+// CHECK-NOT: copy_addr
+// CHECK: load [copy] [[ARG]]
+// CHECK: debug_value_addr [[ARG]]
+// CHECK: } // end sil function 'debug_use'
+sil [ossa] @debug_use : $@convention(thin) (@in Klass) -> () {
+bb0(%0 : $*Klass):
+  %1 = alloc_stack $Klass
+  copy_addr [take] %0 to [initialization] %1 : $*Klass
+  %2a = load [copy] %1 : $*Klass
+  debug_value_addr %1 : $*Klass
+  destroy_value %2a : $Klass
+  destroy_addr %1 : $*Klass
+  dealloc_stack %1 : $*Klass
+  %9 = tuple ()
+  return %9 : $()
+}
+
 // CHECK-LABEL: sil [ossa] @non_overlapping_lifetime : $@convention(thin) (@in Klass) -> () {
 // CHECK:      bb0([[ARG:%.*]] : $*Klass):
 // CHECK-NEXT:   [[TMP:%.*]] = alloc_stack $Klass

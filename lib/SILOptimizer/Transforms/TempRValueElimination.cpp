@@ -153,6 +153,10 @@ collectLoads(Operand *addressUse, CopyAddrInst *originalCopy,
     LLVM_DEBUG(llvm::dbgs()
                << "  Temp use may write/destroy its source" << *user);
     return false;
+  case SILInstructionKind::DebugValueAddrInst: {
+    loadInsts.insert(user);
+    return true;
+  }
   case SILInstructionKind::BeginAccessInst: {
     auto *beginAccess = cast<BeginAccessInst>(user);
     if (beginAccess->getAccessKind() != SILAccessKind::Read)
