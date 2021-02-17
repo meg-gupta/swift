@@ -64,7 +64,7 @@ public:
   bool CrossModuleOptimization = false;
   
   /// Controls whether or not paranoid verification checks are run.
-  bool VerifyAll = false;
+  bool VerifyAll = true;
 
   /// If true, no SIL verification is done at all.
   bool VerifyNone = false;
