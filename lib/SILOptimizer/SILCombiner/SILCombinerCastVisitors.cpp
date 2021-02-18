@@ -222,6 +222,8 @@ SILInstruction *
 SILCombiner::
 visitPointerToAddressInst(PointerToAddressInst *PTAI) {
   auto *F = PTAI->getFunction();
+  if (F->hasOwnership())
+    return nullptr;
 
   Builder.setCurrentDebugScope(PTAI->getDebugScope());
 
