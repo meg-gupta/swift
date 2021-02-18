@@ -573,6 +573,11 @@ SILCloner<ImplClass>::postProcess(SILInstruction *orig,
   assert(origResults.size() == clonedResults.size());
   for (auto i : indices(origResults))
     asImpl().mapValue(origResults[i], clonedResults[i]);
+
+  if (auto *ofm = OwnershipForwardingMixin::get(cloned)) {
+    auto *origOfm = OwnershipForwardingMixin::get(orig);
+    ofm->setForwardingOwnershipKind(origOfm->getForwardingOwnershipKind());
+  }
 }
 
 template<typename ImplClass>
@@ -1474,10 +1479,10 @@ void
 SILCloner<ImplClass>::
 visitUncheckedRefCastInst(UncheckedRefCastInst *Inst) {
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
-  recordClonedInstruction(
-      Inst, getBuilder().createUncheckedRefCast(getOpLocation(Inst->getLoc()),
-                                                getOpValue(Inst->getOperand()),
-                                                getOpType(Inst->getType())));
+  auto *clone = getBuilder().createUncheckedRefCast(
+      getOpLocation(Inst->getLoc()), getOpValue(Inst->getOperand()),
+      getOpType(Inst->getType()));
+  recordClonedInstruction(Inst, clone);
 }
 
 template<typename ImplClass>
