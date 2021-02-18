@@ -1215,6 +1215,7 @@ struct TrampolineDest {
 
 TrampolineDest::TrampolineDest(SILBasicBlock *sourceBB,
                                SILBasicBlock *targetBB) {
+  auto *func = sourceBB->getParent();
   // Ignore blocks with more than one instruction.
   if (!onlyHasTerminatorAndDebugInsts(targetBB))
     return;
@@ -1252,6 +1253,11 @@ TrampolineDest::TrampolineDest(SILBasicBlock *sourceBB,
         return;
       }
       branchArg = phi->getIncomingPhiValue(sourceBB);
+    }
+    if (func->hasOwnership()) {
+      if (!branchArg->getType().isTrivial(*func)) {
+        return;
+      }
     }
     newSourceBranchArgs.push_back(branchArg);
   }
@@ -1522,6 +1528,7 @@ static SILValue invertExpectAndApplyTo(SILBuilder &Builder,
 /// simplifyCondBrBlock - Simplify a basic block that ends with a conditional
 /// branch.
 bool SimplifyCFG::simplifyCondBrBlock(CondBranchInst *BI) {
+  auto *func = BI->getFunction();
   // First simplify instructions generating branch operands since that
   // can expose CFG simplifications.
   simplifyBranchOperands(OperandValueArrayRef(BI->getAllOperands()));
@@ -1580,12 +1587,24 @@ bool SimplifyCFG::simplifyCondBrBlock(CondBranchInst *BI) {
   // If the destination block is a simple trampoline (jump to another block)
   // then jump directly.
   auto trueTrampolineDest = TrampolineDest(ThisBB, TrueSide);
+
   if (trueTrampolineDest
       && trueTrampolineDest.destBB->getSinglePredecessorBlock()) {
     LLVM_DEBUG(llvm::dbgs()
                << "true-trampoline from bb" << ThisBB->getDebugID() << " to bb"
                << trueTrampolineDest.destBB->getDebugID() << '\n');
     SmallVector<SILValue, 4> falseArgsCopy(FalseArgs.begin(), FalseArgs.end());
+    if (func->hasOwnership()) {
+      auto nonTrivialArg = llvm::any_of(FalseArgs, [&](SILValue val) {
+        if (!val->getType().isTrivial(*func)) {
+          return true;
+        }
+        return false;
+      });
+      if (nonTrivialArg) {
+        return false;
+      }
+    }
     SILBuilderWithScope(BI).createCondBranch(
         BI->getLoc(), BI->getCondition(), trueTrampolineDest.destBB,
         trueTrampolineDest.newSourceBranchArgs, FalseSide, falseArgsCopy,
@@ -1597,13 +1616,23 @@ bool SimplifyCFG::simplifyCondBrBlock(CondBranchInst *BI) {
     addToWorklist(ThisBB);
     return true;
   }
-
   auto falseTrampolineDest = TrampolineDest(ThisBB, FalseSide);
   if (falseTrampolineDest
       && falseTrampolineDest.destBB->getSinglePredecessorBlock()) {
     LLVM_DEBUG(llvm::dbgs()
                << "false-trampoline from bb" << ThisBB->getDebugID() << " to bb"
                << falseTrampolineDest.destBB->getDebugID() << '\n');
+    if (func->hasOwnership()) {
+      auto nonTrivialArg = llvm::any_of(TrueArgs, [&](SILValue val) {
+        if (!val->getType().isTrivial(*func)) {
+          return true;
+        }
+        return false;
+      });
+      if (nonTrivialArg) {
+        return false;
+      }
+    }
     SmallVector<SILValue, 4> trueArgsCopy(TrueArgs.begin(), TrueArgs.end());
     SILBuilderWithScope(BI).createCondBranch(
         BI->getLoc(), BI->getCondition(), TrueSide, trueArgsCopy,
