@@ -757,6 +757,7 @@ void SILPassManager::addFunctionToWorklist(SILFunction *F,
     if (!functionSelectionEmpty() && isFunctionSelectedForPrinting(F)) {
       llvm::dbgs() << F->getName() << " was derived from "
                    << DerivedFrom->getName() << "\n";
+      F->dump();
     }
     // When SILVerifyAll is enabled, individual functions are verified after
     // function passes are run upon them. This means that any functions created
