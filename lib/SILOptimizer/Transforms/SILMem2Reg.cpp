@@ -84,8 +84,7 @@ class StackAllocationPromoter {
   /// AllocStackInst.
   BlockToInstMap LastStoreInBlock;
 
-  /// Blocks with dealloc_stack of the alloc_stack we are trying to optimize
-  SmallPtrSet<SILBasicBlock *, 4> deallocBlocks;
+  SmallPtrSet<SILBasicBlock *, 4> deadBlocks;
 
 public:
   /// C'tor.
@@ -563,7 +562,7 @@ StackAllocationPromoter::promoteAllocationInBlock(SILBasicBlock *BB) {
     // Stop on deallocation.
     if (auto *DSI = dyn_cast<DeallocStackInst>(Inst)) {
       if (DSI->getOperand() == ASI) {
-        deallocBlocks.insert(DSI->getParent());
+        deadBlocks.insert(DSI->getParent());
         break;
       }
     }
@@ -687,7 +686,7 @@ StackAllocationPromoter::getLiveOutValue(BlockSet &PhiBlocks,
     SILBasicBlock *BB = Node->getBlock();
 
     // If there was a dealloc_stack in this block, then return undef
-    if (deallocBlocks.contains(BB)) {
+    if (deadBlocks.contains(BB)) {
       return SILUndef::get(ASI->getElementType(), *ASI->getFunction());
     }
 
@@ -853,18 +852,12 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSet &PhiBlocks) {
   for (auto Block : PhiBlocks) {
     auto *phiArg =
         cast<SILPhiArgument>(Block->getArgument(Block->getNumArguments() - 1));
-    if (hasOnlyUndefIncomingValues(phiArg)) {
-      phiArg->replaceAllUsesWithUndef();
+    assert(!hasOnlyUndefIncomingValues(phiArg));
+    for (auto consumingUse : phiArg->getConsumingUses()) {
+      consumingBlocks.push_back(consumingUse->getParentBlock());
     }
-    if (phiArg->use_empty()) {
-      erasePhiArgument(Block, Block->getNumArguments() - 1);
-    } else {
-      for (auto consumingUse : phiArg->getConsumingUses()) {
-        consumingBlocks.push_back(consumingUse->getParentBlock());
-      }
-      endLifetimeAtLeakingBlocks(phiArg, consumingBlocks);
-      consumingBlocks.clear();
-    }
+    endLifetimeAtLeakingBlocks(phiArg, consumingBlocks);
+    consumingBlocks.clear();
   }
 }
 
@@ -921,6 +914,14 @@ void StackAllocationPromoter::promoteAllocationToPhi() {
     SILInstruction *II = UI->getUser();
     // We need to place Phis for this block.
     if (isa<StoreInst>(II)) {
+      bool dominatesDeadBlock = false;
+      for (auto *deadBlock : deadBlocks) {
+        if (DT->dominates(II->getParent(), deadBlock)) {
+          dominatesDeadBlock = true;
+        }
+      }
+      if (dominatesDeadBlock)
+        continue;
       // If the block is in the dom tree (dominated by the entry block).
       if (DomTreeNode *Node = DT->getNode(II->getParent()))
         PQ.push(std::make_pair(Node, DomTreeLevels[Node]));
