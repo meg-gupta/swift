@@ -596,14 +596,67 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSetVector &phiBlocks) {
     }
   }
 
-  // If the owned phi arg we added did not have any uses, create end_lifetime to
-  // end its lifetime. In asserts mode, make sure we have only undef incoming
-  // values for such phi args.
-  for (auto *block : phiBlocks) {
-    auto *phiArg =
-        cast<SILPhiArgument>(block->getArgument(block->getNumArguments() - 1));
-    if (phiArg->use_empty()) {
-      erasePhiArgument(block, block->getNumArguments() - 1);
+  // Fix ownership of newly created non-trivial phis
+  if (asi->getFunction()->hasOwnership() &&
+      !asi->getType().isTrivial(*asi->getFunction())) {
+    // It is possible that the proactively inserted phis, were never used.
+    // Clean them up, so that the ownership verifier does not complain later.
+    SmallVector<SILPhiArgument *, 4> worklist;
+    SmallVector<SILPhiArgument *, 4> incomingPhis;
+    SmallPtrSet<SILBasicBlock *, 4> erasedPhiBlocks;
+
+    for (auto *block : phiBlocks) {
+      auto *phiArg = cast<SILPhiArgument>(
+          block->getArgument(block->getNumArguments() - 1));
+      if (phiArg->use_empty())
+        worklist.push_back(phiArg);
+    }
+
+    // Go over all newly created phis, delete the phis with no uses
+    // If the incoming values were other newly created phis, add them back to
+    // the incomingPhis.
+    while (!worklist.empty()) {
+      auto *phiArg = worklist.pop_back_val();
+      auto *phiBlock = phiArg->getParentBlock();
+      assert(phiArg->use_empty());
+      for (auto *pred : phiBlock->getPredecessorBlocks()) {
+        auto incomingVal = phiArg->getIncomingPhiValue(pred);
+        if (auto *incomingPhi = dyn_cast<SILPhiArgument>(incomingVal)) {
+          auto *incomingBlock = incomingPhi->getParentBlock();
+          // Check if the incoming phi was also a proactively created phi by
+          // Mem2Reg
+          if (phiBlocks.contains(incomingBlock) &&
+              incomingPhi->getIndex() == incomingBlock->getNumArguments() - 1)
+            incomingPhis.push_back(incomingPhi);
+        }
+      }
+
+      // Erase the phi arg and insert into erasedPhiBlocks set
+      erasePhiArgument(phiBlock, phiBlock->getNumArguments() - 1);
+      erasedPhiBlocks.insert(phiBlock);
+
+      // If the use count of incomingPhi reached 0 after deleting the dead phi,
+      // add them to the worklist
+      for (auto incomingPhi : incomingPhis) {
+        if (incomingPhi->use_empty())
+          worklist.push_back(incomingPhi);
+      }
+      incomingPhis.clear();
+    }
+
+    // Go over all the remaining phis and create destroy_value at leaking blocks
+    SmallVector<SILBasicBlock *, 4> consumingBlocks;
+    for (auto *block : phiBlocks) {
+      if (erasedPhiBlocks.find(block) != erasedPhiBlocks.end())
+        continue;
+
+      auto *phiArg = cast<SILPhiArgument>(
+          block->getArgument(block->getNumArguments() - 1));
+      for (auto consumingUse : phiArg->getConsumingUses()) {
+        consumingBlocks.push_back(consumingUse->getParentBlock());
+      }
+      endLifetimeAtLeakingBlocks(phiArg, consumingBlocks);
+      consumingBlocks.clear();
     }
   }
 }
