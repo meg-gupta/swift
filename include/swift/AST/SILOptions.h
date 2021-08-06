@@ -77,7 +77,7 @@ public:
   bool CrossModuleOptimization = false;
   
   /// Controls whether or not paranoid verification checks are run.
-  bool VerifyAll = false;
+  bool VerifyAll = true;
 
   /// If true, no SIL verification is done at all.
   bool VerifyNone = false;
@@ -105,7 +105,7 @@ public:
   /// Do we always serialize SIL in OSSA form?
   ///
   /// If this is disabled we do not serialize in OSSA form when optimizing.
-  bool EnableOSSAModules = false;
+  bool EnableOSSAModules = true;
 
   // The kind of function bodies to skip emitting.
   FunctionBodySkipping SkipFunctionBodies = FunctionBodySkipping::None;
