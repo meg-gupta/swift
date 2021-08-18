@@ -930,9 +930,14 @@ static bool isAddressForLoad(SILInstruction *load, SILBasicBlock *&singleBlock,
     return true;
   }
 
-  if (!isa<UncheckedAddrCastInst>(load) && !isa<StructElementAddrInst>(load) &&
-      !isa<TupleElementAddrInst>(load))
-    return false;
+  if (load->getFunction()->hasOwnership()) {
+    if (!isa<StructElementAddrInst>(load) && !isa<TupleElementAddrInst>(load))
+      return false;
+  } else {
+    if (!isa<UncheckedAddrCastInst>(load) &&
+        !isa<StructElementAddrInst>(load) && !isa<TupleElementAddrInst>(load))
+      return false;
+  }
 
   if (isa<StructElementAddrInst>(load) || isa<TupleElementAddrInst>(load)) {
     hasGuaranteedOwnership = true;

@@ -1112,4 +1112,3 @@ bb9:
   %res = tuple ()
   return %res : $()
 }
-

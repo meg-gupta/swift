@@ -79,3 +79,23 @@ bb0(%0 : @owned $AnyObject):
   %4 = tuple()
   return %4 : $()
 }
+
+// CHECK-LABEL: sil [ossa] @shorteningcast2 :
+// CHECK: [[CAST:%.*]] = unchecked_bitwise_cast %0 : $Pair to $AnyObject
+// CHECK: [[COPY:%.*]] = copy_value [[CAST]] : $AnyObject
+// CHECK-NEXT: destroy_value %0 : $Pair
+// CHECK-NEXT: return [[COPY]] : $AnyObject
+// CHECK-LABEL: } // end sil function 'shorteningcast2'
+sil [ossa] @shorteningcast2 : $@convention(thin) (@in Pair) -> () {
+bb0(%0 : $*Pair):
+  %1 = alloc_stack $Pair
+  %ld = load [take] %0 : $*Pair
+  store %ld to [init] %1 : $*Pair
+  %2 = unchecked_addr_cast %1 : $*Pair to $*AnyObject
+  %4 = load [take] %2 : $*AnyObject
+  destroy_value %4 : $AnyObject
+  dealloc_stack %1 : $*Pair
+  %r = tuple()
+  return %r : $()
+}
+
