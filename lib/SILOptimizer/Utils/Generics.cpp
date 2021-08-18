@@ -2139,9 +2139,10 @@ static ApplySite replaceWithSpecializedCallee(ApplySite applySite,
         pai->isOnStack());
     // When we have a partial apply, we should always perform a load [take].
     pai->replaceAllUsesWith(newPAI);
-    assert(llvm::none_of(arguments,
+    assert(pai->isOnStack() ||
+           llvm::none_of(arguments,
                          [](SILValue v) { return isa<LoadBorrowInst>(v); }) &&
-           "Partial apply consumes all of its parameters?!");
+               "Partial apply consumes all of its parameters?!");
     return newPAI;
   }
   }
