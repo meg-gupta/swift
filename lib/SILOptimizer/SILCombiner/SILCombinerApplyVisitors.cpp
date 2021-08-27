@@ -232,6 +232,9 @@ SILCombiner::optimizeApplyOfConvertFunctionInst(FullApplySite AI,
 ///   load/store %addr
 bool SILCombiner::tryOptimizeKeypathApplication(ApplyInst *AI,
                                           SILFunction *callee) {
+  if (AI->getFunction()->hasOwnership())
+    return false;
+
   if (AI->getNumArguments() != 3)
     return false;
 
