@@ -85,6 +85,8 @@ class ModuleFileSharedCore {
   /// \c true if this module has incremental dependency information.
   bool HasIncrementalInfo = false;
 
+  bool RequiresOSSAModules;
+
 public:
   /// Represents another module that has been imported as a dependency.
   class Dependency {
@@ -363,10 +365,12 @@ private:
   }
 
   /// Constructs a new module and validates it.
-  ModuleFileSharedCore(std::unique_ptr<llvm::MemoryBuffer> moduleInputBuffer,
-                 std::unique_ptr<llvm::MemoryBuffer> moduleDocInputBuffer,
-                 std::unique_ptr<llvm::MemoryBuffer> moduleSourceInfoInputBuffer,
-                 bool isFramework, serialization::ValidationInfo &info);
+  ModuleFileSharedCore(
+      std::unique_ptr<llvm::MemoryBuffer> moduleInputBuffer,
+      std::unique_ptr<llvm::MemoryBuffer> moduleDocInputBuffer,
+      std::unique_ptr<llvm::MemoryBuffer> moduleSourceInfoInputBuffer,
+      bool isFramework, bool requiresOSSAModules,
+      serialization::ValidationInfo &info);
 
   /// Change the status of the current module.
   Status error(Status issue) {
@@ -499,12 +503,13 @@ public:
        std::unique_ptr<llvm::MemoryBuffer> moduleInputBuffer,
        std::unique_ptr<llvm::MemoryBuffer> moduleDocInputBuffer,
        std::unique_ptr<llvm::MemoryBuffer> moduleSourceInfoInputBuffer,
-       bool isFramework,
+       bool isFramework, bool requiresOSSAModules,
        std::shared_ptr<const ModuleFileSharedCore> &theModule) {
     serialization::ValidationInfo info;
     auto *core = new ModuleFileSharedCore(
         std::move(moduleInputBuffer), std::move(moduleDocInputBuffer),
-        std::move(moduleSourceInfoInputBuffer), isFramework, info);
+        std::move(moduleSourceInfoInputBuffer), isFramework,
+        requiresOSSAModules, info);
     if (!moduleInterfacePath.empty()) {
       ArrayRef<char> path;
       core->allocateBuffer(path, moduleInterfacePath);

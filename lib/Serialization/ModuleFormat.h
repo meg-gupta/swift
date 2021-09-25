@@ -56,7 +56,7 @@ const uint16_t SWIFTMODULE_VERSION_MAJOR = 0;
 /// describe what change you made. The content of this comment isn't important;
 /// it just ensures a conflict if two people change the module format.
 /// Don't worry about adhering to the 80-column limit for this line.
-const uint16_t SWIFTMODULE_VERSION_MINOR = 630; // Precise
+const uint16_t SWIFTMODULE_VERSION_MINOR = 631; // IS_OSSA
 
 /// A standard hash seed used for all string hashes in a serialized module.
 ///
@@ -751,46 +751,40 @@ enum BlockID {
 ///
 /// \sa CONTROL_BLOCK_ID
 namespace control_block {
-  enum {
-    METADATA = 1,
-    MODULE_NAME,
-    TARGET,
-    SDK_NAME,
-    REVISION,
-  };
+enum {
+  METADATA = 1,
+  MODULE_NAME,
+  TARGET,
+  SDK_NAME,
+  REVISION,
+  IS_OSSA,
+};
 
-  using MetadataLayout = BCRecordLayout<
-    METADATA, // ID
-    BCFixed<16>, // Module format major version
-    BCFixed<16>, // Module format minor version
-    BCVBR<8>, // length of "short version string" in the blob
-    BCVBR<8>, // length of "short compatibility version string" in the blob
-    BCVBR<17>, // User module format major version
-    BCVBR<17>, // User module format minor version
-    BCVBR<17>, // User module format sub-minor version
-    BCVBR<17>, // User module format build version
-    BCBlob // misc. version information
-  >;
+using MetadataLayout =
+    BCRecordLayout<METADATA,    // ID
+                   BCFixed<16>, // Module format major version
+                   BCFixed<16>, // Module format minor version
+                   BCVBR<8>,    // length of "short version string" in the blob
+                   BCVBR<8>,  // length of "short compatibility version string"
+                              // in the blob
+                   BCVBR<17>, // User module format major version
+                   BCVBR<17>, // User module format minor version
+                   BCVBR<17>, // User module format sub-minor version
+                   BCVBR<17>, // User module format build version
+                   BCBlob     // misc. version information
+                   >;
 
-  using ModuleNameLayout = BCRecordLayout<
-    MODULE_NAME,
-    BCBlob
-  >;
+using ModuleNameLayout = BCRecordLayout<MODULE_NAME, BCBlob>;
 
-  using TargetLayout = BCRecordLayout<
-    TARGET,
-    BCBlob // LLVM triple
-  >;
+using TargetLayout = BCRecordLayout<TARGET,
+                                    BCBlob // LLVM triple
+                                    >;
 
-  using SDKNameLayout = BCRecordLayout<
-    SDK_NAME,
-    BCBlob
-  >;
+using SDKNameLayout = BCRecordLayout<SDK_NAME, BCBlob>;
 
-  using RevisionLayout = BCRecordLayout<
-    REVISION,
-    BCBlob
-  >;
+using RevisionLayout = BCRecordLayout<REVISION, BCBlob>;
+
+using IsOSSALayout = BCRecordLayout<IS_OSSA, BCFixed<1>>;
 }
 
 /// The record types within the options block (a sub-block of the control

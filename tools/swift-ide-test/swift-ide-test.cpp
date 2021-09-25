@@ -1638,12 +1638,11 @@ static int doSyntaxColoring(const CompilerInvocation &InitInvok,
             SM, BufferID, Invocation.getMainFileSyntaxParsingCache(),
             syntaxArena);
 
-    ParserUnit Parser(SM, SourceFileKind::Main, BufferID,
-                      Invocation.getLangOptions(),
-                      Invocation.getTypeCheckerOptions(),
-                      Invocation.getModuleName(),
-                      SynTreeCreator,
-                      Invocation.getMainFileSyntaxParsingCache());
+    ParserUnit Parser(
+        SM, SourceFileKind::Main, BufferID, Invocation.getLangOptions(),
+        Invocation.getTypeCheckerOptions(), Invocation.getSILOptions(),
+        Invocation.getModuleName(), SynTreeCreator,
+        Invocation.getMainFileSyntaxParsingCache());
 
     registerParseRequestFunctions(Parser.getParser().Context.evaluator);
     registerTypeCheckerRequestFunctions(Parser.getParser().Context.evaluator);
@@ -1875,9 +1874,8 @@ static int doStructureAnnotation(const CompilerInvocation &InitInvok,
   ParserUnit Parser(SM, SourceFileKind::Main, BufferID,
                     Invocation.getLangOptions(),
                     Invocation.getTypeCheckerOptions(),
-                    Invocation.getModuleName(),
-                    SynTreeCreator,
-                    Invocation.getMainFileSyntaxParsingCache());
+                    Invocation.getSILOptions(), Invocation.getModuleName(),
+                    SynTreeCreator, Invocation.getMainFileSyntaxParsingCache());
 
   registerParseRequestFunctions(Parser.getParser().Context.evaluator);
   registerTypeCheckerRequestFunctions(

@@ -42,6 +42,9 @@ enum class Status {
   /// The precise revision version doesn't match.
   RevisionIncompatible,
 
+  /// The module is required to be in OSSA, but is not.
+  NotInOSSA,
+
   /// The module file depends on another module that can't be loaded.
   MissingDependency,
 
@@ -192,7 +195,8 @@ public:
 /// \param[out] dependencies If present, will be populated with list of
 /// input files the module depends on, if present in INPUT_BLOCK.
 ValidationInfo validateSerializedAST(
-    StringRef data, ExtendedValidationInfo *extendedInfo = nullptr,
+    StringRef data, bool requiresOSSAModules,
+    ExtendedValidationInfo *extendedInfo = nullptr,
     SmallVectorImpl<SerializationOptions::FileDependency> *dependencies =
         nullptr);
 
