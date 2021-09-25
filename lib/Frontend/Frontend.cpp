@@ -215,9 +215,8 @@ bool CompilerInstance::setUpASTContextIfNeeded() {
 
   Context.reset(ASTContext::get(
       Invocation.getLangOptions(), Invocation.getTypeCheckerOptions(),
-      Invocation.getSearchPathOptions(),
-      Invocation.getClangImporterOptions(),
-      Invocation.getSymbolGraphOptions(),
+      Invocation.getFrontendOptions(), Invocation.getSearchPathOptions(),
+      Invocation.getClangImporterOptions(), Invocation.getSymbolGraphOptions(),
       SourceMgr, Diagnostics));
   registerParseRequestFunctions(Context->evaluator);
   registerTypeCheckerRequestFunctions(Context->evaluator);

@@ -328,13 +328,14 @@ bool CompletionInstance::performCachedOperationIfPossible(
 
   LangOptions langOpts = CI.getASTContext().LangOpts;
   TypeCheckerOptions typeckOpts = CI.getASTContext().TypeCheckerOpts;
+  FrontendOptions frontendOpts = CI.getASTContext().FrontendOpts;
   SearchPathOptions searchPathOpts = CI.getASTContext().SearchPathOpts;
   DiagnosticEngine tmpDiags(tmpSM);
   ClangImporterOptions clangOpts;
   symbolgraphgen::SymbolGraphOptions symbolOpts;
   std::unique_ptr<ASTContext> tmpCtx(
-      ASTContext::get(langOpts, typeckOpts, searchPathOpts, clangOpts,
-                      symbolOpts, tmpSM, tmpDiags));
+      ASTContext::get(langOpts, typeckOpts, frontendOpts, searchPathOpts,
+                      clangOpts, symbolOpts, tmpSM, tmpDiags));
   registerParseRequestFunctions(tmpCtx->evaluator);
   registerIDERequestFunctions(tmpCtx->evaluator);
   registerTypeCheckerRequestFunctions(tmpCtx->evaluator);

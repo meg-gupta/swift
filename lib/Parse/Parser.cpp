@@ -1218,6 +1218,7 @@ struct ParserUnit::Implementation {
   std::shared_ptr<SyntaxParseActions> SPActions;
   LangOptions LangOpts;
   TypeCheckerOptions TypeCheckerOpts;
+  FrontendOptions FrontendOpts;
   SearchPathOptions SearchPathOpts;
   ClangImporterOptions clangImporterOpts;
   symbolgraphgen::SymbolGraphOptions symbolGraphOpts;
@@ -1228,12 +1229,13 @@ struct ParserUnit::Implementation {
 
   Implementation(SourceManager &SM, SourceFileKind SFKind, unsigned BufferID,
                  const LangOptions &Opts, const TypeCheckerOptions &TyOpts,
-                 StringRef ModuleName,
+                 const FrontendOptions &FEOpts, StringRef ModuleName,
                  std::shared_ptr<SyntaxParseActions> spActions)
       : SPActions(std::move(spActions)), LangOpts(Opts),
-        TypeCheckerOpts(TyOpts), Diags(SM),
-        Ctx(*ASTContext::get(LangOpts, TypeCheckerOpts, SearchPathOpts,
-                             clangImporterOpts, symbolGraphOpts, SM, Diags)) {
+        TypeCheckerOpts(TyOpts), FrontendOpts(FEOpts), Diags(SM),
+        Ctx(*ASTContext::get(LangOpts, TypeCheckerOpts, FrontendOpts,
+                             SearchPathOpts, clangImporterOpts, symbolGraphOpts,
+                             SM, Diags)) {
     auto parsingOpts = SourceFile::getDefaultParsingOptions(LangOpts);
     parsingOpts |= ParsingFlags::DisableDelayedBodies;
     parsingOpts |= ParsingFlags::DisablePoundIfEvaluation;
@@ -1250,29 +1252,32 @@ struct ParserUnit::Implementation {
   }
 };
 
-ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind, unsigned BufferID)
-  : ParserUnit(SM, SFKind, BufferID,
-               LangOptions(), TypeCheckerOptions(), "input") {
-}
+ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind,
+                       unsigned BufferID)
+    : ParserUnit(SM, SFKind, BufferID, LangOptions(), TypeCheckerOptions(),
+                 FrontendOptions(), "input") {}
 
-ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind, unsigned BufferID,
-                       const LangOptions &LangOpts,
+ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind,
+                       unsigned BufferID, const LangOptions &LangOpts,
                        const TypeCheckerOptions &TypeCheckOpts,
+                       const FrontendOptions &FrontendOpts,
                        StringRef ModuleName,
                        std::shared_ptr<SyntaxParseActions> spActions,
                        SyntaxParsingCache *SyntaxCache)
     : Impl(*new Implementation(SM, SFKind, BufferID, LangOpts, TypeCheckOpts,
-                               ModuleName, std::move(spActions))) {
+                               FrontendOpts, ModuleName,
+                               std::move(spActions))) {
 
   Impl.SF->SyntaxParsingCache = SyntaxCache;
   Impl.TheParser.reset(new Parser(BufferID, *Impl.SF, /*SIL=*/nullptr,
                                   /*PersistentState=*/nullptr, Impl.SPActions));
 }
 
-ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind, unsigned BufferID,
-                       unsigned Offset, unsigned EndOffset)
-  : Impl(*new Implementation(SM, SFKind, BufferID, LangOptions(),
-                             TypeCheckerOptions(), "input", nullptr)) {
+ParserUnit::ParserUnit(SourceManager &SM, SourceFileKind SFKind,
+                       unsigned BufferID, unsigned Offset, unsigned EndOffset)
+    : Impl(*new Implementation(SM, SFKind, BufferID, LangOptions(),
+                               TypeCheckerOptions(), FrontendOptions(), "input",
+                               nullptr)) {
 
   std::unique_ptr<Lexer> Lex;
   Lex.reset(new Lexer(Impl.LangOpts, SM,

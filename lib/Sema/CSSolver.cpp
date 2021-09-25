@@ -1659,7 +1659,7 @@ static Constraint *selectBestBindingDisjunction(
   if (disjunctions.empty())
     return nullptr;
 
-  auto getAsTypeVar = [&cs](Type type) {
+  auto getAsTypeVar = [&cs](swift::Type type) {
     return cs.simplifyType(type)->getRValueType()->getAs<TypeVariableType>();
   };
 
@@ -1831,7 +1831,7 @@ static Constraint *tryOptimizeGenericDisjunction(
       return false;
 
     auto funcType = AFD->getInterfaceType();
-    auto hasAnyOrOptional = funcType.findIf([](Type type) -> bool {
+    auto hasAnyOrOptional = funcType.findIf([](swift::Type type) -> bool {
       if (type->getOptionalObjectType())
         return true;
 

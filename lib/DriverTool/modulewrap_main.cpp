@@ -175,14 +175,15 @@ int modulewrap_main(ArrayRef<const char *> Args, const char *Argv0,
   SearchPathOpts.RuntimeResourcePath = std::string(RuntimeResourcePath.str());
 
   SourceManager SrcMgr;
+  FrontendOptions FrontendOpts;
   TypeCheckerOptions TypeCheckOpts;
   LangOptions LangOpts;
   ClangImporterOptions ClangImporterOpts;
   symbolgraphgen::SymbolGraphOptions SymbolGraphOpts;
   LangOpts.Target = Invocation.getTargetTriple();
-  ASTContext &ASTCtx = *ASTContext::get(LangOpts, TypeCheckOpts, SearchPathOpts,
-                                        ClangImporterOpts, SymbolGraphOpts, SrcMgr,
-                                        Instance.getDiags());
+  ASTContext &ASTCtx = *ASTContext::get(
+      LangOpts, TypeCheckOpts, FrontendOpts, SearchPathOpts, ClangImporterOpts,
+      SymbolGraphOpts, SrcMgr, Instance.getDiags());
   registerParseRequestFunctions(ASTCtx.evaluator);
   registerTypeCheckerRequestFunctions(ASTCtx.evaluator);
   
