@@ -65,6 +65,9 @@ enum class Status {
   /// into.
   NameMismatch,
 
+  /// Module file is incompatible and needs to be in OSSA.
+  NeedsOSSA,
+
   /// The module file was built for a different target platform.
   TargetIncompatible,
 
@@ -192,7 +195,8 @@ public:
 /// \param[out] dependencies If present, will be populated with list of
 /// input files the module depends on, if present in INPUT_BLOCK.
 ValidationInfo validateSerializedAST(
-    StringRef data, ExtendedValidationInfo *extendedInfo = nullptr,
+    StringRef data, bool enableOSSAModules,
+    ExtendedValidationInfo *extendedInfo = nullptr,
     SmallVectorImpl<SerializationOptions::FileDependency> *dependencies =
         nullptr);
 

@@ -181,6 +181,8 @@ SerializationOptions CompilerInvocation::computeSerializationOptions(
 
   serializationOpts.StaticLibrary = opts.Static;
 
+  serializationOpts.IsOSSA = opts.EnableOSSAModules;
+
   return serializationOpts;
 }
 
@@ -215,8 +217,15 @@ bool CompilerInstance::setUpASTContextIfNeeded() {
 
   Context.reset(ASTContext::get(
       Invocation.getLangOptions(), Invocation.getTypeCheckerOptions(),
+<<<<<<< Updated upstream
       Invocation.getFrontendOptions(), Invocation.getSearchPathOptions(),
       Invocation.getClangImporterOptions(), Invocation.getSymbolGraphOptions(),
+=======
+      Invocation.getFrontendOptions(),
+      Invocation.getSearchPathOptions(),
+      Invocation.getClangImporterOptions(),
+      Invocation.getSymbolGraphOptions(),
+>>>>>>> Stashed changes
       SourceMgr, Diagnostics));
   registerParseRequestFunctions(Context->evaluator);
   registerTypeCheckerRequestFunctions(Context->evaluator);

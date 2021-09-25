@@ -1232,10 +1232,16 @@ struct ParserUnit::Implementation {
                  const FrontendOptions &FEOpts, StringRef ModuleName,
                  std::shared_ptr<SyntaxParseActions> spActions)
       : SPActions(std::move(spActions)), LangOpts(Opts),
+<<<<<<< Updated upstream
         TypeCheckerOpts(TyOpts), FrontendOpts(FEOpts), Diags(SM),
         Ctx(*ASTContext::get(LangOpts, TypeCheckerOpts, FrontendOpts,
                              SearchPathOpts, clangImporterOpts, symbolGraphOpts,
                              SM, Diags)) {
+=======
+        TypeCheckerOpts(TyOpts), Diags(SM),
+        Ctx(*ASTContext::get(LangOpts, TypeCheckerOpts, FrontendOpts, SearchPathOpts,
+                             clangImporterOpts, symbolGraphOpts, SM, Diags)) {
+>>>>>>> Stashed changes
     auto parsingOpts = SourceFile::getDefaultParsingOptions(LangOpts);
     parsingOpts |= ParsingFlags::DisableDelayedBodies;
     parsingOpts |= ParsingFlags::DisablePoundIfEvaluation;

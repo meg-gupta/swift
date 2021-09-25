@@ -843,6 +843,10 @@ void swift::serialization::diagnoseSerializedASTLoadFailure(
     Ctx.Diags.diagnose(diagLoc, diag::serialization_module_incompatible_revision,
                        ModuleName, moduleBufferID);
     break;
+  case serialization::Status::NeedsOSSA:
+    Ctx.Diags.diagnose(diagLoc, diag::serialization_needs_ossa,
+                       moduleBufferID);                      
+    break;    
   case serialization::Status::Malformed:
     Ctx.Diags.diagnose(diagLoc, diag::serialization_malformed_module,
                        moduleBufferID);
@@ -1122,7 +1126,7 @@ bool SerializedModuleLoaderBase::canImportModule(
   // format, if present.
   if (currentVersion.empty() && *unusedModuleBuffer) {
     auto metaData =
-      serialization::validateSerializedAST((*unusedModuleBuffer)->getBuffer());
+      serialization::validateSerializedAST((*unusedModuleBuffer)->getBuffer(), false);
     currentVersion = metaData.userModuleVersion;
   }
 

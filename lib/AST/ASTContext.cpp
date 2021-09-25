@@ -609,8 +609,13 @@ ASTContext *ASTContext::get(LangOptions &langOpts,
       llvm::alignAddr(impl, llvm::Align(alignof(Implementation))));
   new (impl) Implementation();
   return new (mem)
+<<<<<<< Updated upstream
       ASTContext(langOpts, typeckOpts, frontendOpts, SearchPathOpts,
                  ClangImporterOpts, SymbolGraphOpts, SourceMgr, Diags);
+=======
+      ASTContext(langOpts, typeckOpts, frontendOpts, SearchPathOpts, ClangImporterOpts,
+                 SymbolGraphOpts, SourceMgr, Diags);
+>>>>>>> Stashed changes
 }
 
 ASTContext::ASTContext(LangOptions &langOpts, TypeCheckerOptions &typeckOpts,
@@ -619,6 +624,7 @@ ASTContext::ASTContext(LangOptions &langOpts, TypeCheckerOptions &typeckOpts,
                        ClangImporterOptions &ClangImporterOpts,
                        symbolgraphgen::SymbolGraphOptions &SymbolGraphOpts,
                        SourceManager &SourceMgr, DiagnosticEngine &Diags)
+<<<<<<< Updated upstream
     : LangOpts(langOpts), TypeCheckerOpts(typeckOpts),
       FrontendOpts(frontendOpts), SearchPathOpts(SearchPathOpts),
       ClangImporterOpts(ClangImporterOpts), SymbolGraphOpts(SymbolGraphOpts),
@@ -633,6 +639,27 @@ ASTContext::ASTContext(LangOptions &langOpts, TypeCheckerOptions &typeckOpts,
       TheEmptyTupleType(TupleType::get(ArrayRef<TupleTypeElt>(), *this)),
       TheAnyType(ProtocolCompositionType::get(*this, ArrayRef<Type>(),
                                               /*HasExplicitAnyObject=*/false)),
+=======
+  : LangOpts(langOpts),
+    TypeCheckerOpts(typeckOpts),
+    FrontendOpts(frontendOpts),
+    SearchPathOpts(SearchPathOpts),
+    ClangImporterOpts(ClangImporterOpts),
+    SymbolGraphOpts(SymbolGraphOpts),
+    SourceMgr(SourceMgr), Diags(Diags),
+    evaluator(Diags, langOpts),
+    TheBuiltinModule(createBuiltinModule(*this)),
+    StdlibModuleName(getIdentifier(STDLIB_NAME)),
+    SwiftShimsModuleName(getIdentifier(SWIFT_SHIMS_NAME)),
+    TheErrorType(
+      new (*this, AllocationArena::Permanent)
+        ErrorType(*this, Type(), RecursiveTypeProperties::HasError)),
+    TheUnresolvedType(new (*this, AllocationArena::Permanent)
+                      UnresolvedType(*this)),
+    TheEmptyTupleType(TupleType::get(ArrayRef<TupleTypeElt>(), *this)),
+    TheAnyType(ProtocolCompositionType::get(*this, ArrayRef<Type>(),
+                                            /*HasExplicitAnyObject=*/false)),
+>>>>>>> Stashed changes
 #define SINGLETON_TYPE(SHORT_ID, ID) \
     The##SHORT_ID##Type(new (*this, AllocationArena::Permanent) \
                           ID##Type(*this)),

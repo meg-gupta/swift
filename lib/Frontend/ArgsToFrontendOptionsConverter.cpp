@@ -87,6 +87,8 @@ bool ArgsToFrontendOptionsConverter::convert(
 
   Opts.EnableImplicitDynamic |= Args.hasArg(OPT_enable_implicit_dynamic);
 
+  Opts.EnableOSSAModules |= Args.hasArg(OPT_enable_ossa_modules);
+
   if (Args.hasArg(OPT_track_system_dependencies)) {
     Opts.IntermoduleDependencyTracking =
         IntermoduleDepTrackingMode::IncludeSystem;

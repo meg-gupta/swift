@@ -222,7 +222,12 @@ class ASTContext final {
   void operator=(const ASTContext&) = delete;
 
   ASTContext(LangOptions &langOpts, TypeCheckerOptions &typeckOpts,
+<<<<<<< Updated upstream
              FrontendOptions &frontendOpts, SearchPathOptions &SearchPathOpts,
+=======
+             FrontendOptions &frontendOpts,
+             SearchPathOptions &SearchPathOpts,
+>>>>>>> Stashed changes
              ClangImporterOptions &ClangImporterOpts,
              symbolgraphgen::SymbolGraphOptions &SymbolGraphOpts,
              SourceManager &SourceMgr, DiagnosticEngine &Diags);
@@ -237,7 +242,11 @@ public:
   void operator delete(void *Data) throw();
 
   static ASTContext *get(LangOptions &langOpts, TypeCheckerOptions &typeckOpts,
+<<<<<<< Updated upstream
                          FrontendOptions &frontendOpts,
+=======
+                         FrontendOptions &frontendOpts, 
+>>>>>>> Stashed changes
                          SearchPathOptions &SearchPathOpts,
                          ClangImporterOptions &ClangImporterOpts,
                          symbolgraphgen::SymbolGraphOptions &SymbolGraphOpts,

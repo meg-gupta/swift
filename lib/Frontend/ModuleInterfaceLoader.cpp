@@ -199,7 +199,7 @@ public:
 namespace path = llvm::sys::path;
 
 static bool serializedASTLooksValid(const llvm::MemoryBuffer &buf) {
-  auto VI = serialization::validateSerializedAST(buf.getBuffer());
+  auto VI = serialization::validateSerializedAST(buf.getBuffer(), false);
   return VI.status == serialization::Status::Valid;
 }
 
@@ -497,7 +497,7 @@ class ModuleInterfaceLoaderImpl {
 
     LLVM_DEBUG(llvm::dbgs() << "Validating deps of " << path << "\n");
     auto validationInfo = serialization::validateSerializedAST(
-        buf.getBuffer(), /*ExtendedValidationInfo=*/nullptr, &allDeps);
+        buf.getBuffer(), false, /*ExtendedValidationInfo=*/nullptr, &allDeps);
 
     if (validationInfo.status != serialization::Status::Valid) {
       rebuildInfo.setSerializationStatus(path, validationInfo.status);

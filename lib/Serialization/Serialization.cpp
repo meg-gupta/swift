@@ -805,6 +805,7 @@ void Serializer::writeBlockInfoBlock() {
   BLOCK_RECORD(control_block, TARGET);
   BLOCK_RECORD(control_block, SDK_NAME);
   BLOCK_RECORD(control_block, REVISION);
+  BLOCK_RECORD(control_block, IS_OSSA);
 
   BLOCK(OPTIONS_BLOCK);
   BLOCK_RECORD(options_block, SDK_PATH);
@@ -957,6 +958,7 @@ void Serializer::writeHeader(const SerializationOptions &options) {
     control_block::TargetLayout Target(Out);
     control_block::SDKNameLayout SDKName(Out);
     control_block::RevisionLayout Revision(Out);
+    control_block::IsOSSALayout IsOSSA(Out);
 
     ModuleName.emit(ScratchRecord, M->getName().str());
 
@@ -1005,6 +1007,10 @@ void Serializer::writeHeader(const SerializationOptions &options) {
         revision = forcedDebugRevision;
 
       Revision.emit(ScratchRecord, revision);
+    }
+
+    {
+      IsOSSA.emit(ScratchRecord, options.IsOSSA);
     }
 
     {

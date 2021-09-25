@@ -169,6 +169,7 @@ static ValidationInfo
 validateControlBlock(llvm::BitstreamCursor &cursor,
                      SmallVectorImpl<uint64_t> &scratch,
                      std::pair<uint16_t, uint16_t> expectedVersion,
+                     bool enableOSSAModules,
                      ExtendedValidationInfo *extendedInfo) {
   // The control block is malformed until we've at least read a major version
   // number.
@@ -332,6 +333,11 @@ validateControlBlock(llvm::BitstreamCursor &cursor,
       }
       break;
     }
+    case control_block::IS_OSSA: {
+      auto ossaModule = scratch[0];
+      if (enableOSSAModules && !ossaModule)
+        result.status = Status::NeedsOSSA;
+    }
     default:
       // Unknown metadata record, possibly for use by a future version of the
       // module format.
@@ -418,7 +424,7 @@ bool serialization::isSerializedAST(StringRef data) {
 }
 
 ValidationInfo serialization::validateSerializedAST(
-    StringRef data,
+    StringRef data, bool enableOSSAModules,
     ExtendedValidationInfo *extendedInfo,
     SmallVectorImpl<SerializationOptions::FileDependency> *dependencies) {
   ValidationInfo result;
@@ -460,6 +466,7 @@ ValidationInfo serialization::validateSerializedAST(
       result = validateControlBlock(cursor, scratch,
                                     {SWIFTMODULE_VERSION_MAJOR,
                                      SWIFTMODULE_VERSION_MINOR},
+                                    enableOSSAModules,
                                     extendedInfo);
       if (result.status == Status::Malformed)
         return result;
@@ -969,6 +976,7 @@ bool ModuleFileSharedCore::readModuleDocIfPresent() {
       info = validateControlBlock(docCursor, scratch,
                                   {SWIFTDOC_VERSION_MAJOR,
                                    SWIFTDOC_VERSION_MINOR},
+                                  false,
                                   /*extendedInfo*/nullptr);
       if (info.status != Status::Valid)
         return false;
@@ -1112,6 +1120,7 @@ bool ModuleFileSharedCore::readModuleSourceInfoIfPresent() {
       info = validateControlBlock(infoCursor, scratch,
                                   {SWIFTSOURCEINFO_VERSION_MAJOR,
                                    SWIFTSOURCEINFO_VERSION_MINOR},
+                                  false,
                                   /*extendedInfo*/nullptr);
       if (info.status != Status::Valid)
         return false;
@@ -1236,6 +1245,7 @@ ModuleFileSharedCore::ModuleFileSharedCore(
       info = validateControlBlock(cursor, scratch,
                                   {SWIFTMODULE_VERSION_MAJOR,
                                    SWIFTMODULE_VERSION_MINOR},
+                                  false,
                                   &extInfo);
       if (info.status != Status::Valid) {
         error(info.status);

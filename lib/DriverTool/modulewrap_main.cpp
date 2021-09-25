@@ -178,12 +178,19 @@ int modulewrap_main(ArrayRef<const char *> Args, const char *Argv0,
   FrontendOptions FrontendOpts;
   TypeCheckerOptions TypeCheckOpts;
   LangOptions LangOpts;
+  FrontendOptions FrontendOpts;
   ClangImporterOptions ClangImporterOpts;
   symbolgraphgen::SymbolGraphOptions SymbolGraphOpts;
   LangOpts.Target = Invocation.getTargetTriple();
+<<<<<<< Updated upstream
   ASTContext &ASTCtx = *ASTContext::get(
       LangOpts, TypeCheckOpts, FrontendOpts, SearchPathOpts, ClangImporterOpts,
       SymbolGraphOpts, SrcMgr, Instance.getDiags());
+=======
+  ASTContext &ASTCtx = *ASTContext::get(LangOpts, TypeCheckOpts, FrontendOpts, SearchPathOpts,
+                                        ClangImporterOpts, SymbolGraphOpts, SrcMgr,
+                                        Instance.getDiags());
+>>>>>>> Stashed changes
   registerParseRequestFunctions(ASTCtx.evaluator);
   registerTypeCheckerRequestFunctions(ASTCtx.evaluator);
   
