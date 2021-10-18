@@ -138,6 +138,34 @@ public:
     propagateLiveness();
   }
 
+  template <typename RangeTy>
+  ValueLifetimeAnalysis(
+      SILValue def, const RangeTy &useRange)
+      : defValue(), inLiveBlocks(def->getFunction()), userSet() {
+    if (auto *defArg = dyn_cast<SILArgument>(def)) {
+      defValue = defArg;
+    } else {
+      defValue = def->getDefiningInstruction();
+    }
+    for (SILInstruction *use : useRange)
+      userSet.insert(use);
+    propagateLiveness();
+  }
+
+  ValueLifetimeAnalysis(
+      SILValue def,
+      llvm::iterator_range<ValueBaseUseIterator> useRange)
+      : defValue(), inLiveBlocks(def->getFunction()), userSet() {
+    if (auto *defArg = dyn_cast<SILArgument>(def)) {
+      defValue = defArg;
+    } else {
+      defValue = def->getDefiningInstruction();
+    }
+    for (Operand *use : useRange)
+      userSet.insert(use->getUser());
+    propagateLiveness();
+  }
+
   /// Compute the LifetimeBoundary--the last users and boundary edges. This
   /// always succeeds.
   ///

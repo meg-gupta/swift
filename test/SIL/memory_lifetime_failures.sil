@@ -600,3 +600,28 @@ bb3:
   %15 = tuple ()
   return %15 : $()
 }
+
+sil [ossa] @test_double_release : $@convention(thin) (@in Optional<String>) -> () {
+bb0(%0 : $*Optional<String>):
+  %l = load_borrow %0 : $*Optional<String>
+  switch_enum %l : $Optional<String>, case #Optional.some!enumelt: bb1, case #Optional.none!enumelt: bb2
+
+bb1(%a : @guaranteed $String):
+  end_borrow %l : $Optional<String>
+  %2 = load [take] %0 : $*Optional<String>
+  destroy_value %2 : $Optional<String>
+  br bb3
+
+bb2:
+  end_borrow %l : $Optional<String>
+  %3 = load [take] %0 : $*Optional<String>
+  destroy_value %3 : $Optional<String>
+  %4 = load [take] %0 : $*Optional<String>
+  destroy_value %4 : $Optional<String>
+  br bb3
+
+bb3:
+  %r = tuple ()
+  return %r : $()
+}
+

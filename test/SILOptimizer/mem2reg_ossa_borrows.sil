@@ -1,0 +1,318 @@
+sil_stage canonical
+import Builtin
+
+//////////////////
+// Declarations //
+//////////////////
+
+class Klass {}
+
+struct WrapperStruct {
+  var cls : Klass
+}
+
+sil shared [noinline] @blackhole1 : $@convention(thin) (@in Klass) -> () {
+bb0(%0 : $*Klass):
+  destroy_addr %0 : $*Klass
+  %1 = tuple ()
+  return %1 : $()
+}
+
+sil [ossa] @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+sil [ossa] @blackhole3 : $@convention(thin) (@owned Klass) -> ()
+sil [ossa] @get_klass : $@convention(thin) () -> @owned Klass
+
+sil [ossa] @store_only_allocas : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  store_borrow %0 to %1 : $*Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas1 : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  store_borrow %0 to %1 : $*Klass
+  %l = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas2 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  store %0 to [init] %1 : $*Klass
+  %l = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  destroy_addr %1 : $*Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas3 : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  store_borrow %0 to %1 : $*Klass
+  %l = load [copy] %1 : $*Klass
+  %2 = function_ref @blackhole3 : $@convention(thin) (@owned Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@owned Klass) -> ()
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas4 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  %b = begin_borrow %0 : $Klass
+  store_borrow %b to %1 : $*Klass
+  end_borrow %b : $Klass
+  %l = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  destroy_value %0 : $Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas5 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  %b = begin_borrow %0 : $Klass
+  store_borrow %b to %1 : $*Klass
+  end_borrow %b : $Klass
+  %l = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  %la = load_borrow %1 : $*Klass
+  %2a = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4a = apply %2(%la) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %la : $Klass
+  destroy_value %0 : $Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas6 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  %b1 = begin_borrow %0 : $Klass
+  store_borrow %b1 to %1 : $*Klass
+  end_borrow %b1 : $Klass
+  %b2 = begin_borrow %0 : $Klass
+  store_borrow %b2 to %1 : $*Klass
+  end_borrow %b2 : $Klass
+  %l2 = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  apply %2(%l2) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l2 : $Klass
+  dealloc_stack %1 : $*Klass
+  destroy_value %0 : $Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas7 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  store %0 to [init] %1 : $*Klass
+  %l1 = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l1) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l1 : $Klass
+  %l2 = load [take] %1 : $*Klass
+  destroy_value %l2 : $Klass 
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas8 : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  %f = function_ref @get_klass : $@convention(thin) () -> @owned Klass
+  %a = apply %f() : $@convention(thin) () -> @owned Klass
+  %b = begin_borrow %a : $Klass
+  store_borrow %b to %1 : $*Klass
+  end_borrow %b : $Klass
+  %l = load_borrow %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  destroy_value %a : $Klass
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas9 : $@convention(thin) (@owned WrapperStruct) -> () {
+bb0(%0 : @owned $WrapperStruct):
+  %1 = alloc_stack $WrapperStruct
+  store %0 to [init] %1 : $*WrapperStruct
+  %ele = struct_element_addr %1 : $*WrapperStruct, #WrapperStruct.cls
+  %l1 = load_borrow %ele : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l1) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l1 : $Klass
+  %l2 = load [take] %1 : $*WrapperStruct
+  destroy_value %l2 : $WrapperStruct 
+  dealloc_stack %1 : $*WrapperStruct
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas10 : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  store_borrow %0 to %1 : $*Klass
+  %l = load_borrow %1 : $*Klass
+  dealloc_stack %1 : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  br bb1(%l : $Klass)
+
+bb1(%r : @guaranteed $Klass):
+  end_borrow %r : $Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas11 : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  br bb1
+
+bb1:
+  store_borrow %0 to %1 : $*Klass
+  %l = load [copy] %1 : $*Klass
+  %2 = function_ref @blackhole3 : $@convention(thin) (@owned Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@owned Klass) -> ()
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas12 : $@convention(thin) (@guaranteed Klass, @guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass, %1 : @guaranteed $Klass):
+  %stk = alloc_stack $Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  store_borrow %0 to %stk : $*Klass
+  br bb3
+
+bb2:
+  store_borrow %1 to %stk : $*Klass
+  br bb3
+
+bb3:
+  %l = load [copy] %stk : $*Klass
+  %2 = function_ref @blackhole3 : $@convention(thin) (@owned Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@owned Klass) -> ()
+  dealloc_stack %stk : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas13 : $@convention(thin) (@guaranteed Klass, @guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass, %1 : @guaranteed $Klass):
+  %stk = alloc_stack $Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  store_borrow %0 to %stk : $*Klass
+  br bb3
+
+bb2:
+  store_borrow %1 to %stk : $*Klass
+  br bb3
+
+bb3:
+  %l = load_borrow %stk : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  dealloc_stack %stk : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas14 : $@convention(thin) (@owned Klass, @owned Klass) -> () {
+bb0(%0 : @owned $Klass, %1 : @owned $Klass):
+  %stk = alloc_stack $Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  %b1 = begin_borrow %0 : $Klass
+  store_borrow %b1 to %stk : $*Klass
+  end_borrow %b1 : $Klass
+  br bb3
+
+bb2:
+  %b2 = begin_borrow %1 : $Klass
+  store_borrow %b2 to %stk : $*Klass
+  end_borrow %b2 : $Klass
+  br bb3
+
+bb3:
+  %l = load_borrow %stk : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  destroy_value %0 : $Klass
+  destroy_value %1 : $Klass
+  dealloc_stack %stk : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}
+
+sil [ossa] @store_load_borrow_allocas15 : $@convention(thin) (@owned Klass, @owned Klass) -> () {
+bb0(%0 : @owned $Klass, %1 : @owned $Klass):
+  %stk = alloc_stack $Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  %b1 = begin_borrow %0 : $Klass
+  store_borrow %b1 to %stk : $*Klass
+  end_borrow %b1 : $Klass
+  br bb3
+
+bb2:
+  %b2 = begin_borrow %1 : $Klass
+  store_borrow %b2 to %stk : $*Klass
+  end_borrow %b2 : $Klass
+  br bb3
+
+bb3:
+  cond_br undef, bb4, bb5
+
+bb4:
+  br bb6
+
+bb5:
+  %l = load_borrow %stk : $*Klass
+  %2 = function_ref @blackhole2 : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%l) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %l : $Klass
+  br bb6
+
+bb6:
+  destroy_value %0 : $Klass
+  destroy_value %1 : $Klass
+  dealloc_stack %stk : $*Klass
+  %6 = tuple ()
+  return %6 : $()
+}

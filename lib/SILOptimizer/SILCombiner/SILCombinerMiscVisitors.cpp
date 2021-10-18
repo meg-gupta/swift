@@ -180,49 +180,7 @@ SILInstruction *SILCombiner::visitSwitchEnumAddrInst(SwitchEnumAddrInst *SEAI) {
       return eraseInstFromFunction(*SEAI);
     }
   }
-
-  SILType Ty = Addr->getType();
-  if (!Ty.isLoadable(*SEAI->getFunction()))
-    return nullptr;
-
-  // Promote switch_enum_addr to switch_enum if the enum is loadable.
-  //   switch_enum_addr %ptr : $*Optional<SomeClass>, case ...
-  //     ->
-  //   %value = load %ptr
-  //   switch_enum %value
-  //
-  // If we are using ownership, we perform a load_borrow right before the new
-  // switch_enum and end the borrow scope right afterwards.
-  Builder.setCurrentDebugScope(SEAI->getDebugScope());
-  SmallVector<std::pair<EnumElementDecl *, SILBasicBlock *>, 8> Cases;
-  for (int i : range(SEAI->getNumCases())) {
-    Cases.push_back(SEAI->getCase(i));
-  }
-
-  SILBasicBlock *Default = SEAI->hasDefault() ? SEAI->getDefaultBB() : nullptr;
-  SILValue EnumVal = Builder.emitLoadBorrowOperation(SEAI->getLoc(), Addr);
-  auto *sei = Builder.createSwitchEnum(SEAI->getLoc(), EnumVal, Default, Cases);
-
-  if (Builder.hasOwnership()) {
-    for (int i : range(sei->getNumCases())) {
-      auto c = sei->getCase(i);
-      if (c.first->hasAssociatedValues()) {
-        auto eltType = Addr->getType().getEnumElementType(
-            c.first, Builder.getModule(), Builder.getTypeExpansionContext());
-        eltType = eltType.getObjectType();
-        sei->createResult(c.second, eltType);
-      }
-      Builder.setInsertionPoint(c.second->front().getIterator());
-      Builder.emitEndBorrowOperation(sei->getLoc(), EnumVal);
-    }
-    sei->createDefaultResult();
-    if (auto defaultBlock = sei->getDefaultBBOrNull()) {
-      Builder.setInsertionPoint(defaultBlock.get()->front().getIterator());
-      Builder.emitEndBorrowOperation(sei->getLoc(), EnumVal);
-    }
-  }
-
-  return eraseInstFromFunction(*SEAI);
+  return nullptr; 
 }
 
 SILInstruction *SILCombiner::visitSelectEnumAddrInst(SelectEnumAddrInst *seai) {
