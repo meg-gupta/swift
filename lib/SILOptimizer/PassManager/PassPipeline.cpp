@@ -337,6 +337,13 @@ void addFunctionPasses(SILPassPipelinePlan &P,
     P.addSROA();
   }
 
+  if (!P.getOptions().EnableOSSAModules && !SILDisableLateOMEByDefault) {
+    if (P.getOptions().StopOptimizationBeforeLoweringOwnership)
+      return;
+
+    P.addNonTransparentFunctionOwnershipModelEliminator();
+  }
+
   // Promote stack allocations to values.
   P.addMem2Reg();
 
@@ -542,13 +549,6 @@ static void addPerfEarlyModulePassPipeline(SILPassPipelinePlan &P) {
   // Needed to serialize static initializers of globals for cross-module
   // optimization.
   P.addGlobalOpt();
-
-  if (!P.getOptions().EnableOSSAModules && !SILDisableLateOMEByDefault) {
-    if (P.getOptions().StopOptimizationBeforeLoweringOwnership)
-      return;
-
-    P.addNonTransparentFunctionOwnershipModelEliminator();
-  }
 
   // Add the outliner pass (Osize).
   P.addOutliner();
