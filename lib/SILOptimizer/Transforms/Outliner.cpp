@@ -1347,10 +1347,6 @@ public:
   void run() override {
     auto *Fun = getFunction();
 
-    // Only outline if we optimize for size.
-    if (!Fun->optimizeForSize())
-      return;
-
     DeadEndBlocksAnalysis *deBlocksAnalysis =
         PM->getAnalysis<DeadEndBlocksAnalysis>();
 
