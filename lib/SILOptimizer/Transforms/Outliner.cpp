@@ -830,10 +830,6 @@ BridgedArgument BridgedArgument::match(unsigned ArgIdx, SILValue Arg,
     return BridgedArgument();
 
   auto BridgedValue = BridgeCall->getArgument(0);
-  if (isa<LoadBorrowInst>(BridgedValue)) {
-    // TODO: We don't support load_borrow currently
-    return BridgedArgument();
-  }
   auto Next = std::next(SILBasicBlock::iterator(Enum));
   if (Next == Enum->getParent()->end())
     return BridgedArgument();
@@ -1057,7 +1053,29 @@ ObjCMethodCall::outline(SILModule &M) {
     for (auto Arg : BridgedCall->getArguments()) {
       if (BridgedArgIdx < BridgedArguments.size() &&
           BridgedArguments[BridgedArgIdx].Idx == OrigSigIdx) {
-        Args.push_back(BridgedArguments[BridgedArgIdx].bridgedValue());
+        auto bridgedArgValue = BridgedArguments[BridgedArgIdx].bridgedValue();
+        if (bridgedArgValue->getOwnershipKind() == OwnershipKind::Guaranteed) {
+          BorrowedValue borrowedBridgeArg(bridgedArgValue);
+          GuaranteedOwnershipExtension extension(deleter, *deBlocks);
+          auto status = GuaranteedOwnershipExtension::Status::Invalid;
+          if (borrowedBridgeArg) {
+            status = extension.checkBorrowExtension(
+                borrowedBridgeArg,
+                {&BridgedCall->getArgumentRef(BridgedArgIdx)});
+          }
+          if (status == GuaranteedOwnershipExtension::ExtendBorrow ||
+              status == GuaranteedOwnershipExtension::ExtendLifetime) {
+            extension.transform(status);
+          } else if (status == GuaranteedOwnershipExtension::Invalid) {
+            auto *copy =
+                SILBuilderWithScope(bridgedArgValue->getNextInstruction())
+                    .createCopyValue(bridgedArgValue.getLoc(), bridgedArgValue);
+            SILBuilderWithScope(BridgedCall->getNextInstruction())
+                .createDestroyValue(BridgedCall->getLoc(), copy);
+            bridgedArgValue = copy;
+          }
+        }
+        Args.push_back(bridgedArgValue);
         ++BridgedArgIdx;
       } else {
         // Otherwise, use the original type convention.
@@ -1106,16 +1124,6 @@ ObjCMethodCall::outline(SILModule &M) {
       auto *FunArg =
           EntryBB->createFunctionArgument(BridgedArg.bridgedValue()->getType());
       BridgedArg.transferTo(FunArg, BridgedCall);
-      BorrowedValue borrowedBridgeArg(BridgedArg.bridgedValue());
-      // If the bridgedarg had a local borrow scope, its lifetime may need to be
-      // extended along with the lifetime of its owned operand value.
-      if (borrowedBridgeArg) {
-        GuaranteedOwnershipExtension extension(deleter, *deBlocks);
-        auto status = extension.checkBorrowExtension(
-            borrowedBridgeArg, {&OutlinedCall->getArgumentRef(BridgedArgIdx)});
-        assert(status != GuaranteedOwnershipExtension::Invalid);
-        extension.transform(status);
-      }
       ++BridgedArgIdx;
     } else {
       auto *FunArg = EntryBB->createFunctionArgument(Arg->getType());

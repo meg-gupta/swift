@@ -14,7 +14,12 @@ import Foundation
   @objc static func take_two(arg1: Data?, arg2: Data?) -> Data?
 }
 
+struct DataWrapper {
+  let data: Data
+}
+
 sil @getData : $@convention(thin) () -> @owned Data
+sil @getDataWrapper : $@convention(thin) () -> @owned DataWrapper
 sil @$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF : $@convention(method) (@guaranteed Data) -> @owned NSData
 sil @$s10Foundation4DataV36_unconditionallyBridgeFromObjectiveCyACSo6NSDataCSgFZ : $@convention(method) (@guaranteed Optional<NSData>, @thin Data.Type) -> @owned Data
 
@@ -92,7 +97,10 @@ bb0(%0: @owned $MyObject):
   return %51 : $Optional<NSData>
 }
 
-// This is not optimized currently
+// CHECK-LABEL: sil [Osize] [ossa] @test3 :
+// CHECK:  [[FUNC:%.*]] = function_ref @$s4main8MyObjectC4take3arg10Foundation4DataVSgAI_tFZToTembgnn_ :
+// CHECK:  apply [[FUNC]]
+// CHECK-LABEL: } // end sil function 'test3'
 sil [Osize] [ossa] @test3 : $@convention(thin) (@owned MyObject, @in Data) -> @owned Optional<NSData> {
 bb0(%0: @owned $MyObject, %1 : $*Data):
   %35 = metatype $@objc_metatype MyObject.Type
@@ -167,6 +175,29 @@ bb3:
   %51 = apply %50(%46, %46a, %35) : $@convention(objc_method) (Optional<NSData>, Optional<NSData>, @objc_metatype MyObject.Type) -> @autoreleased Optional<NSData>
   destroy_value %46 : $Optional<NSData>
   destroy_value %46a : $Optional<NSData>
+  return %51 : $Optional<NSData>
+}
+
+// CHECK-LABEL: sil [Osize] [ossa] @test6 :
+// CHECK:  [[FUNC:%.*]] = function_ref @$s4main8MyObjectC4take3arg10Foundation4DataVSgAI_tFZToTembgnn_ :
+// CHECK:  apply [[FUNC]]
+// CHECK-LABEL: } // end sil function 'test6'
+sil [Osize] [ossa] @test6 : $@convention(thin) (@owned MyObject) -> @owned Optional<NSData> {
+bb0(%0: @owned $MyObject):
+  %35 = metatype $@objc_metatype MyObject.Type
+  %41 = function_ref @getDataWrapper : $@convention(thin) () -> @owned DataWrapper
+  %43 = apply %41() : $@convention(thin) () -> @owned DataWrapper
+  %b = begin_borrow %43 : $DataWrapper
+  %ex = struct_extract %b : $DataWrapper, #DataWrapper.data
+  %44 = function_ref @$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF : $@convention(method) (@guaranteed Data) -> @owned NSData
+  %45 = apply %44(%ex) : $@convention(method) (@guaranteed Data) -> @owned NSData
+  %46 = enum $Optional<NSData>, #Optional.some!enumelt, %45 : $NSData
+  end_borrow %b : $DataWrapper
+  destroy_value %0 : $MyObject
+  destroy_value %43 : $DataWrapper
+  %50 = objc_method %35 : $@objc_metatype MyObject.Type, #MyObject.take!foreign : (MyObject.Type) -> (Data?) -> Data?, $@convention(objc_method) (Optional<NSData>, @objc_metatype MyObject.Type) -> @autoreleased Optional<NSData>
+  %51 = apply %50(%46, %35) : $@convention(objc_method) (Optional<NSData>, @objc_metatype MyObject.Type) -> @autoreleased Optional<NSData>
+  destroy_value %46 : $Optional<NSData>
   return %51 : $Optional<NSData>
 }
 
