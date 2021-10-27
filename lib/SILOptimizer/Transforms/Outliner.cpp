@@ -240,7 +240,10 @@ public:
   std::pair<SILFunction *, SILBasicBlock::iterator>
   outline(SILModule &M) override;
 
-  BridgedProperty(SILOptFunctionBuilder &FuncBuilder) : OutlinePattern(FuncBuilder) {
+  BridgedProperty(SILOptFunctionBuilder &FuncBuilder,
+                  InstModCallbacks callbacks = InstModCallbacks(),
+                  DeadEndBlocks *deBlocks = nullptr)
+      : OutlinePattern(FuncBuilder, callbacks, deBlocks) {
     clearState();
   }
 
@@ -359,7 +362,9 @@ BridgedProperty::outline(SILModule &M) {
   auto *OutlinedEntryBB = StartBB->split(SILBasicBlock::iterator(FirstInst));
   auto *OldMergeBB = switchInfo.Br->getDestBB();
   auto *NewTailBB = OldMergeBB->split(OldMergeBB->begin());
-
+  if (deBlocks) {
+    deBlocks->updateForNewBlock(NewTailBB);
+  }
   // Call the outlined function.
   {
     SILBuilder Builder(StartBB);
@@ -907,8 +912,11 @@ namespace {
 //
 // bb3(%32 : $Optional<String>):
 class BridgedReturn {
+  DeadEndBlocks *deBlocks;
   SwitchInfo switchInfo;
 public:
+  BridgedReturn(DeadEndBlocks *deBlocks = nullptr) : deBlocks(deBlocks) {}
+
   bool match(ApplyInst *BridgedCall) {
     switchInfo = SwitchInfo();
     auto *SwitchBB = BridgedCall->getParent();
@@ -948,6 +956,9 @@ void BridgedReturn::outline(SILFunction *Fun, ApplyInst *NewOutlinedCall) {
   auto *OutlinedEntryBB = StartBB->split(SILBasicBlock::iterator(switchInfo.SwitchEnum));
   auto *OldMergeBB = switchInfo.Br->getDestBB();
   auto *NewTailBB = OldMergeBB->split(OldMergeBB->begin());
+  if (deBlocks) {
+    deBlocks->updateForNewBlock(NewTailBB);
+  }
 	auto Loc = switchInfo.SwitchEnum->getLoc();
 
   {
@@ -1002,7 +1013,7 @@ public:
   ObjCMethodCall(SILOptFunctionBuilder &FuncBuilder,
                  InstModCallbacks callbacks = InstModCallbacks(),
                  DeadEndBlocks *deBlocks = nullptr)
-      : OutlinePattern(FuncBuilder, callbacks, deBlocks) {}
+      : OutlinePattern(FuncBuilder, callbacks, deBlocks), BridgedReturn(deBlocks) {}
   ~ObjCMethodCall();
 
 private:
@@ -1299,7 +1310,7 @@ public:
   OutlinePatterns(SILOptFunctionBuilder &FuncBuilder,
                   InstModCallbacks callbacks = InstModCallbacks(),
                   DeadEndBlocks *deBlocks = nullptr)
-      : BridgedPropertyPattern(FuncBuilder),
+      : BridgedPropertyPattern(FuncBuilder, callbacks, deBlocks),
         ObjCMethodCallPattern(FuncBuilder, callbacks, deBlocks) {}
   ~OutlinePatterns() {}
 
@@ -1313,7 +1324,8 @@ public:
 /// functions.
 bool tryOutline(SILOptFunctionBuilder &FuncBuilder, SILFunction *Fun,
                 SmallVectorImpl<SILFunction *> &FunctionsAdded,
-                InstModCallbacks &callbacks, DeadEndBlocks *deBlocks) {
+                InstModCallbacks callbacks = InstModCallbacks(),
+                DeadEndBlocks *deBlocks = nullptr) {
   BasicBlockWorklist Worklist(Fun->getEntryBlock());
   OutlinePatterns patterns(FuncBuilder, callbacks, deBlocks);
   bool changed = false;
@@ -1368,8 +1380,13 @@ public:
     InstModCallbacks callbacks;
     SILOptFunctionBuilder FuncBuilder(*this);
     SmallVector<SILFunction *, 16> FunctionsAdded;
-    bool Changed =
-        tryOutline(FuncBuilder, Fun, FunctionsAdded, callbacks, deBlocks);
+    bool Changed = false;
+
+    if (Fun->hasOwnership()) {
+      Changed = tryOutline(FuncBuilder, Fun, FunctionsAdded, callbacks, deBlocks);
+    } else {
+      Changed = tryOutline(FuncBuilder, Fun, FunctionsAdded);
+    }
 
     if (!FunctionsAdded.empty()) {
       // Notify the pass manager of any new functions we outlined.
