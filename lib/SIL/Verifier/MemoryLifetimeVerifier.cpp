@@ -171,8 +171,7 @@ bool MemoryLifetimeVerifier::isEnumTrivialAt(int locIdx,
 
 static bool isTrivialEnumElem(EnumElementDecl *elem, SILType enumType,
                               SILFunction *function) {
-  return !elem->hasAssociatedValues() ||
-        enumType.getEnumElementType(elem, function).isTrivial(*function);
+  return false;                                
 }
 
 static bool injectsNoPayloadCase(InjectEnumAddrInst *IEAI) {
