@@ -6,9 +6,13 @@ import Builtin
 //////////////////
 
 class Klass {}
-
 struct WrapperStruct {
   var cls : Klass
+}
+
+enum FakeOptional<T> {
+case none
+case some(T)
 }
 
 sil shared [noinline] @blackhole1 : $@convention(thin) (@in Klass) -> () {
@@ -316,3 +320,26 @@ bb6:
   %6 = tuple ()
   return %6 : $()
 }
+
+sil [ossa] @test_switch_enum_cleanup : $@convention(thin) (@owned FakeOptional<Klass>) -> () {
+bb0(%0 : @owned $FakeOptional<Klass>):
+  %stk = alloc_stack $FakeOptional<Klass>
+  store %0 to [init] %stk : $*FakeOptional<Klass> 
+  %l = load_borrow %stk : $*FakeOptional<Klass>
+  switch_enum %l : $FakeOptional<Klass>, case #FakeOptional.some!enumelt: bb1, case #FakeOptional.none!enumelt: bb2 
+
+bb1(%a : @guaranteed $Klass):
+  end_borrow %l : $FakeOptional<Klass>
+  destroy_addr %stk : $*FakeOptional<Klass>
+  br bb3 
+
+bb2:
+  end_borrow %l : $FakeOptional<Klass>
+  br bb3 
+
+bb3:
+  dealloc_stack %stk : $*FakeOptional<Klass>
+  %r = tuple ()
+  return %r : $() 
+}
+

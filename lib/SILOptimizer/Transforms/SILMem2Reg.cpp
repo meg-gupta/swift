@@ -232,8 +232,19 @@ static void
 replaceLoad(SILInstruction *load, SILValue newValue, AllocStackInst *asi,
             SILBuilderContext &ctx, InstructionDeleter &deleter,
             SmallVectorImpl<SILInstruction *> &instructionsToDelete,
-            SmallPtrSetImpl<CopyValueInst *> &fixupCopies) {
+            SmallPtrSetImpl<SILValue> &fixupCopies,
+            SmallPtrSetImpl<SILValue> &fixupValues) {
   assert(isa<LoadInst>(load) || isa<LoadBorrowInst>(load));
+
+  if (auto *lbi = dyn_cast<LoadBorrowInst>(load)) {
+    if (newValue->getOwnershipKind() == OwnershipKind::Owned) {
+      for (auto *use : lbi->getUses()) {
+        if (isa<SwitchEnumInst>(use->getUser())) {
+          fixupValues.insert(newValue);
+        }
+      }
+    }
+  }
   ProjectionPath projections(newValue->getType());
   SILValue op = load->getOperand(0);
   SILBuilderWithScope builder(load, ctx);
@@ -451,7 +462,9 @@ class StackAllocationPromoter {
   ///     deleted
   SmallVectorImpl<SILInstruction *> &instructionsToDelete;
 
-  SmallPtrSetImpl<CopyValueInst *> &fixupCopies;
+  SmallPtrSetImpl<SILValue> &fixupCopies;
+
+  SmallPtrSetImpl<SILValue> &fixupValues;
 
   /// The last instruction in each block that initializes the storage that is
   /// not succeeded by an instruction that deinitializes it.
@@ -484,10 +497,11 @@ public:
       DomTreeLevelMap &inputDomTreeLevels, SILBuilderContext &inputCtx,
       InstructionDeleter &deleter,
       SmallVectorImpl<SILInstruction *> &instructionsToDelete,
-      SmallPtrSetImpl<CopyValueInst *> &fixupCopies)
+      SmallPtrSetImpl<SILValue> &fixupCopies,
+      SmallPtrSetImpl<SILValue> &fixupValues)
       : asi(inputASI), dsi(nullptr), domInfo(inputDomInfo),
         domTreeLevels(inputDomTreeLevels), ctx(inputCtx), deleter(deleter),
-        instructionsToDelete(instructionsToDelete), fixupCopies(fixupCopies) {
+        instructionsToDelete(instructionsToDelete), fixupCopies(fixupCopies), fixupValues(fixupValues) {
     // Scan the users in search of a deallocation instruction.
     for (auto *use : asi->getUses()) {
       if (auto *foundDealloc = dyn_cast<DeallocStackInst>(use->getUser())) {
@@ -633,7 +647,7 @@ SILInstruction *StackAllocationPromoter::promoteAllocationInBlock(
           // content of the Alloca then use it.
           LLVM_DEBUG(llvm::dbgs() << "*** Promoting load: " << *li);
           replaceLoad(li, runningVals->value.replacement(asi), asi, ctx,
-                      deleter, instructionsToDelete, fixupCopies);
+                      deleter, instructionsToDelete, fixupCopies, fixupValues);
           ++NumInstRemoved;
         } else if (li->getOperand() == asi &&
                    li->getOwnershipQualifier() !=
@@ -656,7 +670,7 @@ SILInstruction *StackAllocationPromoter::promoteAllocationInBlock(
           // content of the Alloca then use it.
           LLVM_DEBUG(llvm::dbgs() << "*** Promoting load: " << *lbi);
           replaceLoad(lbi, runningVals->value.replacement(asi), asi, ctx,
-                      deleter, instructionsToDelete, fixupCopies);
+                      deleter, instructionsToDelete, fixupCopies, fixupValues);
           ++NumInstRemoved;
         } else {
           // Don't use load_borrow's result as a running value
@@ -817,7 +831,7 @@ SILInstruction *StackAllocationPromoter::promoteAllocationInBlock(
     LLVM_DEBUG(llvm::dbgs() << "*** Finished promotion. Last store: "
                             << lastStoreInst->value);
     if (runningVals && runningVals->value.copy) {
-      fixupCopies.insert(cast<CopyValueInst>(runningVals->value.copy));
+      fixupCopies.insert(runningVals->value.copy);
     }
     return lastStoreInst->value;
   }
@@ -1055,7 +1069,7 @@ void StackAllocationPromoter::fixBranchesAndUses(BlockSetVector &phiBlocks,
 
       // Replace the load with the definition that we found.
       replaceLoad(load, def.replacement(asi), asi, ctx, deleter,
-                  instructionsToDelete, fixupCopies);
+                  instructionsToDelete, fixupCopies, fixupValues);
       removedUser = true;
       ++NumInstRemoved;
     }
@@ -1466,7 +1480,8 @@ class MemoryToRegisters {
   /// AllocStackInst itself!
   void
   removeSingleBlockAllocation(AllocStackInst *asi,
-                              SmallPtrSetImpl<CopyValueInst *> &fixupCopies);
+                              SmallPtrSetImpl<SILValue> &fixupCopies,
+                              SmallPtrSetImpl<SILValue> &fixupValues);
 
   /// Attempt to promote the specified stack allocation, returning true if so
   /// or false if not.  On success, all uses of the AllocStackInst have been
@@ -1639,12 +1654,12 @@ bool MemoryToRegisters::isWriteOnlyAllocation(AllocStackInst *asi) {
 }
 
 static void
-fixupLifetimeExtensionCopies(SmallPtrSetImpl<CopyValueInst *> &fixupCopies) {
+fixupLifetimeExtensionCopies(SmallPtrSetImpl<SILValue> &fixupCopies) {
   SmallVector<SILInstruction *, 4> users;
   SmallVector<SILBasicBlock *, 4> consumingUserBBs;
   SmallSetVector<SILValue, 4> worklist;
   
-  for (auto *copy : fixupCopies) {
+  for (auto &copy : fixupCopies) {
     worklist.insert(copy);
   }
 
@@ -1653,10 +1668,13 @@ fixupLifetimeExtensionCopies(SmallPtrSetImpl<CopyValueInst *> &fixupCopies) {
     auto consumingUses = value->getConsumingUses();
     if (!consumingUses.empty()) {
       for (auto *consumingUse : consumingUses) {
-        auto *branchInst = cast<BranchInst>(consumingUse->getUser());
-        consumingUserBBs.push_back(branchInst->getParentBlock());
-        worklist.insert(branchInst->getDestBB()->getArgument(
-            consumingUse->getOperandNumber()));
+        if (auto *branchInst = dyn_cast<BranchInst>(consumingUse->getUser())) {
+          consumingUserBBs.push_back(branchInst->getParentBlock());
+          worklist.insert(branchInst->getDestBB()->getArgument(
+              consumingUse->getOperandNumber()));
+        } else {
+          consumingUserBBs.push_back(consumingUse->getUser()->getParent());
+        }
       }
       endLifetimeAtLeakingBlocks(value, consumingUserBBs);
     } else {
@@ -1688,8 +1706,79 @@ fixupLifetimeExtensionCopies(SmallPtrSetImpl<CopyValueInst *> &fixupCopies) {
   }
 }
 
+static void
+fixupLeaksOfValues(SmallPtrSetImpl<SILValue> &fixupValues) {
+  SmallVector<SILInstruction *, 4> users;
+
+  for (auto &value : fixupValues) {
+    for (auto *use : value->getUses()) {
+      auto *user = use->getUser();
+      users.push_back(user);
+      if (auto *borrow = dyn_cast<BeginBorrowInst>(user)) {
+        visitTransitiveEndBorrows(
+            BorrowedValue(borrow),
+            [&](EndBorrowInst *endBorrow) { users.push_back(endBorrow); });
+      }
+    }
+
+    ValueLifetimeAnalysis lifetimeAnalysis(value, users);
+    ValueLifetimeBoundary boundary;
+    lifetimeAnalysis.computeLifetimeBoundary(boundary);
+    boundary.visitInsertionPoints(
+        [&](SILBasicBlock::iterator insertPt) {
+          SILBuilderWithScope builder(insertPt);
+          auto *lastUse =
+              (insertPt->getIterator() != insertPt->getParent()->begin())
+                  ? &*std::prev(insertPt->getIterator())
+                  : nullptr;
+          if (lastUse) {
+            for (auto &op : lastUse->getAllOperands()) {
+              if (op.get() == value && op.isLifetimeEnding()) {
+                return;
+              }
+            }
+            SILLocation loc =
+                RegularLocation::getAutoGeneratedLocation(insertPt->getLoc());
+            SILBuilderWithScope frontierBuilder(insertPt);
+            builder.createDestroyValue(loc, value);
+          }                  
+        },
+        nullptr);
+
+    /*
+        ValueLifetimeAnalysis lifetimeAnalysis(value, users);
+        ValueLifetimeAnalysis::Frontier frontier;
+        bool result = lifetimeAnalysis.computeFrontier(
+            frontier, ValueLifetimeAnalysis::DontModifyCFG);
+        while (!frontier.empty()) {
+          auto *insertPt = frontier.pop_back_val();
+          auto *lastUse =
+              (insertPt->getIterator() != insertPt->getParent()->begin())
+                  ? &*std::prev(insertPt->getIterator())
+                  : nullptr;
+          if (lastUse) {
+            bool consumingUse = false;
+            for (auto &op : lastUse->getAllOperands()) {
+              if (op.get() == value && op.isLifetimeEnding()) {
+                consumingUse = true;
+                break;
+              }
+            }
+            if (consumingUse)
+              continue;
+            SILLocation loc =
+                RegularLocation::getAutoGeneratedLocation(insertPt->getLoc());
+            SILBuilderWithScope frontierBuilder(insertPt);
+            frontierBuilder.createDestroyValue(loc, value);
+          }
+        }
+        */
+    users.clear();
+  }
+}
+
 void MemoryToRegisters::removeSingleBlockAllocation(
-    AllocStackInst *asi, SmallPtrSetImpl<CopyValueInst *> &fixupCopies) {
+    AllocStackInst *asi, SmallPtrSetImpl<SILValue> &fixupCopies, SmallPtrSetImpl<SILValue> &fixupValues) {
   LLVM_DEBUG(llvm::dbgs() << "*** Promoting in-block: " << *asi);
 
   SILBasicBlock *parentBlock = asi->getParent();
@@ -1727,13 +1816,13 @@ void MemoryToRegisters::removeSingleBlockAllocation(
           runningVals->isStorageValid = false;
         }
         replaceLoad(li, runningVals->value.replacement(asi), asi, ctx, deleter,
-                    instructionsToDelete, fixupCopies);
+                    instructionsToDelete, fixupCopies, fixupValues);
         ++NumInstRemoved;
         continue;
       }
       if (auto *lbi = dyn_cast<LoadBorrowInst>(inst)) {
         replaceLoad(lbi, runningVals->value.replacement(asi), asi, ctx, deleter,
-                    instructionsToDelete, fixupCopies);
+                    instructionsToDelete, fixupCopies, fixupValues);
         ++NumInstRemoved;
         continue;
       }
@@ -1874,7 +1963,7 @@ void MemoryToRegisters::removeSingleBlockAllocation(
   }
 
   if (runningVals && runningVals->value.copy) {
-    fixupCopies.insert(cast<CopyValueInst>(runningVals->value.copy));
+    fixupCopies.insert(runningVals->value.copy);
   }
 }
 
@@ -1906,11 +1995,13 @@ bool MemoryToRegisters::promoteSingleAllocation(AllocStackInst *alloc) {
     return true;
   }
 
-  SmallPtrSet<CopyValueInst *, 4> fixupCopies;
+  SmallPtrSet<SILValue, 4> fixupCopies;
+  SmallPtrSet<SILValue, 4> fixupValues;
+
   // For AllocStacks that are only used within a single basic blocks, use
   // the linear sweep to remove the AllocStack.
   if (inSingleBlock) {
-    removeSingleBlockAllocation(alloc, fixupCopies);
+    removeSingleBlockAllocation(alloc, fixupCopies, fixupValues);
 
     LLVM_DEBUG(llvm::dbgs() << "*** Deleting single block AllocStackInst: "
                             << *alloc);
@@ -1926,6 +2017,7 @@ bool MemoryToRegisters::promoteSingleAllocation(AllocStackInst *alloc) {
       b.createDeallocStack(next->getLoc(), alloc);
     }
     fixupLifetimeExtensionCopies(fixupCopies);
+    fixupLeaksOfValues(fixupValues);
     return true;
   }
 
@@ -1935,10 +2027,11 @@ bool MemoryToRegisters::promoteSingleAllocation(AllocStackInst *alloc) {
   // if we have not done so yet.
   auto &domTreeLevels = getDomTreeLevels();
   StackAllocationPromoter(alloc, domInfo, domTreeLevels, ctx, deleter,
-                          instructionsToDelete, fixupCopies)
+                          instructionsToDelete, fixupCopies, fixupValues)
       .run();
 
   fixupLifetimeExtensionCopies(fixupCopies);
+  fixupLeaksOfValues(fixupValues);
 
   // Make sure that all of the allocations were promoted into registers.
   assert(isWriteOnlyAllocation(alloc) && "Non-write uses left behind");
