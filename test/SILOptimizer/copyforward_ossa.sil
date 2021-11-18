@@ -264,6 +264,38 @@ bb0:
   return %34 : $()
 }
 
+// CHECK-LABEL: sil [ossa] @nil_comparison :
+// CHECK:  alloc_stack
+// CHECK-NOT: copy_addr
+// CHECK-NOT: destroy_addr
+// CHECK: switch_enum_addr %0
+// CHECK: [[D:%.*]] = unchecked_take_enum_data_addr %0
+// CHECK: destroy_addr [[D]]
+// CHECK-LABEL: } // end sil function 'nil_comparison'
+sil [ossa] @nil_comparison : $@convention(thin) <T> (@in Optional<T>) -> Bool {
+bb0(%0 : $*Optional<T>):
+  %2 = alloc_stack $Optional<T>
+  copy_addr %0 to [initialization] %2 : $*Optional<T>
+  destroy_addr %0 : $*Optional<T>
+  switch_enum_addr %2 : $*Optional<T>, case #Optional.some!enumelt: bb1, case #Optional.none!enumelt: bb2
+
+bb1:
+  %6 = unchecked_take_enum_data_addr %2 : $*Optional<T>, #Optional.some!enumelt
+  destroy_addr %6 : $*T
+  %8 = integer_literal $Builtin.Int1, -1
+  br bb3(%8 : $Builtin.Int1)
+
+bb2:
+  destroy_addr %2 : $*Optional<T>
+  %10 = integer_literal $Builtin.Int1, 0
+  br bb3(%10 : $Builtin.Int1)
+
+bb3(%12 : $Builtin.Int1):
+  %13 = struct $Bool (%12 : $Builtin.Int1)
+  dealloc_stack %2 : $*Optional<T>
+  return %13 : $Bool
+}
+
 sil @use: $@convention(thin) <T> (@inout T) -> ()
 
 // We currently don't handle reasoning about multiple copy_addr instructions at
@@ -510,6 +542,46 @@ bb1:
   dealloc_stack %local : $*AClass
   %v = tuple ()
   return %v : $()
+}
+
+// Test an "illegal" reinitialization of a stack location. This
+// happens because lowering .int_fma_FPIEEE32 knows that the type is
+// trivial, so avoids deinitialization. rdar://64671864.
+//
+// Note: we have given up on enforcing known SIL-patterns in
+// CopyForwarding. Instead, we just remove restructions whenever we see
+// unexpected patterns. Eventually, we will replace it with an OSSA
+// pass and enforce all assumptions about SIL patterns in the verifier.
+
+// CHECK-LABEL: sil [ossa] @testCPF : $@convention(thin) (Float) -> @out Float {
+// CHECK: bb0(%0 : $*Float, %1 : $Float):
+// CHECK:   [[TMP1:%.*]] = alloc_stack $Float
+// CHECK:   store %1 to [trivial] [[TMP1]] : $*Float
+// CHECK:   [[TMP2:%.*]] = alloc_stack $Float
+// CHECK-NOT: copy_addr
+// CHECK:   [[FMA:%.*]] = builtin "int_fma_FPIEEE32"
+// CHECK:   [[RESULT:%.*]] = struct $Float ([[FMA]] : $Builtin.FPIEEE32)
+// CHECK:   store [[RESULT]] to [trivial] %0 : $*Float
+// CHECK-NOT: copy_addr
+// CHECK-NOT: destroy_addr
+// CHECK-LABEL: } // end sil function 'testCPF'
+sil [ossa] @testCPF : $@convention(thin) (Float) -> @out Float {
+bb0(%0 : $*Float, %1 : $Float):
+  %2 = alloc_stack $Float
+  store %1 to [trivial] %2 : $*Float
+  %4 = alloc_stack $Float
+  copy_addr  %2 to [initialization] %4 : $*Float
+  %6 = struct_extract %1 : $Float, #Float._value
+  %7 = builtin "int_fma_FPIEEE32"(%6 : $Builtin.FPIEEE32, %6 : $Builtin.FPIEEE32, %6 : $Builtin.FPIEEE32) : $Builtin.FPIEEE32
+  %8 = struct $Float (%7 : $Builtin.FPIEEE32)
+  store %8 to [trivial] %4 : $*Float
+  copy_addr %4 to [initialization] %0 : $*Float
+  destroy_addr %4 : $*Float
+  dealloc_stack %4 : $*Float
+  destroy_addr %2 : $*Float
+  dealloc_stack %2 : $*Float
+  %15 = tuple ()
+  return %15 : $()
 }
 
 // CHECK-LABEL: sil [ossa] @test_dynamic_lifetime : 

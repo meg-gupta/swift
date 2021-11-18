@@ -405,6 +405,7 @@ bb1:
   br bb3
 
 bb2:
+  destroy_addr %0 : $*Optional<T>
   br bb3
 
 bb3:
@@ -425,6 +426,7 @@ bb1(%3 : @guaranteed $T):
 
 bb2:
   end_borrow %1 : $Optional<T>
+  destroy_addr %0 : $*Optional<T>
   br bb3
 
 bb3:

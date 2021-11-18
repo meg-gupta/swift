@@ -19,11 +19,12 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "swift/AST/SILOptions.h"
 #define DEBUG_TYPE "sil-passpipeline-plan"
+
 #include "swift/SILOptimizer/PassManager/PassPipeline.h"
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/Module.h"
+#include "swift/AST/SILOptions.h"
 #include "swift/SIL/SILModule.h"
 #include "swift/SILOptimizer/Analysis/Analysis.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"

@@ -522,13 +522,10 @@ bb3:
   return %9999 : $()
 }
 
-// In this case, there isn't any cleanup of %1 along bbNone since. Make sure we
-// handle it appropriately and eliminate the alloc_stack.
-//
-// CHECK-LABEL: sil [ossa] @leak_along_nopayload_case_is_ok : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK-LABEL: sil [ossa] @test_switch_enum_addr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 // CHECK-NOT: alloc_stack
-// CHECK: } // end sil function 'leak_along_nopayload_case_is_ok'
-sil [ossa] @leak_along_nopayload_case_is_ok : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK: } // end sil function 'test_switch_enum_addr'
+sil [ossa] @test_switch_enum_addr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 bb0(%0 : @owned $Optional<Builtin.NativeObject>):
   %1 = alloc_stack $Optional<Builtin.NativeObject>
   %2 = copy_value %0 : $Optional<Builtin.NativeObject>
@@ -541,14 +538,16 @@ bb0(%0 : @owned $Optional<Builtin.NativeObject>):
 bbNone:
   end_borrow %4 : $Optional<Builtin.NativeObject>
   destroy_value %3 : $Optional<Builtin.NativeObject>
+  %1Loaded1 = load [take] %1 : $*Optional<Builtin.NativeObject>
+  destroy_value %1Loaded1 : $Optional<Builtin.NativeObject>
   dealloc_stack %1 : $*Optional<Builtin.NativeObject>
   br bbEnd
 
 bbSome(%obj : @guaranteed $Builtin.NativeObject):
   end_borrow %4 : $Optional<Builtin.NativeObject>
   destroy_value %3 : $Optional<Builtin.NativeObject>
-  %1Loaded = load [take] %1 : $*Optional<Builtin.NativeObject>
-  destroy_value %1Loaded : $Optional<Builtin.NativeObject>
+  %1Loaded2 = load [take] %1 : $*Optional<Builtin.NativeObject>
+  destroy_value %1Loaded2 : $Optional<Builtin.NativeObject>
   dealloc_stack %1 : $*Optional<Builtin.NativeObject>
   br bbEnd
 
@@ -559,10 +558,10 @@ bbEnd:
 
 // Add an unreachable into the mix so that we do not have any destroy_value on
 // %0 when we promote.
-// CHECK-LABEL: sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK-LABEL: sil [ossa] @test_switch_enum_addr_unreachable_some : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 // CHECK-NOT: alloc_stack
-// CHECK: } // end sil function 'leak_along_nopayload_case_and_unreachable_is_ok'
-sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK: } // end sil function 'test_switch_enum_addr_unreachable_some'
+sil [ossa] @test_switch_enum_addr_unreachable_some : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 bb0(%0 : @owned $Optional<Builtin.NativeObject>):
   %1 = alloc_stack $Optional<Builtin.NativeObject>
   %2 = copy_value %0 : $Optional<Builtin.NativeObject>
@@ -575,6 +574,8 @@ bb0(%0 : @owned $Optional<Builtin.NativeObject>):
 bbNone:
   end_borrow %4 : $Optional<Builtin.NativeObject>
   destroy_value %3 : $Optional<Builtin.NativeObject>
+  %1Loaded = load [take] %1 : $*Optional<Builtin.NativeObject>
+  destroy_value %1Loaded : $Optional<Builtin.NativeObject>
   dealloc_stack %1 : $*Optional<Builtin.NativeObject>
   br bbEnd
 
@@ -588,10 +589,10 @@ bbEnd:
   return %9999 : $()
 }
 
-// CHECK-LABEL: sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok_with_destroyaddr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK-LABEL: sil [ossa] @test_switch_enum_addr_unreachable_some_with_destroy_addr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 // CHECK-NOT: alloc_stack
-// CHECK: } // end sil function 'leak_along_nopayload_case_and_unreachable_is_ok_with_destroyaddr'
-sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok_with_destroyaddr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK: } // end sil function 'test_switch_enum_addr_unreachable_some_with_destroy_addr'
+sil [ossa] @test_switch_enum_addr_unreachable_some_with_destroy_addr : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 bb0(%0 : @owned $Optional<Builtin.NativeObject>):
   %1 = alloc_stack $Optional<Builtin.NativeObject>
   %2 = copy_value %0 : $Optional<Builtin.NativeObject>
@@ -604,6 +605,8 @@ bb0(%0 : @owned $Optional<Builtin.NativeObject>):
 bbNone:
   end_borrow %4 : $Optional<Builtin.NativeObject>
   destroy_value %3 : $Optional<Builtin.NativeObject>
+  %1Loaded = load [take] %1 : $*Optional<Builtin.NativeObject>
+  destroy_value %1Loaded : $Optional<Builtin.NativeObject>
   dealloc_stack %1 : $*Optional<Builtin.NativeObject>
   br bbEnd
 
@@ -618,10 +621,10 @@ bbEnd:
   return %9999 : $()
 }
 
-// CHECK-LABEL: sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok_with_deallocstack : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK-LABEL: sil [ossa] @test_switch_enum_addr_unreachable_some_with_dealloc_stack : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 // CHECK-NOT: alloc_stack
-// CHECK: } // end sil function 'leak_along_nopayload_case_and_unreachable_is_ok_with_deallocstack'
-sil [ossa] @leak_along_nopayload_case_and_unreachable_is_ok_with_deallocstack : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
+// CHECK: } // end sil function 'test_switch_enum_addr_unreachable_some_with_dealloc_stack'
+sil [ossa] @test_switch_enum_addr_unreachable_some_with_dealloc_stack : $@convention(thin) (@owned Optional<Builtin.NativeObject>) -> () {
 bb0(%0 : @owned $Optional<Builtin.NativeObject>):
   %1 = alloc_stack $Optional<Builtin.NativeObject>
   %2 = copy_value %0 : $Optional<Builtin.NativeObject>
@@ -634,6 +637,8 @@ bb0(%0 : @owned $Optional<Builtin.NativeObject>):
 bbNone:
   end_borrow %4 : $Optional<Builtin.NativeObject>
   destroy_value %3 : $Optional<Builtin.NativeObject>
+  %1Loaded = load [take] %1 : $*Optional<Builtin.NativeObject>
+  destroy_value %1Loaded : $Optional<Builtin.NativeObject>
   dealloc_stack %1 : $*Optional<Builtin.NativeObject>
   br bbEnd
 

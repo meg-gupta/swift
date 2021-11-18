@@ -2643,6 +2643,7 @@ bb0:
   switch_enum_addr %2 : $*FloatingPointRoundingRule, case #FloatingPointRoundingRule.toNearestOrAwayFromZero!enumelt: bb1, default bb2
 
 bb1:
+  destroy_addr %2 : $*FloatingPointRoundingRule
   %6 = integer_literal $Builtin.Int64, 1
   br bb3(%6 : $Builtin.Int64)
 

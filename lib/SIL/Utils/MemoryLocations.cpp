@@ -342,14 +342,22 @@ bool MemoryLocations::analyzeLocationUsesRecursively(SILValue V, unsigned locIdx
         if (cast<DebugValueInst>(user)->hasAddrVal())
           break;
         return false;
+      case SILInstructionKind::LoadInst:
+        if (cast<LoadInst>(user)->getOwnershipQualifier() !=
+            LoadOwnershipQualifier::Trivial)
+          break;
+        return false;
+      case SILInstructionKind::StoreInst:
+        if (cast<StoreInst>(user)->getOwnershipQualifier() !=
+            StoreOwnershipQualifier::Trivial)
+          break;
+        return false;
       case SILInstructionKind::InjectEnumAddrInst:
       case SILInstructionKind::SelectEnumAddrInst:
       case SILInstructionKind::ExistentialMetatypeInst:
       case SILInstructionKind::ValueMetatypeInst:
       case SILInstructionKind::IsUniqueInst:
       case SILInstructionKind::FixLifetimeInst:
-      case SILInstructionKind::LoadInst:
-      case SILInstructionKind::StoreInst:
       case SILInstructionKind::StoreBorrowInst:
       case SILInstructionKind::EndAccessInst:
       case SILInstructionKind::DestroyAddrInst:

@@ -69,6 +69,7 @@ bb0(%0 : $*Int, %1 : $*_Stdout, %1a : $*CustomStringConvertible):
 
 bb1:
   %15 = tuple ()
+  destroy_addr %3 : $*Optional<CustomStringConvertible>
   dealloc_stack %3 : $*Optional<CustomStringConvertible>
   destroy_addr %2 : $*CustomStringConvertible
   dealloc_stack %2 : $*CustomStringConvertible

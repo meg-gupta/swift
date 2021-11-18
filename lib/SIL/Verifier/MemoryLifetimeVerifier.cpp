@@ -26,6 +26,10 @@ llvm::cl::opt<bool> DontAbortOnMemoryLifetimeErrors(
     llvm::cl::desc("Don't abort compliation if the memory lifetime checker "
                    "detects an error."));
 
+llvm::cl::opt<bool> RaiseMemoryLifetimeErrorsForTrivialEnums(
+    "raise-memory-lifetime-errors-for-trivial-enums", llvm::cl::init(true),
+    llvm::cl::desc("Raise memory lifetime errors on non-payloaded paths"));
+
 namespace {
 
 /// A utility for verifying memory lifetime.
@@ -67,7 +71,7 @@ class MemoryLifetimeVerifier {
 
   /// Issue an error if any bit in \p wrongBits is set.
   void require(const Bits &wrongBits, const Twine &complaint,
-               SILInstruction *where, bool excludeTrivialEnums = false);
+               SILInstruction *where, bool raiseErrorForTrivialEnums);
 
   /// Require that all the subLocation bits of the location, associated with
   /// \p addr, are clear in \p bits.
@@ -246,11 +250,12 @@ void MemoryLifetimeVerifier::reportError(const Twine &complaint,
 }
 
 void MemoryLifetimeVerifier::require(const Bits &wrongBits,
-                                const Twine &complaint, SILInstruction *where,
-                                bool excludeTrivialEnums) {
+                                     const Twine &complaint,
+                                     SILInstruction *where,
+                                     bool raiseErrorForTrivialEnums) {
   for (int errorLocIdx = wrongBits.find_first(); errorLocIdx >= 0;
        errorLocIdx = wrongBits.find_next(errorLocIdx)) {
-    if (!excludeTrivialEnums || !isEnumTrivialAt(errorLocIdx, where))
+    if (raiseErrorForTrivialEnums || !isEnumTrivialAt(errorLocIdx, where))
       reportError(complaint, errorLocIdx, where);
   }
 }
@@ -505,8 +510,9 @@ void MemoryLifetimeVerifier::checkFunction(BitDataflow &dataFlow) {
       BlockState &predState = dataFlow[pred];
       if (predState.reachableFromEntry) {
         require((bs.data.entrySet ^ predState.exitSet) & nonTrivialLocations,
-          "lifetime mismatch in predecessors", pred->getTerminator(),
-          /*excludeTrivialEnums*/ true);
+                "lifetime mismatch in predecessors", pred->getTerminator(),
+                /*raiseErrorForTrivialEnums*/
+                RaiseMemoryLifetimeErrorsForTrivialEnums);
       }
     }
 
@@ -517,17 +523,23 @@ void MemoryLifetimeVerifier::checkFunction(BitDataflow &dataFlow) {
       case SILInstructionKind::ReturnInst:
       case SILInstructionKind::UnwindInst:
         require(expectedReturnBits & ~bs.data.exitSet,
-          "indirect argument is not alive at function return", term);
+                "indirect argument is not alive at function return", term,
+                /*raiseErrorForTrivialEnums*/
+                RaiseMemoryLifetimeErrorsForTrivialEnums);
         require(bs.data.exitSet & ~expectedReturnBits & nonTrivialLocations,
-          "memory is initialized at function return but shouldn't", term,
-           /*excludeTrivialEnums*/ true);
+                "memory is initialized at function return but shouldn't", term,
+                /*raiseErrorForTrivialEnums*/
+                RaiseMemoryLifetimeErrorsForTrivialEnums);
         break;
       case SILInstructionKind::ThrowInst:
         require(expectedThrowBits & ~bs.data.exitSet,
-          "indirect argument is not alive at throw", term);
+                "indirect argument is not alive at throw", term,
+                /*raiseErrorForTrivialEnums*/
+                RaiseMemoryLifetimeErrorsForTrivialEnums);
         require(bs.data.exitSet & ~expectedThrowBits & nonTrivialLocations,
-          "memory is initialized at throw but shouldn't", term,
-           /*excludeTrivialEnums*/ true);
+                "memory is initialized at throw but shouldn't", term,
+                /*raiseErrorForTrivialEnums*/
+                RaiseMemoryLifetimeErrorsForTrivialEnums);
         break;
       default:
         break;
