@@ -69,7 +69,7 @@ sil [ossa] @throwsError : $@convention(thin) <T> (@in T) -> (@out T, @error Erro
 sil [ossa] @returnInt : $@convention(thin) <T> (@in T) -> (Int, @error Error)
 sil [ossa] @returnIntOut : $@convention(thin) <T> (@in T) -> (@out Int, @error Error)
 sil [ossa] @returnTuple : $@convention(thin) <T> (@in T) -> (@out T, Int, @out Int, @out T, @error Error)
-
+/*
 // CHECK-LABEL: sil [ossa] @f010_addrlower_identity : $@convention(thin) <T> (@in T) -> @out T {
 // CHECK: bb0(%0 : $*T, %1 : $*T):
 // CHECK: copy_addr [take] %1 to [initialization] %0 : $*T
@@ -1170,7 +1170,7 @@ bb1(%3 : @owned $(T, Int, Int, T)):
 bb2(%9 : $Error):
   throw %9 : $Error
 }
-
+*/
 sil [ossa] @use_T : $@convention(thin) <T> (@in T) -> ()
 
 // CHECK-LABEL: sil [ossa] @test_checked_cast_br1 : $@convention(method) <T> (@in Any) -> () {
@@ -1206,7 +1206,7 @@ bb3:
   %31 = tuple ()
   return %31 : $()
 }
-
+/*
 sil [ossa] @use_C : $@convention(thin) (@owned C) -> ()
 
 // CHECK-LABEL: sil [ossa] @test_checked_cast_br2 : $@convention(method) (@in Any) -> () {
@@ -1238,6 +1238,47 @@ bb1(%3 : @owned $C):
 
 bb2(%4 : @owned $Any):
   destroy_value %4 : $Any
+  br bb3
+
+bb3:
+  %31 = tuple ()
+  return %31 : $()
+}
+
+sil @use_Any : $@convention(thin) (@in Any) -> ()
+
+// CHECK-LABEL:  sil [ossa] @test_checked_cast_br3 : $@convention(method) (@owned C) -> () {
+// CHECK: bb0(%0 : @owned $C):
+// CHECK:   [[DST:%.*]] = alloc_stack $Any
+// CHECK:   [[SRC_TMP:%.*]] = alloc_stack $C
+// CHECK:   store %0 to [init] [[SRC_TMP]] : $*C
+// CHECK:   checked_cast_addr_br take_on_success C in [[SRC_TMP]] : $*C to Any in [[DST]] : $*Any, bb2, bb1
+// CHECK: bb1:
+// CHECK:   [[LD:%.*]] = load [take] [[SRC_TMP]] : $*C
+// CHECK:   dealloc_stack [[SRC_TMP]] : $*C
+// CHECK:   destroy_value [[LD]] : $C
+// CHECK:   br bb3
+// CHECK: bb2:
+// CHECK:   dealloc_stack [[SRC_TMP]] : $*C
+// CHECK:   [[FUNC:%.*]] = function_ref @use_Any : $@convention(thin) (@in Any) -> ()
+// CHECK:   apply [[FUNC]]([[DST]]) : $@convention(thin) (@in Any) -> ()
+// CHECK:   br bb3
+// CHECK: bb3:
+// CHECK:   [[RES:%.*]] = tuple ()
+// CHECK:   dealloc_stack [[DST]] : $*Any
+// CHECK:   return [[RES]] : $()
+// CHECK: }
+sil [ossa] @test_checked_cast_br3 : $@convention(method) (@owned C) -> () {
+bb0(%0 : @owned $C):
+   checked_cast_br %0 : $C to Any, bb1, bb2
+
+bb1(%3 : @owned $Any):
+  %f = function_ref @use_Any : $@convention(thin) (@in Any) -> ()
+  %call = apply %f(%3) : $@convention(thin) (@in Any) -> ()
+  br bb3
+
+bb2(%4 : @owned $C):
+  destroy_value %4 : $C
   br bb3
 
 bb3:
@@ -1317,4 +1358,4 @@ bb0(%0 : @guaranteed $T):
   destroy_value %3 : $U
   return %6 : $U
 }
-
+*/
