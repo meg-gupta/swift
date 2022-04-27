@@ -419,6 +419,11 @@ struct AddressLoweringState {
   // parameters are rewritten.
   SmallBlotSetVector<FullApplySite, 16> indirectApplies;
 
+  // checked_cast_br instructions with loadable source type and opaque target
+  // type need to be rewritten in a post-pass, once all the uses of the opaque
+  // target value are rewritten to their address forms.
+  SmallVector<CheckedCastBranchInst*, 8> opaqueResultCCBs;
+
   // All function-exiting terminators (return or throw instructions).
   SmallVector<TermInst *, 8> exitingInsts;
 
@@ -605,6 +610,15 @@ void OpaqueValueVisitor::mapValueStorage() {
     for (auto &inst : *block) {
       if (auto apply = FullApplySite::isa(&inst))
         checkForIndirectApply(apply);
+
+      // Collect all checked_cast_br instructions that have a loadable source
+      // type and opaque target type
+      if (auto *ccb = dyn_cast<CheckedCastBranchInst>(&inst)) {
+        if (!ccb->getSourceLoweredType().isAddressOnly(*ccb->getFunction()) &&
+            ccb->getTargetLoweredType().isAddressOnly(*ccb->getFunction())) {
+          pass.opaqueResultCCBs.push_back(ccb);
+        }
+      }
 
       for (auto result : inst.getResults()) {
         if (isPseudoCallResult(result) || isPseudoReturnValue(result))
@@ -2989,7 +3003,6 @@ protected:
     LLVM_DEBUG(llvm::dbgs() << "REWRITE ARG "; arg->dump());
     if (storage.storageAddress)
       LLVM_DEBUG(llvm::dbgs() << "  STORAGE "; storage.storageAddress->dump());
-
     storage.storageAddress = addrMat.materializeAddress(arg);
   }
 
@@ -3133,7 +3146,7 @@ protected:
 //                           Rewrite Opaque Values
 //===----------------------------------------------------------------------===//
 
-// Rewrite applies with indirect paramters or results of loadable types which
+// Rewrite applies with indirect parameters or results of loadable types which
 // were not visited during opaque value rewritting.
 static void rewriteIndirectApply(FullApplySite apply,
                                  AddressLoweringState &pass) {
@@ -3153,6 +3166,52 @@ static void rewriteIndirectApply(FullApplySite apply,
            && "replaceDirectResults deletes the destructure");
     pass.deleter.forceDelete(apply.getInstruction());
   }
+}
+
+// Rewrite checked_cast_branch instructions with loadable source and opaque target.
+static void rewriteCheckedCastBranch(CheckedCastBranchInst *checkedCastBranch,
+                                     AddressLoweringState &pass) {
+  auto loc = checkedCastBranch->getLoc();
+  auto *func = checkedCastBranch->getFunction();
+  auto *successBB = checkedCastBranch->getSuccessBB();
+  auto *failureBB = checkedCastBranch->getFailureBB();
+  auto srcVal = checkedCastBranch->getOperand();
+  auto termBuilder = pass.getTermBuilder(checkedCastBranch);
+  auto successBuilder = pass.getBuilder(successBB->begin());
+  auto failureBuilder = pass.getBuilder(failureBB->begin());
+
+  assert(!checkedCastBranch->getSourceLoweredType().isAddressOnly(*func));
+  assert(checkedCastBranch->getTargetLoweredType().isAddressOnly(*func));
+
+  // Create a stack temporary for the loadable src
+  SILValue srcAddr = termBuilder.createAllocStack(
+      loc, checkedCastBranch->getSourceLoweredType());
+  termBuilder.createStore(loc, srcVal, srcAddr,
+                          srcVal->getType().isTrivial(*func)
+                              ? StoreOwnershipQualifier::Trivial
+                              : StoreOwnershipQualifier::Init);
+  SILValue destAddr =
+      pass.valueStorageMap.getStorage(successBB->getArgument(0)).storageAddress;
+
+  termBuilder.createCheckedCastAddrBranch(
+      loc, CastConsumptionKind::TakeOnSuccess, srcAddr,
+      checkedCastBranch->getSourceFormalType(), destAddr,
+      checkedCastBranch->getTargetFormalType(), successBB, failureBB,
+      checkedCastBranch->getTrueBBCount(),
+      checkedCastBranch->getFalseBBCount());
+  // All uses of the opaque target block argument have been rewritten to their
+  // address forms with the storageAddress in the UseRewriter, delete it now.
+  successBB->eraseArgument(0);
+
+  successBuilder.createDeallocStack(loc, srcAddr);
+
+  auto newFailureVal =
+          failureBuilder.createTrivialLoadOr(loc, srcAddr, LoadOwnershipQualifier::Take);
+  failureBuilder.createDeallocStack(loc, srcAddr);
+  failureBB->getArgument(0)->replaceAllUsesWith(newFailureVal);
+  failureBB->eraseArgument(0);
+
+  pass.deleter.forceDelete(checkedCastBranch);
 }
 
 static void rewriteFunction(AddressLoweringState &pass) {
@@ -3186,6 +3245,13 @@ static void rewriteFunction(AddressLoweringState &pass) {
       rewriteIndirectApply(optionalApply.getValue(), pass);
     }
   }
+
+  // Rewrite all checked_cast_br instructions with loadable source type and
+  // opaque target type now
+  for (auto *ccb : pass.opaqueResultCCBs) {
+    rewriteCheckedCastBranch(ccb, pass);
+  }
+
   // Rewrite this function's return value now that all opaque values within the
   // function are rewritten. This still depends on a valid ValueStorage
   // projection operands.
