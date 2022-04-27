@@ -1846,6 +1846,7 @@ protected:
 };
 } // end anonymous namespace
 
+
 /// Top-level entry: Allocate storage for formally indirect results at a call
 /// site. Create a new apply instruction with indirect SIL arguments.  The
 /// original apply instruction remains in place, unless it is a try_apply.
@@ -2264,6 +2265,35 @@ void ApplyRewriter::replaceDirectResults(DestructureTupleInst *oldDestructure) {
   if (isInstructionTriviallyDead(oldDestructure)) {
     pass.deleter.forceDelete(oldDestructure);
   }
+}
+
+//===----------------------------------------------------------------------===//
+//                               CheckedCastBrInfo
+//
+//    Collect info for rewriting checked_cast_br with opaque source/target type
+// ===---------------------------------------------------------------------===//
+struct CheckedCastBrInfo {
+  SILLocation castLoc;
+  SILFunction *func;
+  SILBasicBlock *successBB;
+  SILBasicBlock *failureBB;
+  SILArgument *oldSuccessVal;
+  SILArgument *oldFailureVal;
+  SILBuilder termBuilder;
+  SILBuilder successBuilder;
+  SILBuilder failureBuilder;
+  CheckedCastBrInfo(CheckedCastAddrBranchInst *ccb, AddressLoweringState &pass)
+      : castLoc(ccb->getLoc()), func(ccb->getFunction()),
+        successBB(ccb->getSuccessBB()), failureBB(ccb->getFailureBB()),
+        oldSuccessVal(successBB->getArgument(0)),
+        oldFailureVal(failureBB->getArgument(0)),
+        termBuilder(pass.getTermBuilder(ccb)),
+        successBuilder(pass.getBuilder(successBB->begin())),
+        failureBuilder(pass.getBuilder(failureBB->begin())) {}
+};
+
+static void rewriteCheckedCastBranchInst(CheckedCastBrInfo *brInfo) {
+  
 }
 
 //===----------------------------------------------------------------------===//
