@@ -2272,7 +2272,7 @@ void ApplyRewriter::replaceDirectResults(DestructureTupleInst *oldDestructure) {
 //
 //    Collect info for rewriting checked_cast_br with opaque source/target type
 // ===---------------------------------------------------------------------===//
-struct CheckedCastBrInfo {
+struct CheckedCastBrRewriter {
   SILLocation castLoc;
   SILFunction *func;
   SILBasicBlock *successBB;
@@ -2282,7 +2282,7 @@ struct CheckedCastBrInfo {
   SILBuilder termBuilder;
   SILBuilder successBuilder;
   SILBuilder failureBuilder;
-  CheckedCastBrInfo(CheckedCastAddrBranchInst *ccb, AddressLoweringState &pass)
+  CheckedCastBrRewriter(CheckedCastAddrBranchInst *ccb, AddressLoweringState &pass)
       : castLoc(ccb->getLoc()), func(ccb->getFunction()),
         successBB(ccb->getSuccessBB()), failureBB(ccb->getFailureBB()),
         oldSuccessVal(successBB->getArgument(0)),
@@ -2290,11 +2290,71 @@ struct CheckedCastBrInfo {
         termBuilder(pass.getTermBuilder(ccb)),
         successBuilder(pass.getBuilder(successBB->begin())),
         failureBuilder(pass.getBuilder(failureBB->begin())) {}
-};
 
-static void rewriteCheckedCastBranchInst(CheckedCastBrInfo *brInfo) {
-  
+  void replaceBlockArg(SILArgument *blockArg, SILValue addr) {
+    if (blockArg->getType().isAddressOnly(*func)) {
+      // Replace all uses of the opaque block arg with a dummy load from its
+      // storage address.
+      assert(addr == pass.valueStorageMap.getStorage(blockArg).storageAddress);
+      auto dummyLoad = successBuilder.createTrivialLoadOr(
+          castLoc, addr, LoadOwnershipQualifier::Take);
+      blockArg->replaceAllUsesWith(dummyLoad);
+
+      blockArg->getParent()->eraseArgument(blockArg->getIndex());
+
+      // Replace the block arg with the dummy load in the valueStorageMap.
+      // DefRewriter::visitLoadInst will then rewrite the dummy load to
+      // copy_addr.
+      pass.valueStorageMap.replaceValue(blockArg, dummyLoad);
+    } else {
+      // Replace all uses of the loadable block arg with value loaded from it's
+      // associated address.
+      auto newValue =
+          pass.getBuilder(blockArg->getParent()->begin())
+              .createTrivialLoadOr(loc, addr, LoadOwnershipQualifier::Take);
+      blockArg->replaceAllUsesWith(ldValue);
+
+      blockArg->getParent()->eraseArgument(blockArg->getIndex());
+    }
+  }
+
+  void rewriteCheckedCastBranchInst() {
+    auto getOrCreateAddress = [&this](SILValue value, bool needsInit) -> SILValue {
+      if (value->getType().isAddressOnly(*func))
+        return pass.valueStorageMap.getStorage(value).storageAddress;
+
+      // Create a stack temporary for a loadable value
+      auto *addr = termBuilder.createAllocStack(loc, value->getType());
+      if (needsInit) {
+        termBuilder.createStore(castLoc, value, addr,
+                                value->getType().isTrivial(*func)
+                                    ? StoreOwnershipQualifier::Trivial
+                                    : StoreOwnershipQualifier::Init);
+      }
+      successBuilder.createDeallocStack(castLoc, addr);
+      failureBuilder.createDeallocStack(castLoc, addr);
+      return addr;
+    };
+    
+    auto srcAddr =
+        getOrCreateAddress(failureBB->getArgument(0), /* needsInit */ true);
+    auto destAddr =
+        getOrCreateAddress(successBB->getArgument(0), /* needsInit */ false);
+
+    termBuilder.createCheckedCastAddrBranch(
+        loc, CastConsumptionKind::TakeOnSuccess, srcAddr,
+        checkedCastBranch->getSourceFormalType(), destAddr,
+        checkedCastBranch->getTargetFormalType(), successBB, failureBB,
+        checkedCastBranch->getTrueBBCount(),
+        checkedCastBranch->getFalseBBCount());
+
+    replaceBlockArg(successBB->getArgument(0), destAddr);
+    replaceBlockArg(failureBB->getArgument(0), srcAddr);
+
+    pass.deleter.forceDelete(checkedCastBranch);
+  }
 }
+};
 
 //===----------------------------------------------------------------------===//
 //                               ReturnRewriter
