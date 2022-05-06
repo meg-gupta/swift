@@ -2757,21 +2757,31 @@ void UseRewriter::visitBeginBorrowInst(BeginBorrowInst *borrow) {
   assert(use == getProjectedDefOperand(borrow));
 
   // Mark the value as rewritten and use the operand's storage.
-  auto address = pass.valueStorageMap.getStorage(use->get()).storageAddress;
-  markRewritten(borrow, address);
+  auto storageAddr = pass.valueStorageMap.getStorage(use->get()).storageAddress;
+  markRewritten(borrow, storageAddr);
 
   // Borrows are irrelevant unless they are marked lexical.
   if (borrow->isLexical()) {
-    if (auto *allocStack = dyn_cast<AllocStackInst>(address)) {
+    if (auto *allocStack = dyn_cast<AllocStackInst>(storageAddr)) {
       allocStack->setIsLexical();
       return;
     }
     // Function arguments are inherently lexical.
-    if (isa<SILFunctionArgument>(address))
+    if (isa<SILFunctionArgument>(storageAddr))
       return;
 
-    SWIFT_ASSERT_ONLY(address->dump());
-    llvm_unreachable("^^^ unknown lexical address producer");
+    auto loc = borrow->getLoc();
+    auto *vd = loc.castToASTNode<VarDecl>();
+    auto dbgVar = SILDebugVariable(vd->isLet(), 0);
+    auto *alloc =
+        builder.createAllocStack(loc, borrow->getType().getAddressType(),
+                                 dbgVar, /* hasDynamicLifetime */ false,
+                                 /* isLexical */ true);
+    builder.createCopyAddr(loc, storageAddr, alloc, IsTake, IsInitialization);
+    for (auto *endBorrow : borrow->getEndBorrows()) {
+      pass.getBuilder(endBorrow->getIterator())
+          .createDeallocStack(endBorrow->getLoc(), alloc);
+    }
   }
 }
 
