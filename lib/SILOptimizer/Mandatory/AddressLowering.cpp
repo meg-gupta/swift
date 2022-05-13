@@ -645,8 +645,16 @@ void OpaqueValueVisitor::checkForIndirectApply(FullApplySite applySite) {
     }
     ++calleeArgIdx;
   }
-  if (applySite.getSubstCalleeType()->hasIndirectFormalResults())
+  
+  if (applySite.getSubstCalleeType()->hasIndirectFormalResults()) {
     pass.indirectApplies.insert(applySite);
+  }
+
+  if (isa<BeginApplyInst>(applySite)) {
+    if (applySite.getSubstCalleeType()->hasIndirectFormalYields()) {
+      pass.indirectApplies.insert(applySite);
+    }
+  }
 }
 
 /// If `value` is address-only, add it to the `valueStorageMap`.
@@ -1833,7 +1841,7 @@ public:
         loweredCalleeConv(getLoweredCallConv(oldCall)) {}
 
   void convertApplyWithIndirectResults();
-  void convertBeginApplyWithGuaranteedYield();
+  void convertBeginApplyWithOpaqueYield();
 
 protected:
   SILBasicBlock::iterator getCallResultInsertionPoint() {
@@ -2092,7 +2100,11 @@ void ApplyRewriter::rewriteApply(ArrayRef<SILValue> newCallArgs) {
   // will be deleted with its destructure_tuple.
 }
 
-void ApplyRewriter::convertBeginApplyWithGuaranteedYield() {
+void ApplyRewriter::convertBeginApplyWithOpaqueYield() {
+  bool erased = pass.indirectApplies.erase(apply);
+  assert(erased && "all results should be rewritten at the same time");
+  (void)erased;
+
   auto *origCall = cast<BeginApplyInst>(apply.getInstruction());
   SmallVector<SILValue, 4> opValues;
   auto argOps = origCall->getArgumentOperands();
@@ -3108,7 +3120,7 @@ protected:
 
   void visitBeginApplyInst(BeginApplyInst *bai) {
     CallArgRewriter(bai, pass).rewriteArguments();
-    ApplyRewriter(bai, pass).convertBeginApplyWithGuaranteedYield();
+    ApplyRewriter(bai, pass).convertBeginApplyWithOpaqueYield();
   }
 
   // Rewrite the apply for an indirect result.
@@ -3235,8 +3247,9 @@ static void rewriteIndirectApply(FullApplySite apply,
   // If all indirect args were loadable, then they still need to be rewritten.
   CallArgRewriter(apply, pass).rewriteArguments();
 
-  if (!apply.getSubstCalleeType()->hasIndirectFormalResults())
+  if (!apply.getSubstCalleeType()->hasIndirectFormalResults()) {
     return;
+  }
 
   // If the call has indirect results and wasn't already rewritten, rewrite it
   // now. This handles try_apply, which is not rewritten when DefRewriter visits

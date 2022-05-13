@@ -160,7 +160,7 @@ public:
   bool EnableOSSAModules = false;
 
   /// If set to true, compile with the SIL Opaque Values enabled.
-  bool EnableSILOpaqueValues = false;
+  bool EnableSILOpaqueValues = true;
 
   // The kind of function bodies to skip emitting.
   FunctionBodySkipping SkipFunctionBodies = FunctionBodySkipping::None;
