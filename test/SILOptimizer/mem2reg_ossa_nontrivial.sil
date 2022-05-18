@@ -75,6 +75,8 @@ bb0(%0 : $Klass):
   return %1 : $()
 }
 
+sil [ossa] @use_inguaranteed : $@convention(thin) (@in_guaranteed Klass) -> () 
+
 // CHECK-LABEL: sil [ossa] @store_only_allocas :
 // CHECK-NOT: alloc_stack
 // CHECK: return
@@ -296,6 +298,17 @@ bb2:
   dealloc_stack %stk : $*Klass
   %7 = tuple ()
   return %7 : $()
+}
+
+sil [ossa] @storborrow_only_allocas : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = alloc_stack $Klass
+  store_borrow %0 to %1 : $*Klass
+  %2 = function_ref @blackhole_spl : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %2(%0) : $@convention(thin) (@guaranteed Klass) -> ()
+  dealloc_stack %1 : $*Klass
+  %6 = tuple ()
+  return %6 : $()
 }
 
 // CHECK-LABEL: sil [ossa] @with_loads :
