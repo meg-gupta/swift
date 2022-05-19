@@ -2545,6 +2545,13 @@ protected:
     CallArgRewriter(applyInst, pass).rewriteIndirectArgument(use);
   }
 
+  void visitPartialApplyInst(PartialApplyInst *pai) {
+    SILValue argValue = use->get();
+    ValueStorage &storage = pass.valueStorageMap.getStorage(argValue);
+    assert(storage.isRewritten && "arg source should be rewritten");
+    use->set(storage.storageAddress);
+  }
+
   void visitAssignInst(AssignInst *assignInst);
 
   void visitBeginBorrowInst(BeginBorrowInst *borrow);

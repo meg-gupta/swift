@@ -461,3 +461,38 @@ class TestGeneric<T> {
 // CHECK:   unwind
 // CHECK-LABEL: } // end sil function '$s20opaque_values_silgen11TestGenericC08borrowedE0xvr'
 
+
+func takesClosure(_ f: () -> ()) {
+  f()
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s20opaque_values_silgen25test_inguaranteed_captureyyxlF : 
+// CHECK: [[FUNC:%.*]] = function_ref @$s20opaque_values_silgen25test_inguaranteed_captureyyxlFyyXEfU_ : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
+// CHECK: [[COPY:%.*]] = copy_value %0 : $T
+// CHECK: partial_apply [callee_guaranteed] [[FUNC]]<T>([[COPY]]) : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
+// CHECK-LABEL: } // end sil function '$s20opaque_values_silgen25test_inguaranteed_captureyyxlF'
+func test_inguaranteed_capture<T>(_ x: T) {
+  takesClosure {_ = x}
+}
+
+protocol P {}
+
+func getp() -> P {
+  struct S : P {}
+  return S()
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s20opaque_values_silgen18test_inout_captureyyF : 
+// CHECK: [[BOX:%.*]] = alloc_box ${ var P }, var, name "p"
+// CHECK: [[BORROW:%.*]] = begin_borrow [lexical] [[BOX]] : ${ var P }
+// CHECK: [[PROJ:%.*]] = project_box [[BORROW]] : ${ var P }, 0
+// CHECK: [[F:%.*]] = function_ref @$s20opaque_values_silgen4getpAA1P_pyF : $@convention(thin) () -> @out P
+// CHECK: [[RES:%.*]] = apply %3() : $@convention(thin) () -> @out P
+// CHECK: store [[RES]] to [init] [[PROJ]] : $*P
+// CHECK: [[CLOSURE:%.*]] = function_ref @$s20opaque_values_silgen18test_inout_captureyyFyyXEfU_ : $@convention(thin) (@inout_aliasable P) -> ()
+// partial_apply [callee_guaranteed] [[CLOSURE]]([[PROJ]]) : $@convention(thin) (@inout_aliasable P) -> ()
+// CHECK-LABEL} // end sil function '$s20opaque_values_silgen18test_inout_captureyyF'
+func test_inout_capture() {
+  var p = getp()
+  takesClosure { p = getp() }
+}
