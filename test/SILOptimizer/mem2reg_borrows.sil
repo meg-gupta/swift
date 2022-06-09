@@ -229,6 +229,20 @@ bb0(%0 : @owned $Klass):
   return %6 : $()
 }
 
+sil [ossa] @test6 : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = alloc_stack $Klass
+  %b = begin_borrow %0 : $Klass
+  store_borrow %b to %1 : $*Klass
+  end_borrow %b : $Klass
+  %2 = load_borrow %1 : $*Klass
+  %3 = function_ref @use_guaranteed : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %3(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %2 : $Klass
+  destroy_value %0 : $Klass
+  unreachable
+}
+
 // Following tests are not optimized because multi block alloc with store_borrows is not handled in mem2reg
 sil [ossa] @test_control_flow1 : $@convention(thin) (@guaranteed Klass, @guaranteed Klass) -> () {
 bb0(%0 : @guaranteed $Klass, %1 : @guaranteed $Klass):
