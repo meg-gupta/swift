@@ -732,21 +732,22 @@ StoreInst *StackAllocationPromoter::promoteAllocationInBlock(
 
     // Replace destroys with a release of the value.
     if (auto *dai = dyn_cast<DestroyAddrInst>(inst)) {
-      if (dai->getOperand() == asi) {
-        if (runningVals) {
-          replaceDestroy(dai, runningVals->value.replacement(asi, dai), ctx,
-                         deleter, instructionsToDelete);
-          if (shouldAddLexicalLifetime(asi)) {
-            endLexicalLifetimeBeforeInst(asi, /*beforeInstruction=*/dai, ctx,
-                                         runningVals->value);
-          }
-          runningVals->isStorageValid = false;
-          if (lastStoreInst)
-            lastStoreInst->isStorageValid = false;
-        } else {
-          assert(!deinitializationPoints[blockPromotingWithin]);
-          deinitializationPoints[blockPromotingWithin] = dai;
+      if (dai->getOperand() != asi) {
+        continue;
+      }
+      if (runningVals) {
+        replaceDestroy(dai, runningVals->value.replacement(asi, dai), ctx,
+                       deleter, instructionsToDelete);
+        if (shouldAddLexicalLifetime(asi)) {
+          endLexicalLifetimeBeforeInst(asi, /*beforeInstruction=*/dai, ctx,
+                                       runningVals->value);
         }
+        runningVals->isStorageValid = false;
+        if (lastStoreInst)
+          lastStoreInst->isStorageValid = false;
+      } else {
+        assert(!deinitializationPoints[blockPromotingWithin]);
+        deinitializationPoints[blockPromotingWithin] = dai;
       }
       continue;
     }
