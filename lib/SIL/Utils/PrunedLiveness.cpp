@@ -127,7 +127,7 @@ bool PrunedLiveness::updateForBorrowingOperand(Operand *op) {
 }
 
 void PrunedLiveness::extendAcrossLiveness(PrunedLiveness &otherLivesness) {
-  // update this liveness for all the interesting users in otherLivesness.
+  // update this liveness for all the interesting users in otherLiveness.
   for (std::pair<SILInstruction *, bool> userAndEnd : otherLivesness.users) {
     updateForUse(userAndEnd.first, userAndEnd.second);
   }
@@ -135,27 +135,48 @@ void PrunedLiveness::extendAcrossLiveness(PrunedLiveness &otherLivesness) {
 
 bool PrunedLiveness::isWithinBoundary(SILInstruction *inst) const {
   SILBasicBlock *block = inst->getParent();
+
+  /// Returns true if \p inst is before \p def in this block.
+  auto foundInBlockBeforeDef = [](SILInstruction *inst, SILBasicBlock *block,
+                                  SILValue def) {
+    if (!def || def->getParentBlock() != block) {
+      return false;
+    }
+    auto *defInst = def->getDefiningInstruction();
+    if (!defInst) {
+      return false;
+    }
+    for (SILInstruction &it :
+         make_range(block->begin(), defInst->getIterator())) {
+      if (&it == inst) {
+        return true;
+      }
+    }
+    return false;
+  };
   switch (getBlockLiveness(block)) {
   case PrunedLiveBlocks::Dead:
     return false;
-  case PrunedLiveBlocks::LiveWithin:
-    break;
   case PrunedLiveBlocks::LiveOut:
-    return true;
-  }
-  // The boundary is within this block. This instruction is before the boundary
-  // iff any interesting uses occur after it.
-  for (SILInstruction &inst :
-         make_range(std::next(inst->getIterator()), block->end())) {
-    switch (isInterestingUser(&inst)) {
-    case PrunedLiveness::NonUser:
-      break;
-    case PrunedLiveness::NonLifetimeEndingUse:
-    case PrunedLiveness::LifetimeEndingUse:
-      return true;
+    return !foundInBlockBeforeDef(inst, block, defValue);
+  case PrunedLiveBlocks::LiveWithin:
+    if (foundInBlockBeforeDef(inst, block, defValue)) {
+      return false;
     }
+    // The boundary is within this block. This instruction is before the
+    // boundary iff any interesting uses occur after it.
+    for (SILInstruction &it :
+         make_range(std::next(inst->getIterator()), block->end())) {
+      switch (isInterestingUser(&it)) {
+      case PrunedLiveness::NonUser:
+        break;
+      case PrunedLiveness::NonLifetimeEndingUse:
+      case PrunedLiveness::LifetimeEndingUse:
+        return true;
+      }
+    }
+    return false;
   }
-  return false;
 }
 
 bool PrunedLiveness::areUsesWithinBoundary(ArrayRef<Operand *> uses,
@@ -186,8 +207,8 @@ bool PrunedLiveness::areUsesOutsideBoundary(
   return true;
 }
 
-// An SSA def meets all the criteria for pruned liveness--def dominates all uses
-// with no holes in the liverange. The lifetime-ending uses are also
+// An SSA def meets all the criteria for pruned liveness--def dominates all
+// uses with no holes in the liverange. The lifetime-ending uses are also
 // recorded--destroy_value or end_borrow. However destroy_values may not
 // jointly-post dominate if dead-end blocks are present.
 void PrunedLiveness::computeSSALiveness(SILValue def) {
@@ -278,8 +299,8 @@ void PrunedLivenessBoundary::compute(const PrunedLiveness &liveness,
     // Process each block that has not been visited and is not LiveOut.
     switch (liveness.getBlockLiveness(bb)) {
     case PrunedLiveBlocks::LiveOut:
-      // A lifetimeEndBlock may be determined to be LiveOut after analyzing the
-      // extended liveness. It is irrelevant for finding the boundary.
+      // A lifetimeEndBlock may be determined to be LiveOut after analyzing
+      // the extended liveness. It is irrelevant for finding the boundary.
       break;
     case PrunedLiveBlocks::LiveWithin: {
       // The liveness boundary is inside this block. Insert a final destroy

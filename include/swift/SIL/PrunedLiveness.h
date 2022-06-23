@@ -168,6 +168,10 @@ public:
     markBlockLive(defBB, LiveWithin);
   }
 
+  void initializeReborrowDestBlock(SILBasicBlock *reborrowDestBB) {
+    markBlockLive(reborrowDestBB, LiveWithin);
+  }
+
   /// Update this liveness result for a single use.
   IsLive updateForUse(SILInstruction *user);
 
@@ -211,6 +215,7 @@ protected:
 /// necessarily include liveness up to destroy_value or end_borrow
 /// instructions.
 class PrunedLiveness {
+  SILValue defValue;
   PrunedLiveBlocks liveBlocks;
 
   // Map all "interesting" user instructions in this def's live range to a flag
@@ -297,8 +302,16 @@ public:
     return UserBlockRange(getAllUsers(), op);
   }
 
-  void initializeDefBlock(SILBasicBlock *defBB) {
+  void initializeDefBlock(SILBasicBlock *defBB,
+                          SILValue defValue = SILValue()) {
+    if (defValue) {
+      this->defValue = defValue;
+    }
     liveBlocks.initializeDefBlock(defBB);
+  }
+
+  void initializeReborrowDestBlock(SILBasicBlock *reborrowDestBB) {
+    liveBlocks.initializeReborrowDestBlock(reborrowDestBB);
   }
 
   /// For flexibility, \p lifetimeEnding is provided by the
@@ -330,8 +343,8 @@ public:
     return useIter->second ? LifetimeEndingUse : NonLifetimeEndingUse;
   }
 
-  /// Return true if \p inst occurs before the liveness boundary. Used when the
-  /// client already knows that inst occurs after the start of liveness.
+  /// Return true if \p inst occurs in between the definition and the liveness
+  /// boundary.
   bool isWithinBoundary(SILInstruction *inst) const;
 
   /// \p deadEndBlocks is optional.
