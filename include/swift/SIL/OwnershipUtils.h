@@ -587,6 +587,11 @@ struct BorrowedValue {
   bool
   visitExtendedScopeEndingUses(function_ref<bool(Operand *)> visitor) const;
 
+  /// Visit all lifetime ending operands of the extending scope including
+  /// reborrows
+  bool
+  visitExtendedLifetimeEndingUses(function_ref<bool(Operand *)> func) const;
+
   void print(llvm::raw_ostream &os) const;
   SWIFT_DEBUG_DUMP { print(llvm::dbgs()); }
 
