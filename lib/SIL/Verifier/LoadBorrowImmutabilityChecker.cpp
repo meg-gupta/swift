@@ -317,6 +317,9 @@ bool LoadBorrowImmutabilityAnalysis::isImmutableInScope(
   auto ownershipRoot = accessPath.getStorage().isReference()
                            ? findOwnershipReferenceRoot(accessPathWithBase.base)
                            : SILValue();
+
+  BorrowedValue borrowedValue(lbi);
+
   // Then for each write...
   for (auto *op : *writes) {
     // First see if the write is a dead end block. In such a case, just skip it.
@@ -329,13 +332,11 @@ bool LoadBorrowImmutabilityAnalysis::isImmutableInScope(
       if (op->get() != ownershipRoot)
         continue;
     }
-    // See if the write is within the load borrow's lifetime. If it isn't, we
-    // don't have to worry about it.
-    if (!checker.validateLifetime(lbi, endBorrowUses, op)) {
-      continue;
+
+    if (borrowedValue.areUsesWithinLocalScope(op, &deadEndBlocks)) {
+      llvm::errs() << "Write: " << *op->getUser();
+      return false;
     }
-    llvm::errs() << "Write: " << *op->getUser();
-    return false;
   }
   // Ok, we are good.
   return true;
