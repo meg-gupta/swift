@@ -741,6 +741,35 @@ bool BorrowedValue::visitExtendedScopeEndingUses(
   return true;
 }
 
+bool BorrowedValue::visitExtendedScopeEndingUses(
+    function_ref<bool(Operand *)> visitor) const {
+  assert(isLocalScope());
+
+  SmallPtrSetVector<SILValue, 4> reborrows;
+
+  auto visitEnd = [&](Operand *scopeEndingUse) {
+    if (scopeEndingUse->getOperandOwnership() == OperandOwnership::Reborrow) {
+      BorrowingOperand(scopeEndingUse)
+          .visitBorrowIntroducingUserResults([&](BorrowedValue borrowedValue) {
+            reborrows.insert(borrowedValue.value);
+            return true;
+          });
+      return true;
+    }
+    return visitor(scopeEndingUse);
+  };
+
+  if (!visitLocalScopeEndingUses(visitEnd))
+    return false;
+
+  // reborrows grows in this loop.
+  for (unsigned idx = 0; idx < reborrows.size(); ++idx) {
+    if (!BorrowedValue(reborrows[idx]).visitLocalScopeEndingUses(visitEnd))
+      return false;
+  }
+  return true;
+}
+
 bool BorrowedValue::visitInteriorPointerOperandHelper(
     function_ref<void(InteriorPointerOperand)> func,
     BorrowedValue::InteriorPointerOperandVisitorKind kind) const {
@@ -1532,28 +1561,6 @@ void swift::findTransitiveReborrowBaseValuePairs(
       }
       return true;
     });
-  }
-}
-
-void swift::visitTransitiveEndBorrows(
-    SILValue value,
-    function_ref<void(EndBorrowInst *)> visitEndBorrow) {
-  GraphNodeWorklist<SILValue, 4> worklist;
-  worklist.insert(value);
-
-  while (!worklist.empty()) {
-    auto val = worklist.pop();
-    for (auto *consumingUse : val->getConsumingUses()) {
-      auto *consumingUser = consumingUse->getUser();
-      if (auto *branch = dyn_cast<BranchInst>(consumingUser)) {
-        auto *succBlock = branch->getSingleSuccessorBlock();
-        auto *phiArg = cast<SILPhiArgument>(
-            succBlock->getArgument(consumingUse->getOperandNumber()));
-        worklist.insert(phiArg);
-      } else {
-        visitEndBorrow(cast<EndBorrowInst>(consumingUser));
-      }
-    }
   }
 }
 

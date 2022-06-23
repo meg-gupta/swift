@@ -623,7 +623,8 @@ void AliasAnalysis::computeImmutableScope(SingleValueInstruction *beginScopeInst
       addEndScopeInst(endAccess);
     }
   } else {
-    visitTransitiveEndBorrows(beginScopeInst, addEndScopeInst);
+    BorrowedValue borrow(beginScopeInst);
+    borrow.visitExtendedScopeEndingUses(addEndScopeInst);
   }
 
   // Second step: walk up the control flow until the beginScopeInst and add

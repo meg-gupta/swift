@@ -1212,12 +1212,6 @@ void findTransitiveReborrowBaseValuePairs(
     BorrowingOperand initialScopeOperand, SILValue origBaseValue,
     function_ref<void(SILPhiArgument *, SILValue)> visitReborrowBaseValuePair);
 
-/// Given a begin of a borrow scope, visit all end_borrow users of the borrow or
-/// its reborrows.
-void visitTransitiveEndBorrows(
-    SILValue value,
-    function_ref<void(EndBorrowInst *)> visitEndBorrow);
-
 /// Whether the specified lexical begin_borrow instruction is nested.
 ///
 /// A begin_borrow [lexical] is nested if the borrowed value's lifetime is
