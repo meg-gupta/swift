@@ -206,6 +206,12 @@ PointerAuthInfo PointerAuthInfo::forFunctionPointer(IRGenModule &IGM,
   assert(!schema.isAddressDiscriminated() &&
          "function pointer cannot be address-discriminated");
 
+  auto ptrAuth = fnType->getPointerAuthInfo();
+  if (ptrAuth.isPresent()) {
+    return PointerAuthInfo(
+        ptrAuth.getKey(),
+        llvm::ConstantInt::get(IGM.IntPtrTy, ptrAuth.getExtraDiscriminator()));
+  }
   auto discriminator = getOtherDiscriminator(IGM, schema, fnType);
   return PointerAuthInfo(schema.getKey(), discriminator);
 }

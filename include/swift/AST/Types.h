@@ -3177,6 +3177,8 @@ public:
 
   Type getGlobalActor() const;
 
+  clang::PointerAuthQualifier getPointerAuthInfo() const;
+
   /// Returns true if the function type stores a Clang type that cannot
   /// be derived from its Swift type. Returns false otherwise, including if
   /// the function type is not @convention(c) or @convention(block).
@@ -3200,7 +3202,7 @@ public:
   ExtInfo getExtInfo() const {
     assert(hasExtInfo());
     return ExtInfo(Bits.AnyFunctionType.ExtInfoBits, getClangTypeInfo(),
-                   getGlobalActor());
+                   getGlobalActor(), getPointerAuthInfo());
   }
 
   /// Get the canonical ExtInfo for the function type.
@@ -3215,7 +3217,7 @@ public:
     return ExtInfo(Bits.AnyFunctionType.ExtInfoBits,
                    useClangFunctionType ? getCanonicalClangTypeInfo()
                                         : ClangTypeInfo(),
-                   globalActor);
+                   globalActor, getPointerAuthInfo());
   }
 
   bool hasSameExtInfoAs(const AnyFunctionType *otherFn);
@@ -3434,7 +3436,8 @@ class FunctionType final
     : public AnyFunctionType,
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<FunctionType, AnyFunctionType::Param,
-                                    ClangTypeInfo, Type> {
+                                    ClangTypeInfo, Type,
+                                    clang::PointerAuthQualifier> {
   friend TrailingObjects;
 
 
@@ -3473,6 +3476,10 @@ public:
     if (!hasGlobalActor())
       return Type();
     return *getTrailingObjects<Type>();
+  }
+
+  clang::PointerAuthQualifier getPointerAuthInfo() const {
+    return *getTrailingObjects<clang::PointerAuthQualifier>();
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
@@ -4221,7 +4228,8 @@ class SILFunctionType final
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<SILFunctionType, SILParameterInfo,
                                     SILResultInfo, SILYieldInfo,
-                                    SubstitutionMap, CanType, ClangTypeInfo> {
+                                    SubstitutionMap, CanType, ClangTypeInfo,
+                                    clang::PointerAuthQualifier> {
   friend TrailingObjects;
 
   size_t numTrailingObjects(OverloadToken<SILParameterInfo>) const {
@@ -4669,6 +4677,8 @@ public:
 
   ClangTypeInfo getClangTypeInfo() const;
 
+  clang::PointerAuthQualifier getPointerAuthInfo() const;
+
   /// Returns true if the function type stores a Clang type that cannot
   /// be derived from its Swift type. Returns false otherwise, including if
   /// the function type is not @convention(c) or @convention(block).
@@ -4832,7 +4842,8 @@ public:
       CanGenericSignature transposeFunctionGenericSignature = nullptr);
 
   ExtInfo getExtInfo() const {
-    return ExtInfo(Bits.SILFunctionType.ExtInfoBits, getClangTypeInfo());
+    return ExtInfo(Bits.SILFunctionType.ExtInfoBits, getClangTypeInfo(),
+                   getPointerAuthInfo());
   }
 
   /// Returns the language-level calling convention of the function.

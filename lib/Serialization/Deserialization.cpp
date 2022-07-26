@@ -5874,12 +5874,12 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
     globalActor = globalActorTy.get();
   }
 
-  auto info =
-      FunctionType::ExtInfoBuilder(*representation, noescape, throws, *diffKind,
-                                   clangFunctionType, globalActor)
-          .withConcurrent(concurrent)
-          .withAsync(async)
-          .build();
+  auto info = FunctionType::ExtInfoBuilder(
+                  *representation, noescape, throws, *diffKind,
+                  clangFunctionType, globalActor, clang::PointerAuthQualifier())
+                  .withConcurrent(concurrent)
+                  .withAsync(async)
+                  .build();
 
   auto resultTy = MF.getTypeChecked(resultID);
   if (!resultTy)
@@ -6384,7 +6384,8 @@ Expected<Type> DESERIALIZE_TYPE(SIL_FUNCTION_TYPE)(
 
   auto extInfo = SILFunctionType::ExtInfoBuilder(*representation, pseudogeneric,
                                                  noescape, concurrent, async,
-                                                 *diffKind, clangFunctionType)
+                                                 *diffKind, clangFunctionType,
+                                                 clang::PointerAuthQualifier())
                      .build();
 
   // Process the coroutine kind.

@@ -1414,12 +1414,12 @@ static Type maybeImportCFOutParameter(ClangImporter::Implementation &impl,
 }
 
 static ImportedType adjustTypeForConcreteImport(
-    ClangImporter::Implementation &impl,
-    ImportResult importResult, ImportTypeKind importKind,
-    bool allowNSUIntegerAsInt, Bridgeability bridging,
+    ClangImporter::Implementation &impl, ImportResult importResult,
+    ImportTypeKind importKind, bool allowNSUIntegerAsInt,
+    Bridgeability bridging,
     llvm::function_ref<void(Diagnostic &&)> addImportDiagnostic,
-    ImportTypeAttrs attrs, OptionalTypeKind optKind,
-    bool resugarNSErrorPointer) {
+    ImportTypeAttrs attrs, OptionalTypeKind optKind, bool resugarNSErrorPointer,
+    clang::PointerAuthQualifier ptrAuth) {
   Type importedType = importResult.AbstractType;
   ImportHint hint = importResult.Hint;
 
@@ -1437,8 +1437,13 @@ static ImportedType adjustTypeForConcreteImport(
     break;
 
   case ImportHint::ObjCPointer:
-  case ImportHint::CFunctionPointer:
     break;
+  case ImportHint::CFunctionPointer: {
+    auto fTy = importedType->castTo<FunctionType>();
+    FunctionType::ExtInfo einfo = fTy->getExtInfo();
+    einfo = einfo.intoBuilder().withPointerAuthQualifier(ptrAuth).build();
+    importedType = fTy->withExtInfo(einfo);
+  } break;
 
   case ImportHint::Void:
     // 'void' can only be imported as a function result type.
@@ -1674,7 +1679,8 @@ ImportedType ClangImporter::Implementation::importType(
   // Now fix up the type based on how we're concretely using it.
   auto adjustedType = adjustTypeForConcreteImport(
       *this, importResult, importKind, allowNSUIntegerAsInt, bridging,
-      addImportDiagnosticFn, attrs, optionality, resugarNSErrorPointer);
+      addImportDiagnosticFn, attrs, optionality, resugarNSErrorPointer,
+      type.getQualifiers().getPointerAuth());
 
   return adjustedType;
 }

@@ -3978,6 +3978,7 @@ void FunctionType::Profile(llvm::FoldingSetNodeID &ID,
     ID.AddInteger(std::get<0>(infoKey));
     ID.AddPointer(std::get<1>(infoKey));
     ID.AddPointer(std::get<2>(infoKey));
+    ID.AddInteger(std::get<3>(infoKey));
   }
 }
 
@@ -4019,9 +4020,9 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
   bool hasClangInfo =
       info.has_value() && !info.value().getClangTypeInfo().empty();
 
-  size_t allocSize = totalSizeToAlloc<
-      AnyFunctionType::Param, ClangTypeInfo, Type
-    >(params.size(), hasClangInfo ? 1 : 0, globalActor ? 1 : 0);
+  size_t allocSize = totalSizeToAlloc<AnyFunctionType::Param, ClangTypeInfo,
+                                      Type, clang::PointerAuthQualifier>(
+      params.size(), hasClangInfo ? 1 : 0, globalActor ? 1 : 0, 1);
   void *mem = ctx.Allocate(allocSize, alignof(FunctionType), arena);
 
   bool isCanonical = isAnyFunctionTypeCanonical(params, result);
@@ -4056,6 +4057,8 @@ FunctionType::FunctionType(ArrayRef<AnyFunctionType::Param> params, Type output,
       *getTrailingObjects<ClangTypeInfo>() = clangTypeInfo;
     if (Type globalActor = info->getGlobalActor())
       *getTrailingObjects<Type>() = globalActor;
+    if (auto ptrAuth = info->getPointerAuthInfo())
+      *getTrailingObjects<clang::PointerAuthQualifier>() = ptrAuth;
   }
 }
 
@@ -4283,6 +4286,7 @@ SILFunctionType::SILFunctionType(
   if (!ext.getClangTypeInfo().empty())
     *getTrailingObjects<ClangTypeInfo>() = ext.getClangTypeInfo();
 
+  *getTrailingObjects<clang::PointerAuthQualifier>() = ext.getPointerAuthInfo();
 #ifndef NDEBUG
   if (ext.getRepresentation() == Representation::WitnessMethod)
     assert(!WitnessMethodConformance.isInvalid() &&
@@ -4456,10 +4460,11 @@ CanSILFunctionType SILFunctionType::get(
   // See [NOTE: SILFunctionType-layout]
   bool hasResultCache = normalResults.size() > 1;
   size_t bytes = totalSizeToAlloc<SILParameterInfo, SILResultInfo, SILYieldInfo,
-                                  SubstitutionMap, CanType, ClangTypeInfo>(
+                                  SubstitutionMap, CanType, ClangTypeInfo,
+                                  clang::PointerAuthQualifier>(
       params.size(), normalResults.size() + (errorResult ? 1 : 0),
       yields.size(), (patternSubs ? 1 : 0) + (invocationSubs ? 1 : 0),
-      hasResultCache ? 2 : 0, ext.getClangTypeInfo().empty() ? 0 : 1);
+      hasResultCache ? 2 : 0, ext.getClangTypeInfo().empty() ? 0 : 1, 1);
 
   void *mem = ctx.Allocate(bytes, alignof(SILFunctionType));
 

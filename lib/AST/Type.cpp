@@ -4270,6 +4270,18 @@ Type AnyFunctionType::getGlobalActor() const {
   }
 }
 
+clang::PointerAuthQualifier AnyFunctionType::getPointerAuthInfo() const {
+  switch (getKind()) {
+  case TypeKind::Function:
+    return cast<FunctionType>(this)->getPointerAuthInfo();
+  case TypeKind::GenericFunction:
+    // Generic functions do not have C types.
+    return clang::PointerAuthQualifier();
+  default:
+    llvm_unreachable("Illegal type kind for AnyFunctionType.");
+  }
+}
+
 ClangTypeInfo AnyFunctionType::getCanonicalClangTypeInfo() const {
   return getClangTypeInfo().getCanonical();
 }
@@ -4294,6 +4306,11 @@ ClangTypeInfo SILFunctionType::getClangTypeInfo() const {
   auto *info = getTrailingObjects<ClangTypeInfo>();
   assert(!info->empty() &&
          "If the ClangTypeInfo was empty, we shouldn't have stored it.");
+  return *info;
+}
+
+clang::PointerAuthQualifier SILFunctionType::getPointerAuthInfo() const {
+  auto *info = getTrailingObjects<clang::PointerAuthQualifier>();
   return *info;
 }
 

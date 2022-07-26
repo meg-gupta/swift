@@ -410,7 +410,7 @@ Type ASTBuilder::createFunctionType(
   auto einfo =
       FunctionType::ExtInfoBuilder(representation, noescape, flags.isThrowing(),
                                    resultDiffKind, clangFunctionType,
-                                   globalActor)
+                                   globalActor, clang::PointerAuthQualifier())
           .withAsync(flags.isAsync())
           .withConcurrent(flags.isSendable())
           .build();
@@ -567,7 +567,8 @@ Type ASTBuilder::createImplFunctionType(
   }
   auto einfo = SILFunctionType::ExtInfoBuilder(
                    representation, flags.isPseudogeneric(), !flags.isEscaping(),
-                   flags.isSendable(), flags.isAsync(), diffKind, clangFnType)
+                   flags.isSendable(), flags.isAsync(), diffKind, clangFnType,
+                   clang::PointerAuthQualifier())
                    .build();
 
   return SILFunctionType::get(genericSig, einfo, funcCoroutineKind,

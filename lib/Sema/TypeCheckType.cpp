@@ -2821,7 +2821,7 @@ TypeResolver::resolveAttributedType(TypeAttributes &attrs, TypeRepr *repr,
       auto extInfoBuilder = SILFunctionType::ExtInfoBuilder(
           rep, attrs.has(TAK_pseudogeneric), attrs.has(TAK_noescape),
           attrs.has(TAK_Sendable), attrs.has(TAK_async), diffKind,
-          parsedClangFunctionType);
+          parsedClangFunctionType, clang::PointerAuthQualifier());
 
       ty =
           resolveSILFunctionType(fnRepr, options, coroutineKind, extInfoBuilder,
@@ -3364,7 +3364,7 @@ NeverNullType TypeResolver::resolveASTFunctionType(
 
   FunctionType::ExtInfoBuilder extInfoBuilder(
       FunctionTypeRepresentation::Swift, noescape, repr->isThrowing(), diffKind,
-      /*clangFunctionType*/ nullptr, Type());
+      /*clangFunctionType*/ nullptr, Type(), clang::PointerAuthQualifier());
 
   const clang::Type *clangFnType = parsedClangFunctionType;
   if (shouldStoreClangType(representation) && !clangFnType)
