@@ -159,6 +159,12 @@ struct ScopedAddressValue {
   /// Add this scope's live blocks into the PrunedLiveness result.
   void computeLiveness(PrunedLiveness &liveness) const;
 
+  /// Create appropriate scope ending instruction at \p insertPt.
+  void createScopeEnd(SILBasicBlock::iterator insertPt, SILLocation loc) const;
+  /// Create scope ending instructions enclosing all current uses.
+  void endScopeAtUseBoundary() const;
+  /// Create scope ending instructions at \p liveness boundary.
+  void endScopeAtLivenessBoundary(PrunedLiveness *liveness) const;
 };
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
