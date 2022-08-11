@@ -233,6 +233,10 @@ bool tryCheckedCastBrJumpThreading(
 void getConsumedPartialApplyArgs(PartialApplyInst *pai,
                                  SmallVectorImpl<Operand *> &argOperands,
                                  bool includeTrivialAddrArgs);
+/// Get all store_borrow args of a partial_apply that need extension
+void getStoreBorrowArgsOfPartialApplyForExtension(
+    PartialApplyInst *pai, SmallVectorImpl<SILInstruction *> &newUsers,
+    SmallVectorImpl<StoreBorrowInst *> &storeBorrowArgsToExtend);
 
 /// Emit destroy operation for \p operand, and call appropriate functions from
 /// \p callbacks for newly created instructions and deleted instructions.

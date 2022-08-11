@@ -25,6 +25,7 @@
 #include "swift/SIL/SILDebugInfoExpression.h"
 #include "swift/SIL/SILModule.h"
 #include "swift/SIL/SILUndef.h"
+#include "swift/SIL/ScopedAddressUtils.h"
 #include "swift/SIL/TypeLowering.h"
 #include "swift/SILOptimizer/Analysis/ARCAnalysis.h"
 #include "swift/SILOptimizer/Analysis/Analysis.h"
@@ -967,6 +968,20 @@ void swift::getConsumedPartialApplyArgs(PartialApplyInst *pai,
     SILType ty = argOp.get()->getType();
     if (!ty.isTrivial(*F) || (includeTrivialAddrArgs && ty.isAddress()))
       argOperands.push_back(&argOp);
+  }
+}
+
+void swift::getStoreBorrowArgsOfPartialApplyForExtension(
+    PartialApplyInst *pai, SmallVectorImpl<SILInstruction *> &newUsers,
+    SmallVectorImpl<StoreBorrowInst *> &storeBorrowArgsToExtend) {
+  DeadEndBlocks deBlocks(pai->getFunction());
+  for (auto arg : pai->getArguments()) {
+    if (auto *sbi = dyn_cast<StoreBorrowInst>(arg)) {
+      if (!needStoreBorrowExtenstionForNewUsers(sbi, newUsers, &deBlocks)) {
+        continue;
+      }
+      storeBorrowArgsToExtend.push_back(sbi);
+    }
   }
 }
 
