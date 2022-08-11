@@ -241,6 +241,10 @@ private:
   bool areUsesWithinBoundaryHelper(ArrayRef<Operand *> uses, SILValue def,
                                    DeadEndBlocks *deadEndBlocks) const;
 
+  bool areUsersWithinBoundaryHelper(ArrayRef<SILInstruction *> users,
+                                    SILValue def,
+                                    DeadEndBlocks *deadEndBlocks) const;
+
   bool areUsesOutsideBoundaryHelper(ArrayRef<Operand *> uses, SILValue def,
                                     DeadEndBlocks *deadEndBlocks) const;
 
@@ -355,6 +359,10 @@ public:
 
   /// \p deadEndBlocks is optional.
   bool areUsesOutsideBoundary(ArrayRef<Operand *> uses,
+                              DeadEndBlocks *deadEndBlocks) const;
+
+  /// \p deadEndBlocks is optional.
+  bool areUsersWithinBoundary(ArrayRef<SILInstruction *> uses,
                               DeadEndBlocks *deadEndBlocks) const;
 
   /// PrunedLiveness utilities can be used with multiple defs. This api can be

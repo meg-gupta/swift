@@ -206,9 +206,28 @@ bool PrunedLiveness::areUsesWithinBoundaryHelper(
   return true;
 }
 
+bool PrunedLiveness::areUsersWithinBoundaryHelper(
+    ArrayRef<SILInstruction *> users, SILValue def,
+    DeadEndBlocks *deadEndBlocks) const {
+  auto checkDeadEnd = [deadEndBlocks](SILInstruction *inst) {
+    return deadEndBlocks && deadEndBlocks->isDeadEnd(inst->getParent());
+  };
+
+  for (auto *user : users) {
+    if (!isWithinBoundaryHelper(user, def) && !checkDeadEnd(user))
+      return false;
+  }
+  return true;
+}
+
 bool PrunedLiveness::areUsesWithinBoundary(ArrayRef<Operand *> uses,
                                            DeadEndBlocks *deadEndBlocks) const {
   return areUsesWithinBoundaryHelper(uses, SILValue(), deadEndBlocks);
+}
+
+bool PrunedLiveness::areUsersWithinBoundary(
+    ArrayRef<SILInstruction *> users, DeadEndBlocks *deadEndBlocks) const {
+  return areUsersWithinBoundaryHelper(users, SILValue(), deadEndBlocks);
 }
 
 bool PrunedLiveness::areUsesWithinBoundaryOfDef(
