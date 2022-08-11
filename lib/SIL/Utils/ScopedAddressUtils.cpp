@@ -248,6 +248,70 @@ bool swift::hasOtherStoreBorrowsInLifetime(StoreBorrowInst *storeBorrow,
   return false;
 }
 
+bool swift::needStoreBorrowExtenstionForNewUsers(
+    StoreBorrowInst *sbi, SmallVectorImpl<SILInstruction *> &newUsers,
+    DeadEndBlocks *deadEndBlocks) {
+  PrunedLiveness liveness;
+  ScopedAddressValue(sbi).visitScopeEndingUses([&](Operand *op) {
+    liveness.updateForUse(op->getUser(), /* lifetimeEnding */ true);
+    return true;
+  });
+  // store_borrow extension is necessary only when newUsers are not within its
+  // scope.
+  return !liveness.areUsersWithinBoundary(newUsers, deadEndBlocks);
+}
+
+bool swift::canExtendStoreBorrowToNewUsers(
+    StoreBorrowInst *sbi, SmallVectorImpl<SILInstruction *> &newUsers,
+    DeadEndBlocks *deadEndBlocks) {
+  assert(needStoreBorrowExtenstionForNewUsers(sbi, newUsers, deadEndBlocks));
+
+  PrunedLiveness newLiveness;
+  ScopedAddressValue(sbi).visitScopeEndingUses([&](Operand *op) {
+    // Update current scope ending uses as non-lifetime ending
+    newLiveness.updateForUse(op->getUser(), /* lifetimeEnding */ false);
+    return true;
+  });
+
+  for (auto *newUser : newUsers) {
+    // Update newUsers as lifetime ending
+    newLiveness.updateForUse(newUser, /* lifetimeEnding */ true);
+  }
+
+  // store_borrow extension is possible only when there are no other
+  // store_borrows to the same destination within the store_borrow's lifetime
+  // built from newUsers
+  return !hasOtherStoreBorrowsInLifetime(sbi, &newLiveness, deadEndBlocks);
+}
+
+void swift::extendStoreBorrowToNewUsers(
+    StoreBorrowInst *sbi, SmallVectorImpl<SILInstruction *> &newUsers,
+    DeadEndBlocks *deadEndBlocks, InstModCallbacks callbacks) {
+  assert(canExtendStoreBorrowToNewUsers(sbi, newUsers, deadEndBlocks));
+
+  ScopedAddressValue scopedAddress(sbi);
+  SmallVector<SILBasicBlock *, 4> discoveredBlocks;
+  PrunedLiveness newLiveness(&discoveredBlocks);
+  SmallVector<Operand *, 4> endBorrowUses;
+
+  scopedAddress.visitScopeEndingUses([&](Operand *op) {
+    endBorrowUses.push_back(op);
+    // Update current scope ending uses as non-lifetime ending
+    newLiveness.updateForUse(op->getUser(), /* lifetimeEnding */ false);
+    return true;
+  });
+  for (auto *newUser : newUsers) {
+    // Update newUsers as non-lifetime ending
+    newLiveness.updateForUse(newUser, /* lifetimeEnding */ false);
+  }
+  // Add new scope-ending instructions
+  scopedAddress.endScopeAtLivenessBoundary(&newLiveness);
+  // Remove old scope-ending instructions
+  for (auto *endBorrowUse : endBorrowUses) {
+    callbacks.deleteInst(endBorrowUse->getUser());
+  }
+}
+
 void ScopedAddressValue::print(llvm::raw_ostream &os) const {
   os << "ScopedAddressIntroducingValue:\n"
         "Kind: "

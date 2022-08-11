@@ -19,6 +19,7 @@
 #include "swift/SIL/SILBasicBlock.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILValue.h"
+#include "swift/SILOptimizer/Utils/InstModCallbacks.h"
 
 namespace swift {
 class ScopedAddressOperandKind {
@@ -175,6 +176,24 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
 bool hasOtherStoreBorrowsInLifetime(StoreBorrowInst *sbi,
                                     PrunedLiveness *liveness,
                                     DeadEndBlocks *deadEndBlocks);
+
+/// Returns false when \p newUsers are enclosed within store_borrow scope and no
+/// extension is necessary. Returns true otherwise.
+bool needStoreBorrowExtenstionForNewUsers(
+    StoreBorrowInst *sbi, SmallVectorImpl<SILInstruction *> &newUsers,
+    DeadEndBlocks *deadEndBlocks);
+
+/// Returns true if the store_borrow \p sbi can be extended to enclose \p
+/// newUsers.
+bool canExtendStoreBorrowToNewUsers(StoreBorrowInst *sbi,
+                                    SmallVectorImpl<SILInstruction *> &newUsers,
+                                    DeadEndBlocks *deadEndBlocks);
+
+/// Extend the store_borrow \p sbi's scope such that it encloses \p newUsers.
+void extendStoreBorrowToNewUsers(
+    StoreBorrowInst *sbi, SmallVectorImpl<SILInstruction *> &newUsers,
+    DeadEndBlocks *deadEndBlocks,
+    InstModCallbacks callbacks = InstModCallbacks());
 } // namespace swift
 
 #endif
