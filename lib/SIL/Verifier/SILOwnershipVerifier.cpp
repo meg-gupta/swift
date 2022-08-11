@@ -38,6 +38,7 @@
 #include "swift/SIL/SILModule.h"
 #include "swift/SIL/SILVTable.h"
 #include "swift/SIL/SILVisitor.h"
+#include "swift/SIL/ScopedAddressUtils.h"
 #include "swift/SIL/TypeLowering.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -361,6 +362,10 @@ bool SILValueOwnershipChecker::gatherUsers(
 
         scopedOperand.getImplicitUses(nonLifetimeEndingUsers, &onError);
         reborrowVerifier.verifyReborrows(scopedOperand, value);
+      }
+
+      if (auto scopedAddrOp = ScopedAddressOperand(op)) {
+        scopedAddrOp.getImplicitUses(nonLifetimeEndingUsers);
       }
 
       // Next see if our use is an interior pointer operand. If we have an
