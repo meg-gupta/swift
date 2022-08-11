@@ -13,11 +13,13 @@
 #include "swift/SILOptimizer/Utils/GenericCloner.h"
 
 #include "swift/AST/Type.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/SILBasicBlock.h"
 #include "swift/SIL/SILFunction.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILModule.h"
 #include "swift/SIL/SILValue.h"
+#include "swift/SIL/ScopedAddressUtils.h"
 #include "swift/SILOptimizer/Utils/InstOptUtils.h"
 #include "swift/SILOptimizer/Utils/SILOptFunctionBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -142,14 +144,19 @@ void GenericCloner::populateCloned() {
 
           // Store the new direct parameter to an alloc_stack.
           createAllocStack();
-          if (!NewArg->getArgumentConvention().isGuaranteedConvention()) {
+          SILValue addr;
+          if (NewArg->getArgumentConvention().isGuaranteedConvention() &&
+              NewArg->getFunction()->hasOwnership()) {
+            auto *sbi = getBuilder().createStoreBorrow(Loc, NewArg, ASI);
+            StoreBorrowsToCleanup.push_back(sbi);
+            addr = sbi;
+          } else {
             getBuilder().emitStoreValueOperation(Loc, NewArg, ASI,
                                                  StoreOwnershipQualifier::Init);
-          } else {
-            getBuilder().emitStoreBorrowOperation(Loc, NewArg, ASI);
+            addr = ASI;
           }
 
-          entryArgs.push_back(ASI);
+          entryArgs.push_back(addr);
           return true;
         }
       }
@@ -224,5 +231,9 @@ void GenericCloner::postFixUp(SILFunction *f) {
     applyBlock->split(std::next(SILBasicBlock::iterator(apply)));
     getBuilder().setInsertionPoint(applyBlock);
     getBuilder().createUnreachable(apply->getLoc());
+  }
+
+  for (auto *sbi : StoreBorrowsToCleanup) {
+    ScopedAddressValue(sbi).endScopeAtUseBoundary();
   }
 }

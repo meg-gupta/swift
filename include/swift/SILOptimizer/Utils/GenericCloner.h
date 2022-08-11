@@ -41,6 +41,7 @@ class GenericCloner
       RemappedScopeCache;
 
   llvm::SmallVector<AllocStackInst *, 8> AllocStacks;
+  llvm::SmallVector<StoreBorrowInst *, 8> StoreBorrowsToCleanup;
   AllocStackInst *ReturnValueAddr = nullptr;
 
 public:
