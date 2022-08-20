@@ -4294,7 +4294,8 @@ bool AllowTypeOrInstanceMemberFailure::diagnoseAsError() {
     }
   }
 
-  if (BaseType->is<AnyMetatypeType>() && !Member->isStatic()) {
+  bool isStaticOrTypeMember = Member->isStatic() || isa<TypeDecl>(Member);
+  if (BaseType->is<AnyMetatypeType>() && !isStaticOrTypeMember) {
     auto instanceTy = BaseType;
 
     if (auto *AMT = instanceTy->getAs<AnyMetatypeType>()) {
