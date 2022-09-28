@@ -612,15 +612,13 @@ bb0(%0 : @guaranteed $FakeOptional<Klass>):
 
 bb1(%0a : @guaranteed $Klass):
   %1 = enum $FakeOptional<Klass>, #FakeOptional.some!enumelt, %0a : $Klass
-  %2 = begin_borrow %1 : $FakeOptional<Klass>
-  br bb3(%2 : $FakeOptional<Klass>)
+  br bb3(%1 : $FakeOptional<Klass>)
 
 bb2:
   %3 = enum $FakeOptional<Klass>, #FakeOptional.none!enumelt
   br bb3(%3 : $FakeOptional<Klass>)
 
 bb3(%4 : @guaranteed $FakeOptional<Klass>):
-  end_borrow %4 : $FakeOptional<Klass>
   %9999 = tuple()
   return %9999 : $()
 }

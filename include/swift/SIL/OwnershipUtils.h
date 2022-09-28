@@ -57,6 +57,25 @@ inline bool isGuaranteedForwarding(SILValue value) {
   return canOpcodeForwardGuaranteedValues(value);
 }
 
+/// Returns true if it is a forwarding phi
+inline bool isForwardingPhi(SILPhiArgument *phi) {
+  if (phi->getOwnershipKind() != OwnershipKind::Guaranteed) {
+    return false;
+  }
+  bool isForwardingPhi = true;
+  phi->visitTransitiveIncomingPhiOperands(
+      [&](auto *phi, auto *operand) -> bool {
+        if (isa<BeginBorrowInst>(operand->get()) ||
+            isa<LoadBorrowInst>(operand->get())) {
+          isForwardingPhi = false;
+          return false;
+        }
+        return true;
+      });
+
+  return isForwardingPhi;
+}
+
 /// Is the opcode that produces \p value capable of forwarding owned values?
 ///
 /// This may be true even if the current instance of the instruction is not a
@@ -1210,14 +1229,15 @@ OwnedValueIntroducer getSingleOwnedValueIntroducer(SILValue value);
 
 using BaseValueSet = SmallPtrSet<SILValue, 8>;
 
-/// Starting from \p initialScopeOperand, find all reborrows and their
-/// corresponding base values, and run the visitor function \p
-/// visitReborrowBaseValuePair on them.
-///  Note that a reborrow phi, can have different base values based on different
-/// control flow paths.
-void findTransitiveReborrowBaseValuePairs(
-    BorrowingOperand initialScopeOperand, SILValue origBaseValue,
-    function_ref<void(SILPhiArgument *, SILValue)> visitReborrowBaseValuePair);
+/// Starting from \p value, find all reborrows and forwardingbranches along
+/// their corresponding base values, and run the visitor function \p
+/// visitDependentPhiBaseValuePair on them.
+/// Note that a reborrow phi or a forwarded phi, can have different base values
+/// based on different control flow paths.
+void findTransitiveDependentPhiBaseValuePairs(
+    SILValue value, SILValue origBaseValue,
+    function_ref<void(SILPhiArgument *, SILValue)>
+        visitDependentPhiBaseValuePair);
 
 /// Visit the phis in the same block as \p phi which are reborrows of a borrow
 /// of one of the values reaching \p phi.

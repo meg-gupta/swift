@@ -516,29 +516,6 @@ bb3:
   return %9999 : $()
 }
 
-// Rather than eliminate the end_borrow, we just propagate through since
-// branches now act like phis. We could eliminate the begin_borrow scope though,
-// but this pass does not perform that simplification.
-//
-// CHECK-LABEL: sil [ossa] @eliminate_end_borrow_when_propagating_bb_args : $@convention(thin) (@guaranteed Builtin.NativeObject) -> () {
-// CHECK: %1 = begin_borrow %0
-// CHECK: [[FUNC_REF:%.*]] = function_ref @guaranteed_nativeobject_user
-// CHECK-NEXT: apply [[FUNC_REF]](%1) :
-// CHECK: end_borrow %1
-// CHECK: } // end sil function 'eliminate_end_borrow_when_propagating_bb_args'
-sil [ossa] @eliminate_end_borrow_when_propagating_bb_args : $@convention(thin) (@guaranteed Builtin.NativeObject) -> () {
-bb0(%0 : @guaranteed $Builtin.NativeObject):
-  %0a = begin_borrow %0 : $Builtin.NativeObject
-  br bb1(%0a : $Builtin.NativeObject)
-
-bb1(%1 : @guaranteed $Builtin.NativeObject):
-  %2 = function_ref @guaranteed_nativeobject_user : $@convention(thin) (@guaranteed Builtin.NativeObject) -> ()
-  apply %2(%1) : $@convention(thin) (@guaranteed Builtin.NativeObject) -> ()
-  end_borrow %1 : $Builtin.NativeObject
-  %9999 = tuple()
-  return %9999 : $()
-}
-
 // CHECK-LABEL: sil @constant_fold_switch_enum_addr : $@convention(thin) (Int) -> Int {
 // CHECK: bb0(%0 : $Int):
 // CHECK-NEXT:   alloc_stack $BoolLike
@@ -809,8 +786,8 @@ bb1(%2 : @guaranteed $B):
   br bb3(%2a : $B)
 
 bb3(%4 : @guaranteed $B):
-  %99 = tuple ()
   end_borrow %4 : $B
+  %99 = tuple ()
   return %99 : $()
 }
 

@@ -375,7 +375,7 @@ FORWARDING_ANY_OWNERSHIP(CheckedCastBranch)
 // the meet of its operands' ownership. A destructured member has the same
 // ownership as its aggregate unless its type gives it None ownership.
 //
-// TODO: Aggregate operations should be Reborrows, not ForwardingBorrows,
+// TODO: Aggregate operations should be Reborrows, not GuaranteedForwarding,
 // because the borrowed value is different on either side of the operation and
 // the lifetimes of borrowed members could differ.
 #define AGGREGATE_OWNERSHIP(INST)                                              \
@@ -439,10 +439,19 @@ OperandOwnership OperandOwnershipClassifier::visitBranchInst(BranchInst *bi) {
   ValueOwnershipKind destBlockArgOwnershipKind =
       bi->getDestBB()->getArgument(getOperandIndex())->getOwnershipKind();
 
-  // FIXME: remove this special case once all aggregate operations behave just
-  // like phis.
   if (destBlockArgOwnershipKind == OwnershipKind::Guaranteed) {
-    return OperandOwnership::Reborrow;
+    auto phiOp = getValue();
+    if (isa<BeginBorrowInst>(phiOp) || isa<LoadBorrowInst>(phiOp)) {
+      return OperandOwnership::Reborrow;
+    }
+    auto *arg = dyn_cast<SILPhiArgument>(phiOp);
+    if (!arg || !arg->isPhi()) {
+      return OperandOwnership::GuaranteedForwardingPhi;
+    }
+
+    return isForwardingPhi(cast<SILPhiArgument>(phiOp))
+               ? OperandOwnership::GuaranteedForwardingPhi
+               : OperandOwnership::Reborrow;
   }
   return destBlockArgOwnershipKind.getForwardingOperandOwnership(
     /*allowUnowned*/true);

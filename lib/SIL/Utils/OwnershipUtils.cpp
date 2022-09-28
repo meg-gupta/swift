@@ -54,6 +54,7 @@ bool swift::hasPointerEscape(BorrowedValue value) {
     case OperandOwnership::BitwiseEscape:
       break;
 
+    case OperandOwnership::ForwardingBranch:
     case OperandOwnership::Reborrow: {
       SILArgument *phi = cast<BranchInst>(op->getUser())
                              ->getDestBB()
@@ -244,6 +245,11 @@ bool swift::findInnerTransitiveGuaranteedUses(
       }
       break;
     }
+	case OperandOwnership::GuarateedForwardingPhi: {
+      leafUse(use);
+      foundPointerEscape = true;
+      break;
+    }
     case OperandOwnership::Borrow:
       // FIXME: Use visitExtendedScopeEndingUses and audit all clients to handle
       // reborrows.
@@ -344,6 +350,17 @@ bool swift::findExtendedUsesOfSimpleBorrowedValue(
       recordUse(use);
       break;
 
+    case OperandOwnership::ForwardingBranch: {
+      SILArgument *phi = cast<BranchInst>(use->getUser())
+                             ->getDestBB()
+                             ->getArgument(use->getOperandNumber());
+      for (auto *use : phi->getUses()) {
+        if (use->getOperandOwnership() != OperandOwnership::NonUse)
+          worklist.insert(use);
+      }
+      recordUse(use);
+      break;
+    }
     case OperandOwnership::GuaranteedForwarding: {
       ForwardingOperand(use).visitForwardedValues([&](SILValue result) {
         // Do not include transitive uses with 'none' ownership
@@ -1378,6 +1395,7 @@ ForwardingOperand::ForwardingOperand(Operand *use) {
   case OperandOwnership::Borrow:
   case OperandOwnership::DestroyingConsume:
   case OperandOwnership::InteriorPointer:
+  case OperandOwnership::ForwardingBranch:
   case OperandOwnership::EndBorrow:
   case OperandOwnership::Reborrow:
     llvm_unreachable("this isn't the operand being forwarding!");
@@ -1600,55 +1618,102 @@ bool ForwardingOperand::visitForwardedValues(
   });
 }
 
-void swift::findTransitiveReborrowBaseValuePairs(
-    BorrowingOperand initialScopedOperand, SILValue origBaseValue,
-    function_ref<void(SILPhiArgument *, SILValue)> visitReborrowBaseValuePair) {
-  // We need a SetVector to make sure we don't revisit the same reborrow operand
+void swift::findTransitiveDependentPhiBaseValuePairs(
+    SILValue depValue, SILValue baseValue,
+    function_ref<void(SILPhiArgument *, SILValue)>
+        visitDependentPhiBaseValuePair) {
+  // We need a SetVector to make sure we don't revisit the same phi operand
   // again.
   SmallSetVector<std::tuple<Operand *, SILValue>, 4> worklist;
+  SmallVector<Operand *, 4> forwardingBorrows;
 
-  // Populate the worklist with reborrow and the base value
-  initialScopedOperand.visitScopeEndingUses([&](Operand *op) {
-    if (op->getOperandOwnership() == OperandOwnership::Reborrow) {
-      worklist.insert(std::make_tuple(op, origBaseValue));
+  auto collectForwardingBranches = [&](SILValue value, SILValue base) {
+    // First, clear the temporary vector
+    forwardingBorrows.clear();
+
+    for (auto *use : value->getUses()) {
+      if (use->getOperandOwnership() == OperandOwnership::ForwardingBorrow) {
+        forwardingBorrows.push_back(use);
+      }
     }
-    return true;
-  });
+
+    for (unsigned i = 0; i < forwardingBorrows.size(); i++) {
+      Operand *forwardingBorrow = forwardingBorrows[i];
+      for (auto res : forwardingBorrow->getUser()->getResults()) {
+        for (auto *resUse : res->getUses()) {
+          if (resUse->getOperandOwnership() ==
+              OperandOwnership::ForwardingBorrow) {
+            forwardingBorrows.push_back(resUse);
+          }
+        }
+      }
+    }
+
+    for (auto forwardingBorrow : forwardingBorrows) {
+      for (auto res : forwardingBorrow->getUser()->getResults()) {
+        for (auto *resUse : res->getUses()) {
+          if (resUse->getOperandOwnership() ==
+              OperandOwnership::ForwardingBranch) {
+            worklist.insert(std::make_tuple(resUse, base));
+          }
+        }
+      }
+    }
+  };
+
+  auto collectReborrows = [&](SILValue value, SILValue base) {
+    for (auto *use : value->getUses()) {
+      if (use->getOperandOwnership() == OperandOwnership::Reborrow) {
+        worklist.insert(std::make_tuple(use, base));
+      }
+    }
+  };
+
+  assert(isa<BeginBorrowInst>(depValue) || isa<LoadBorrowInst>(depValue));
+
+  collectForwardingBranches(depValue, depValue);
+  if (isa<BeginBorrowInst>(depValue)) {
+    collectReborrows(depValue, baseValue);
+  }
 
   // Size of worklist changes in this loop
   for (unsigned idx = 0; idx < worklist.size(); idx++) {
-    Operand *reborrowOp;
-    SILValue baseValue;
-    std::tie(reborrowOp, baseValue) = worklist[idx];
+    Operand *op;
+    SILValue currentBase;
+    std::tie(op, currentBase) = worklist[idx];
 
-    BorrowingOperand borrowingOperand(reborrowOp);
-    assert(borrowingOperand.isReborrow());
+    assert(op->getOperandOwnership() == OperandOwnership::Reborrow ||
+           op->getOperandOwnership() == OperandOwnership::ForwardingBranch);
 
-    auto *branchInst = cast<BranchInst>(reborrowOp->getUser());
+    bool isForwardingBranch =
+        op->getOperandOwnership() == OperandOwnership::ForwardingBranch;
+
+    auto *branchInst = cast<BranchInst>(op->getUser());
     auto *succBlock = branchInst->getDestBB();
-    auto *phiArg = cast<SILPhiArgument>(
-        succBlock->getArgument(reborrowOp->getOperandNumber()));
+    auto *phiArg =
+        cast<SILPhiArgument>(succBlock->getArgument(op->getOperandNumber()));
 
-    SILValue newBaseVal = baseValue;
+    SILValue newBase = currentBase;
     // If the previous base value was also passed as a phi arg, that will be
     // the new base value.
     for (auto *arg : succBlock->getArguments()) {
-      if (arg->getIncomingPhiValue(branchInst->getParent()) == baseValue) {
-        newBaseVal = arg;
+      if (arg->getIncomingPhiValue(branchInst->getParent()) == currentBase) {
+        newBase = arg;
         break;
       }
     }
 
     // Call the visitor function
-    visitReborrowBaseValuePair(phiArg, newBaseVal);
+    visitDependentPhiBaseValuePair(phiArg, newBase);
 
-    BorrowedValue scopedValue(phiArg);
-    scopedValue.visitLocalScopeEndingUses([&](Operand *op) {
-      if (op->getOperandOwnership() == OperandOwnership::Reborrow) {
-        worklist.insert(std::make_tuple(op, newBaseVal));
-      }
-      return true;
-    });
+    if (isForwardingBranch) {
+      collectForwardingBranches(phiArg, newBase);
+      collectForwardingBranches(newBase, newBase);
+      continue;
+    }
+    if (isa<BeginBorrowInst>(depValue)) {
+      collectReborrows(phiArg, newBase);
+    }
   }
 }
 

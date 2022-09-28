@@ -292,7 +292,7 @@ def run():
     >>> output = subprocess.check_output([sys.executable,
     ...    __file__, target1.name, target2.name, '--',
     ...    sys.executable, '-c',
-    ...   'import sys;sys.stdout.write(open(sys.argv[1]).read())',
+    ...   'import sys;sys.stdout = codecs.getwriter("utf-8")(sys.stdout);sys.stdout.write(open(sys.argv[1]).read())',
     ...   raw_output.name], universal_newlines=True)
 
     Replace temporary filenames and check it.

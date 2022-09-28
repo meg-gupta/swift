@@ -13,7 +13,7 @@
 #define DEBUG_TYPE "sil-ownership-verifier"
 
 #include "LinearLifetimeCheckerPrivate.h"
-#include "ReborrowVerifierPrivate.h"
+#include "OwnershipPhiVerifierPrivate.h"
 
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/AnyFunctionRef.h"
@@ -21,6 +21,7 @@
 #include "swift/AST/GenericEnvironment.h"
 #include "swift/AST/Module.h"
 #include "swift/AST/Types.h"
+#include "swift/Basic/GraphNodeWorklist.h"
 #include "swift/Basic/Range.h"
 #include "swift/Basic/STLExtras.h"
 #include "swift/ClangImporter/ClangModule.h"
@@ -104,16 +105,14 @@ class SILValueOwnershipChecker {
   /// is successful.
   SmallVector<Operand *, 16> regularUsers;
 
-  ReborrowVerifier &reborrowVerifier;
+  OwnershipPhiVerifier &ownershipPhiVerifier;
 
 public:
-  SILValueOwnershipChecker(
-      DeadEndBlocks &deadEndBlocks, SILValue value,
-      LinearLifetimeChecker::ErrorBuilder &errorBuilder,
-      ReborrowVerifier &reborrowVerifier)
+  SILValueOwnershipChecker(DeadEndBlocks &deadEndBlocks, SILValue value,
+                           LinearLifetimeChecker::ErrorBuilder &errorBuilder,
+                           OwnershipPhiVerifier &ownershipPhiVerifier)
       : result(), deadEndBlocks(deadEndBlocks), value(value),
-        errorBuilder(errorBuilder),
-        reborrowVerifier(reborrowVerifier) {
+        errorBuilder(errorBuilder), ownershipPhiVerifier(ownershipPhiVerifier) {
     assert(value && "Can not initialize a checker with an empty SILValue");
   }
 
@@ -263,7 +262,10 @@ bool SILValueOwnershipChecker::gatherNonGuaranteedUsers(
       });
     };
     initialScopedOperand.getImplicitUses(nonLifetimeEndingUsers, &error);
-    reborrowVerifier.verifyReborrows(initialScopedOperand, value);
+    if (initialScopedOperand.kind == BorrowingOperandKind::BeginBorrow) {
+      ownershipPhiVerifier.verifyOwnershipPhis(
+          cast<BeginBorrowInst>(op->getUser()), op->get());
+    }
   }
 
   return foundError;
@@ -314,6 +316,12 @@ bool SILValueOwnershipChecker::gatherUsers(
       continue;
     }
 
+    if (op->getOperandOwnership() == OperandOwnership::ForwardingBranch) {
+      LLVM_DEBUG(llvm::dbgs() << "Regular User: " << *user);
+      nonLifetimeEndingUsers.push_back(op);
+      continue;
+    }
+
     // If we are visiting a non-first level user and we
     // If we are guaranteed, but are not a guaranteed forwarding inst, we add
     // the end scope instructions of any new sub-scopes. This ensures that the
@@ -350,8 +358,6 @@ bool SILValueOwnershipChecker::gatherUsers(
       // BorrowScopeOperand and if so, add its end scope instructions as
       // implicit regular users of our value.
       if (auto scopedOperand = BorrowingOperand(op)) {
-        assert(!scopedOperand.isReborrow());
-
         std::function<void(Operand *)> onError = [&](Operand *op) {
           errorBuilder.handleMalformedSIL([&] {
             llvm::errs() << "Implicit Regular User Guaranteed Phi Cycle!\n"
@@ -361,7 +367,10 @@ bool SILValueOwnershipChecker::gatherUsers(
         };
 
         scopedOperand.getImplicitUses(nonLifetimeEndingUsers, &onError);
-        reborrowVerifier.verifyReborrows(scopedOperand, value);
+        if (scopedOperand.kind == BorrowingOperandKind::BeginBorrow) {
+          ownershipPhiVerifier.verifyOwnershipPhis(
+              cast<BeginBorrowInst>(op->getUser()), op->get());
+        }
       }
 
       if (auto *svi = dyn_cast<SingleValueInstruction>(op->getUser())) {
@@ -406,7 +415,7 @@ bool SILValueOwnershipChecker::gatherUsers(
     // guaranteed or trivial. We now split into two cases, if the user is a
     // terminator or not. If we do not have a terminator, then just add the
     // uses of all of User's results to the worklist.
-    if (user->getResults().size()) {
+    if (!user->getResults().empty()) {
       for (SILValue result : user->getResults()) {
         if (result->getOwnershipKind() == OwnershipKind::None) {
           continue;
@@ -422,16 +431,10 @@ bool SILValueOwnershipChecker::gatherUsers(
       }
       continue;
     }
-    assert(user->getResults().empty());
+
     auto *ti = dyn_cast<TermInst>(user);
-    if (!ti) {
-      continue;
-    }
-    // At this point, the only type of thing we could have is a transformation
-    // terminator since all forwarding terminators are transformation
-    // terminators.
-    assert(ti->isTransformationTerminator() &&
-           "Out of sync with isTransformationTerminator()");
+    assert(ti->isTransformationTerminator());
+
     for (auto *succBlock : ti->getSuccessorBlocks()) {
       // If we do not have any arguments, then continue.
       if (succBlock->args_empty())
@@ -562,9 +565,15 @@ bool SILValueOwnershipChecker::checkValueWithoutLifetimeEndingUses(
   // Check if we are a guaranteed subobject. In such a case, we should never
   // have lifetime ending uses, since our lifetime is guaranteed by our
   // operand, so there is nothing further to do. So just return true.
-  if (value->getOwnershipKind() == OwnershipKind::Guaranteed &&
+  if (value->getOwnershipKind() == OwnershipKind::Guaranteed) {
       isGuaranteedForwarding(value))
-    return true;
+      return true;
+    }
+    auto *phi = dyn_cast<SILPhiArgument>(value);
+    if (phi && isGuaranteedForwardingPhi(phi)) {
+      return true;
+    }
+  }
 
   // If we have an unowned value, then again there is nothing left to do.
   if (value->getOwnershipKind() == OwnershipKind::Unowned)
@@ -689,6 +698,9 @@ bool SILValueOwnershipChecker::checkUses() {
     }
   }
 
+  if (auto *lbi = dyn_cast<LoadBorrowInst>(value)) {
+    ownershipPhiVerifier.verifyOwnershipPhis(lbi, SILValue());
+  }
   return true;
 }
 
@@ -778,7 +790,7 @@ static void
 verifySILValueHelper(const SILFunction *f, SILValue value,
                      LinearLifetimeChecker::ErrorBuilder &errorBuilder,
                      DeadEndBlocks *deadEndBlocks,
-                     ReborrowVerifier &reborrowVerifier) {
+                     OwnershipPhiVerifier &ownershipPhiVerifier) {
   assert(!isa<SILUndef>(value) &&
          "We assume we are always passed arguments or instruction results");
 
@@ -788,8 +800,8 @@ verifySILValueHelper(const SILFunction *f, SILValue value,
     return;
 
   SILValueOwnershipChecker(*deadEndBlocks, value, errorBuilder,
-                           reborrowVerifier)
-    .check();
+                           ownershipPhiVerifier)
+      .check();
 }
 
 void SILValue::verifyOwnership(DeadEndBlocks *deadEndBlocks) const {
@@ -836,8 +848,9 @@ void SILValue::verifyOwnership(DeadEndBlocks *deadEndBlocks) const {
   using BehaviorKind = LinearLifetimeChecker::ErrorBehaviorKind;
   LinearLifetimeChecker::ErrorBuilder errorBuilder(
       *f, BehaviorKind::PrintMessageAndAssert);
-  ReborrowVerifier reborrowVerifier(f, *deadEndBlocks, errorBuilder);
-  verifySILValueHelper(f, *this, errorBuilder, deadEndBlocks, reborrowVerifier);
+  OwnershipPhiVerifier ownershipPhiVerifier(f, *deadEndBlocks, errorBuilder);
+  verifySILValueHelper(f, *this, errorBuilder, deadEndBlocks,
+                       ownershipPhiVerifier);
 }
 
 void SILFunction::verifyOwnership(DeadEndBlocks *deadEndBlocks) const {
@@ -872,19 +885,20 @@ void SILFunction::verifyOwnership(DeadEndBlocks *deadEndBlocks) const {
     errorBuilder.emplace(*this, BehaviorKind::PrintMessageAndAssert);
   }
 
-  ReborrowVerifier reborrowVerifier(this, *deadEndBlocks, *errorBuilder);
+  OwnershipPhiVerifier ownershipPhiVerifier(this, *deadEndBlocks,
+                                            *errorBuilder);
   for (auto &block : *this) {
     for (auto *arg : block.getArguments()) {
       LinearLifetimeChecker::ErrorBuilder newBuilder = *errorBuilder;
       verifySILValueHelper(this, arg, newBuilder, deadEndBlocks,
-                           reborrowVerifier);
+                           ownershipPhiVerifier);
     }
 
     for (auto &inst : block) {
       for (auto result : inst.getResults()) {
         LinearLifetimeChecker::ErrorBuilder newBuilder = *errorBuilder;
         verifySILValueHelper(this, result, newBuilder, deadEndBlocks,
-                             reborrowVerifier);
+                             ownershipPhiVerifier);
       }
     }
   }

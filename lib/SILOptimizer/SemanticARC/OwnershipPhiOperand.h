@@ -79,21 +79,6 @@ public:
 
   SILInstruction *getInst() const { return op->getUser(); }
 
-  /// Return true if this phi consumes a borrow.
-  ///
-  /// If so, we may need to insert an extra begin_borrow to balance the +1 when
-  /// converting owned ownership phis to guaranteed ownership phis.
-  bool isGuaranteedConsuming() const {
-    switch (getKind()) {
-    case Kind::Branch:
-      return true;
-    case Kind::Tuple:
-    case Kind::Struct:
-      return false;
-    }
-    llvm_unreachable("unhandled operand kind!");
-  }
-
   bool operator<(const OwnershipPhiOperand &other) const {
     return op < other.op;
   }

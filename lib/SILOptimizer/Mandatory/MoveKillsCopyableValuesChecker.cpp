@@ -187,6 +187,7 @@ bool CheckerLivenessInfo::compute() {
       case OperandOwnership::EndBorrow:
         // Don't care about this use.
         break;
+      case OperandOwnership::ForwardingBranch:
       case OperandOwnership::Reborrow:
         // Reborrows do not occur this early in the pipeline.
         llvm_unreachable(

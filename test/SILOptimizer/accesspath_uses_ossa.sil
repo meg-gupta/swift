@@ -805,12 +805,10 @@ bb0(%0 : @guaranteed $Builtin.BridgeObject, %1 : @guaranteed $Builtin.BridgeObje
   cond_br undef, bb1, bb2
 
 bb1:
-  %borrow0 = begin_borrow %0 : $Builtin.BridgeObject
-  br bb3(%borrow0 : $Builtin.BridgeObject)
+  br bb3(%0 : $Builtin.BridgeObject)
 
 bb2:
-  %borrow1 = begin_borrow %1 : $Builtin.BridgeObject
-  br bb3(%borrow1 : $Builtin.BridgeObject)
+  br bb3(%1 : $Builtin.BridgeObject)
 
 bb3(%820 : @guaranteed $Builtin.BridgeObject):
   %834 = unchecked_ref_cast %820 : $Builtin.BridgeObject to $C
@@ -823,7 +821,6 @@ bb4:
   br bb3(%820 : $Builtin.BridgeObject)
 
 bb5:
-  end_borrow %820 : $Builtin.BridgeObject
   %999 = tuple ()
   return %999 : $()
 }

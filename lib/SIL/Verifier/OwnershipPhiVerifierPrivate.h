@@ -1,4 +1,5 @@
-//===--- ReborrowVerifierPrivate.h ----------------------------------------===//
+//===--- OwnershipPhiVerifierPrivate.h
+//----------------------------------------===//
 //
 // This source file is part of the Swift.org open source project
 //
@@ -10,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SWIFT_SIL_REBORROWVERIFIER_H
-#define SWIFT_SIL_REBORROWVERIFIER_H
+#ifndef SWIFT_SIL_OwnershipPhiVerifier_H
+#define SWIFT_SIL_OwnershipPhiVerifier_H
 
 #include "LinearLifetimeCheckerPrivate.h"
 
@@ -24,10 +25,10 @@ namespace swift {
 class DeadEndBlocks;
 
 /// A guaranteed phi arg ends the borrow scope of its incoming value and begins
-/// a new borrow scope. ReborrowVerifier validates the lifetime of the reborrow
-/// lies within the lifetime of its base value. It uses LinearLifetimeChecker
-/// for this.
-class ReborrowVerifier {
+/// a new borrow scope. OwnershipPhiVerifier validates the lifetime of the
+/// reborrow lies within the lifetime of its base value. It uses
+/// LinearLifetimeChecker for this.
+class OwnershipPhiVerifier {
   /// A cache of dead-end basic blocks that we use to determine if we can
   /// ignore "leaks".
   DeadEndBlocks &deadEndBlocks;
@@ -38,20 +39,18 @@ class ReborrowVerifier {
   /// Note that a reborrow phi arg can have different base values based on
   /// different control flow paths.
   llvm::DenseMap<SILPhiArgument *, SmallPtrSet<SILValue, 8>>
-      reborrowToBaseValuesMap;
+      dependentPhiToBaseValueMap;
 
 public:
-  ReborrowVerifier(const SILFunction *func, DeadEndBlocks &deadEndBlocks,
-                   LinearLifetimeChecker::ErrorBuilder errorBuilder)
+  OwnershipPhiVerifier(const SILFunction *func, DeadEndBlocks &deadEndBlocks,
+                       LinearLifetimeChecker::ErrorBuilder errorBuilder)
       : deadEndBlocks(deadEndBlocks), errorBuilder(errorBuilder) {}
 
-  /// Find all the reborrows of \p initialScopedOperand and verify their
-  /// lifetime.
-  void verifyReborrows(BorrowingOperand initialScopedOperand, SILValue value);
+  void verifyOwnershipPhis(SingleValueInstruction *inst, SILValue value);
 
 private:
-  /// Verifies whether the reborrow's lifetime lies within its base value
-  bool verifyReborrowLifetime(SILPhiArgument *phiArg, SILValue baseVal);
+  /// Verifies whether the phi's lifetime lies within its base value
+  bool verifyDependentPhiLifetime(SILPhiArgument *phiArg, SILValue baseVal);
 };
 
 } // namespace swift

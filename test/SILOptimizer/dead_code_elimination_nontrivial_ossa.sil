@@ -23,6 +23,14 @@ case none
 case some(T)
 }
 
+struct Wrapper1 {
+  var val1: Wrapper2
+}
+
+struct Wrapper2 {
+  var val2: Klass
+}
+
 sil [ossa] @$testtryapplyklassgen : $@convention(thin) () -> (@owned Klass, @error any Error)
 sil [ossa] @$use_klass1 : $@convention(thin) (@owned Klass) -> ()
 sil [ossa] @$use_klass2 : $@convention(thin) (@guaranteed Klass) -> ()
@@ -70,24 +78,6 @@ bb0(%0 : $*Klass):
   %3 = apply %2(%1) : $@convention(thin) (@guaranteed Klass) -> ()
   end_borrow %1 : $Klass
   destroy_addr %0 : $*Klass
-  %res = tuple ()
-  return %res : $()
-}
-
-// Don't dce due to a useful dependency due to apply
-// CHECK-LABEL: sil [ossa] @dce_dontoptendborrow1 :
-// CHECK: [[RES:%.*]] = begin_borrow %0
-// CHECK: end_borrow
-// CHECK-LABEL: } // end sil function 'dce_dontoptendborrow1'
-sil [ossa] @dce_dontoptendborrow1 : $@convention(thin) (@guaranteed Klass) -> () {
-bb0(%0 : @guaranteed $Klass):
-  %1 = begin_borrow %0 : $Klass
-  br bb1(%1 : $Klass)
-
-bb1(%2 : @guaranteed $Klass):
-  %3 = function_ref @$use_klass2 : $@convention(thin) (@guaranteed Klass) -> ()
-  %4 = apply %3(%2) : $@convention(thin) (@guaranteed Klass) -> ()
-  end_borrow %2 : $Klass
   %res = tuple ()
   return %res : $()
 }
@@ -470,57 +460,6 @@ bb1(%newcopy : @owned $Klass, %newborrow1 : @guaranteed $Klass, %newborrow2 : @g
   return %res : $()
 }
 
-// Nested borrows are currently not optimized in DCE
-sil [ossa] @dce_nestedborrowlifetime1 : $@convention(thin) (@guaranteed NonTrivialStruct) -> @owned NonTrivialStruct {
-bb0(%0 : @guaranteed $NonTrivialStruct):
-  %borrowo = begin_borrow %0 : $NonTrivialStruct
-  %borrow = begin_borrow %borrowo : $NonTrivialStruct
-  br bb1(%borrowo : $NonTrivialStruct, %borrow : $NonTrivialStruct)
-
-bb1(%newborrowo : @guaranteed $NonTrivialStruct, %borrow2 : @guaranteed $NonTrivialStruct):
-  %newcopy = copy_value %borrow2 : $NonTrivialStruct
-  end_borrow %borrow2 : $NonTrivialStruct
-  end_borrow %newborrowo : $NonTrivialStruct
-  return %newcopy : $NonTrivialStruct
-}
-
-sil [ossa] @dce_nestedborrowlifetime2 : $@convention(thin) (@guaranteed Klass) -> () {
-bb0(%0 : @guaranteed $Klass):
-  %borrowo = begin_borrow %0 : $Klass
-  %borrow = begin_borrow %borrowo : $Klass
-  %2 = function_ref @$use_klass2 : $@convention(thin) (@guaranteed Klass) -> ()
-  %3 = apply %2(%borrow) : $@convention(thin) (@guaranteed Klass) -> ()
-  %5 = apply %2(%borrowo) : $@convention(thin) (@guaranteed Klass) -> ()
-  br bb1(%borrowo : $Klass, %borrow : $Klass)
-
-bb1(%newborrow : @guaranteed $Klass, %borrow2 : @guaranteed $Klass):
-  end_borrow %borrow2 : $Klass
-  end_borrow %newborrow : $Klass
-  %res = tuple ()
-  return %res : $()
-}
-
-// This test shows it is non trivial to find the insert point of an outer reborrow.
-// Here %newborrowo and %newborrowi are both dead phis.
-// First end_borrow for the incoming value of %newborrowi is added
-// It is non straight forward to find the insert pt for the end_borrow of the incoming value of %newborrowo
-// This may not be important once CanonicalizeOSSALifetime supports rewrite of multi-block borrows. 
-sil [ossa] @dce_nestedborrowlifetime3 : $@convention(thin) (@guaranteed Klass) -> () {
-bb0(%0 : @guaranteed $Klass):
-  %borrowo = begin_borrow %0 : $Klass
-  %borrow = begin_borrow %borrowo : $Klass
-  %2 = function_ref @$use_klass2 : $@convention(thin) (@guaranteed Klass) -> ()
-  %3 = apply %2(%borrow) : $@convention(thin) (@guaranteed Klass) -> ()
-  %5 = apply %2(%borrowo) : $@convention(thin) (@guaranteed Klass) -> ()
-  br bb1(%borrow : $Klass, %borrowo : $Klass)
-
-bb1(%newborrowi : @guaranteed $Klass, %newborrowo : @guaranteed $Klass):
-  end_borrow %newborrowi : $Klass
-  end_borrow %newborrowo : $Klass
-  %res = tuple ()
-  return %res : $()
-}
-
 // CHECK-LABEL: sil [ossa] @infinite_loop :
 // CHECK-NOT: copy_value
 // CHECK-LABEL: } // end sil function 'infinite_loop'
@@ -842,6 +781,18 @@ exit:
   return %retval : $()
 }
 
+sil [ossa] @reborrowed_guaranteed_phi3 : $@convention(thin) (@owned Klass) -> () {
+entry(%instance : @owned $Klass):
+  %outer_lifetime_1 = begin_borrow %instance : $Klass
+  %inner_lifetime_1 = begin_borrow %outer_lifetime_1 : $Klass
+  br exit(%inner_lifetime_1 : $Klass)
+exit(%inner_lifetime_2 : @guaranteed $Klass):
+  end_borrow %inner_lifetime_2 : $Klass
+  end_borrow %outer_lifetime_1 : $Klass
+  destroy_value %instance : $Klass
+  %retval = tuple ()
+  return %retval : $()
+}
 // CHECK-LABEL: sil [ossa] @reborrow_load_borrow : {{.*}} {
 // CHECK:       {{bb[0-9]+}}([[INSTANCE:%[^,]+]] : $*Klass):
 // CHECK:         [[LIFETIME:%[^,]+]] = load_borrow [[INSTANCE]]
@@ -995,3 +946,50 @@ bb1(%21 : $@noescape @callee_guaranteed () -> (), %22 : @guaranteed $@callee_gua
   %28 = tuple ()
   return %28: $()
 }
+
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+sil [ossa] @test_forwarded_phi4 : $@convention(thin) (@owned Wrapper1) -> () {
+bb0(%0 : @owned $Wrapper1):
+  %outer = begin_borrow %0 : $Wrapper1
+  br bb1 
+
+bb1:
+  %ex1 = struct_extract %outer : $Wrapper1, #Wrapper1.val1
+  br bb2(%ex1 : $Wrapper2, %outer : $Wrapper1)
+
+bb2(%phi1 : @guaranteed $Wrapper2, %phi2 : @guaranteed $Wrapper1):
+  %ex2 = struct_extract %phi1 : $Wrapper2, #Wrapper2.val2
+  br bb3(%ex2 : $Klass, %phi2 : $Wrapper1)
+
+bb3(%phi3 : @guaranteed $Klass, %phi4 : @guaranteed $Wrapper1):
+  %f = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  apply %f(%phi3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %phi4 : $Wrapper1
+  destroy_value %0 : $Wrapper1
+  %9999 = tuple()
+  return %9999 : $()
+}
+
+sil [ossa] @test_loadborrow_dep : $@convention(thin) (@in Wrapper1) -> () {
+bb0(%0 : $*Wrapper1):
+  %outer = load_borrow %0 : $*Wrapper1
+  br bb1 
+
+bb1:
+  %ex1 = struct_extract %outer : $Wrapper1, #Wrapper1.val1
+  br bb2(%ex1 : $Wrapper2, %outer : $Wrapper1)
+
+bb2(%phi1 : @guaranteed $Wrapper2, %phi2 : @guaranteed $Wrapper1):
+  %ex2 = struct_extract %phi1 : $Wrapper2, #Wrapper2.val2
+  br bb3(%ex2 : $Klass, %phi2 : $Wrapper1)
+
+bb3(%phi3 : @guaranteed $Klass, %phi4 : @guaranteed $Wrapper1):
+  %f = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  apply %f(%phi3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %phi4 : $Wrapper1
+  destroy_addr %0 : $*Wrapper1
+  %9999 = tuple()
+  return %9999 : $()
+}
+
