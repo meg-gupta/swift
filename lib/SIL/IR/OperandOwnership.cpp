@@ -296,14 +296,14 @@ OPERAND_OWNERSHIP(InteriorPointer, HopToExecutor)
 OPERAND_OWNERSHIP(InteriorPointer, ExtractExecutor)
 
 // Instructions that propagate a value within a borrow scope.
-OPERAND_OWNERSHIP(ForwardingBorrow, TupleExtract)
-OPERAND_OWNERSHIP(ForwardingBorrow, StructExtract)
-OPERAND_OWNERSHIP(ForwardingBorrow, DifferentiableFunctionExtract)
-OPERAND_OWNERSHIP(ForwardingBorrow, LinearFunctionExtract)
+OPERAND_OWNERSHIP(GuaranteedForwarding, TupleExtract)
+OPERAND_OWNERSHIP(GuaranteedForwarding, StructExtract)
+OPERAND_OWNERSHIP(GuaranteedForwarding, DifferentiableFunctionExtract)
+OPERAND_OWNERSHIP(GuaranteedForwarding, LinearFunctionExtract)
 // FIXME: OpenExistential[Box]Value should be able to take owned values too by
 // using getForwardingOperandOwnership.
-OPERAND_OWNERSHIP(ForwardingBorrow, OpenExistentialValue)
-OPERAND_OWNERSHIP(ForwardingBorrow, OpenExistentialBoxValue)
+OPERAND_OWNERSHIP(GuaranteedForwarding, OpenExistentialValue)
+OPERAND_OWNERSHIP(GuaranteedForwarding, OpenExistentialBoxValue)
 
 OPERAND_OWNERSHIP(EndBorrow, EndBorrow)
 
@@ -334,7 +334,7 @@ OPERAND_OWNERSHIP(EndBorrow, AbortApply)
 #undef OPERAND_OWNERSHIP
 
 // Forwarding operations are conditionally either ForwardingConsumes or
-// ForwardingBorrows, depending on the instruction's constant ownership
+// GuaranteedForwarding, depending on the instruction's constant ownership
 // attribute.
 #define FORWARDING_OWNERSHIP(INST)                                             \
   OperandOwnership OperandOwnershipClassifier::visit##INST##Inst(              \
@@ -421,7 +421,7 @@ OperandOwnershipClassifier::visitSelectEnumInst(SelectEnumInst *i) {
 OperandOwnership
 OperandOwnershipClassifier::visitSelectValueInst(SelectValueInst *i) {
   if (getValue() == i->getDefaultResult())
-    return OperandOwnership::ForwardingBorrow;
+    return OperandOwnership::GuaranteedForwarding;
 
   for (unsigned idx = 0, endIdx = i->getNumCases(); idx < endIdx; ++idx) {
     SILValue casevalue;
@@ -429,7 +429,7 @@ OperandOwnershipClassifier::visitSelectValueInst(SelectValueInst *i) {
     std::tie(casevalue, result) = i->getCase(idx);
 
     if (getValue() == casevalue) {
-      return OperandOwnership::ForwardingBorrow;
+      return OperandOwnership::GuaranteedForwarding;
     }
   }
   return OperandOwnership::TrivialUse;

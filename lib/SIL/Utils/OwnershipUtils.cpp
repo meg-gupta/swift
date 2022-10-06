@@ -64,7 +64,7 @@ bool swift::hasPointerEscape(BorrowedValue value) {
       }
       break;
     }
-    case OperandOwnership::ForwardingBorrow: {
+    case OperandOwnership::GuaranteedForwarding: {
       ForwardingOperand(op).visitForwardedValues([&](SILValue result) {
         // Do not include transitive uses with 'none' ownership
         if (result->getOwnershipKind() == OwnershipKind::None)
@@ -223,7 +223,7 @@ bool swift::findInnerTransitiveGuaranteedUses(
       foundPointerEscape = true;
       break;
 
-    case OperandOwnership::ForwardingBorrow: {
+    case OperandOwnership::GuaranteedForwarding: {
       bool nonLeaf = false;
       ForwardingOperand(use).visitForwardedValues([&](SILValue result) {
         // Do not include transitive uses with 'none' ownership
@@ -344,7 +344,7 @@ bool swift::findExtendedUsesOfSimpleBorrowedValue(
       recordUse(use);
       break;
 
-    case OperandOwnership::ForwardingBorrow: {
+    case OperandOwnership::GuaranteedForwarding: {
       ForwardingOperand(use).visitForwardedValues([&](SILValue result) {
         // Do not include transitive uses with 'none' ownership
         if (result->getOwnershipKind() == OwnershipKind::None)
@@ -1171,7 +1171,7 @@ bool swift::getAllBorrowIntroducingValues(SILValue inputValue,
 
     // Otherwise if v is an ownership forwarding value, add its defining
     // instruction
-    if (isForwardingBorrow(value)) {
+    if (isGuaranteedForwarding(value)) {
       if (auto *i = value->getDefiningInstruction()) {
         llvm::copy(i->getNonTypeDependentOperandValues(),
                    std::back_inserter(worklist));
@@ -1216,7 +1216,7 @@ BorrowedValue swift::getSingleBorrowIntroducingValue(SILValue inputValue) {
 
     // Otherwise if v is an ownership forwarding value, add its defining
     // instruction
-    if (isForwardingBorrow(currentValue)) {
+    if (isGuaranteedForwarding(currentValue)) {
       if (auto *i = currentValue->getDefiningInstruction()) {
         auto instOps = i->getNonTypeDependentOperandValues();
         // If we have multiple incoming values, return .None. We can't handle
@@ -1367,7 +1367,7 @@ ForwardingOperand::ForwardingOperand(Operand *use) {
   switch (use->getOperandOwnership()) {
   case OperandOwnership::ForwardingUnowned:
   case OperandOwnership::ForwardingConsume:
-  case OperandOwnership::ForwardingBorrow:
+  case OperandOwnership::GuaranteedForwarding:
     break;
   case OperandOwnership::NonUse:
   case OperandOwnership::TrivialUse:
