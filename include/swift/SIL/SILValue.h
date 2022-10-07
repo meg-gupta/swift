@@ -829,6 +829,8 @@ struct OperandOwnership {
     /// borrow scope.
     /// (tuple_extract, struct_extract, cast, switch)
     GuaranteedForwarding,
+    /// A GuaranteedForwarding value passed as a phi operand.
+    GuaranteedForwardingPhi,
     /// End Borrow. End the borrow scope opened directly by the operand.
     /// The operand must be a begin_borrow, begin_apply, or function argument.
     /// (end_borrow, end_apply)
@@ -923,6 +925,7 @@ inline OwnershipConstraint OperandOwnership::getOwnershipConstraint() {
   case OperandOwnership::GuaranteedForwarding:
     return {OwnershipKind::Guaranteed,
             UseLifetimeConstraint::NonLifetimeEnding};
+  case OperandOwnership::GuaranteedForwardingPhi:
   case OperandOwnership::EndBorrow:
   case OperandOwnership::Reborrow:
     return {OwnershipKind::Guaranteed, UseLifetimeConstraint::LifetimeEnding};
@@ -949,6 +952,7 @@ inline bool canAcceptUnownedValue(OperandOwnership operandOwnership) {
   case OperandOwnership::ForwardingConsume:
   case OperandOwnership::InteriorPointer:
   case OperandOwnership::GuaranteedForwarding:
+  case OperandOwnership::GuaranteedForwardingPhi:
   case OperandOwnership::EndBorrow:
   case OperandOwnership::Reborrow:
     return false;
