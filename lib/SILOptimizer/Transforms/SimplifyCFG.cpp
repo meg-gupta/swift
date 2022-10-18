@@ -681,8 +681,10 @@ bool SimplifyCFG::simplifyThreadedTerminators() {
         else
           SILBuilderWithScope(SEI).createBranch(SEI->getLoc(), LiveBlock);
         SEI->eraseFromParent();
-        if (EI->use_empty())
+        if (isInstructionTriviallyDead(EI)) {
+          EI->replaceAllUsesOfAllResultsWithUndef();
           EI->eraseFromParent();
+        }
         HaveChangedCFG = true;
       }
       continue;
@@ -715,9 +717,6 @@ bool SimplifyCFG::simplifyThreadedTerminators() {
 bool SimplifyCFG::dominatorBasedSimplify(DominanceAnalysis *DA) {
   // Get the dominator tree.
   DT = DA->get(&Fn);
-
-  if (!EnableOSSASimplifyCFG && Fn.hasOwnership())
-    return false;
 
   // Split all critical edges such that we can move code onto edges. This is
   // also required for SSA construction in dominatorBasedSimplifications' jump
@@ -1087,19 +1086,10 @@ static bool hasInjectedEnumAtEndOfBlock(SILBasicBlock *block, SILValue enumAddr)
 /// tryJumpThreading - Check to see if it looks profitable to duplicate the
 /// destination of an unconditional jump into the bottom of this block.
 bool SimplifyCFG::tryJumpThreading(BranchInst *BI) {
-  if (!EnableOSSASimplifyCFG && Fn.hasOwnership())
-    return false;
-
   auto *DestBB = BI->getDestBB();
   auto *SrcBB = BI->getParent();
   TermInst *destTerminator = DestBB->getTerminator();
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    if (llvm::any_of(DestBB->getArguments(), [this](SILValue op) {
-          return !op->getType().isTrivial(Fn);
-        })) {
-      return false;
-   }
-  }
+
   // If the destination block ends with a return, we don't want to duplicate it.
   // We want to maintain the canonical form of a single return where possible.
   if (destTerminator->isFunctionExiting())
@@ -1459,13 +1449,13 @@ bool SimplifyCFG::simplifyBranchBlock(BranchInst *BI) {
     //
     SILBasicBlock *remainingBlock = nullptr, *deletedBlock = nullptr;
     if (BB != Fn.getEntryBlock() && hasLessInstructions(BB, DestBB)) {
+      DestBB->spliceAtBegin(BB);
+      DestBB->dropAllArguments();
+      DestBB->moveArgumentList(BB);
       while (!BB->pred_empty()) {
         SILBasicBlock *pred = *BB->pred_begin();
         replaceBranchTarget(pred->getTerminator(), BB, DestBB, true);
       }
-      DestBB->spliceAtBegin(BB);
-      DestBB->dropAllArguments();
-      DestBB->moveArgumentList(BB);
       remainingBlock = DestBB;
       deletedBlock = BB;
     } else {
@@ -1896,10 +1886,6 @@ static bool isOnlyUnreachable(SILBasicBlock *BB) {
 /// switch_enum where all but one block consists of just an
 /// "unreachable" with an unchecked_enum_data and branch.
 bool SimplifyCFG::simplifySwitchEnumUnreachableBlocks(SwitchEnumInst *SEI) {
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    if (!SEI->getOperand()->getType().isTrivial(Fn))
-      return false;
-  }
   auto Count = SEI->getNumCases();
 
   SILBasicBlock *Dest = nullptr;
@@ -2191,12 +2177,6 @@ static bool hasSameUltimateSuccessor(SILBasicBlock *noneBB, SILBasicBlock *someB
 ///    %4 = enum #Optional.none
 ///    br mergeBB(%4)
 bool SimplifyCFG::simplifySwitchEnumOnObjcClassOptional(SwitchEnumInst *SEI) {
-  // TODO: OSSA; handle non-trivial enum case cleanup
-  // (simplify_switch_enum_objc.sil).
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    return false;
-  }
-
   auto optional = SEI->getOperand();
   auto optionalPayloadType = optional->getType().getOptionalObjectType();
   if (!optionalPayloadType ||
@@ -2257,12 +2237,6 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
   auto *LiveBlock = SEI->getCaseDestination(EnumCase.get());
   auto *ThisBB = SEI->getParent();
 
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    // TODO: OSSA; cleanup terminator results.
-    if (!SEI->getOperand()->getType().isTrivial(Fn))
-      return false;
-  }
-
   bool DroppedLiveBlock = false;
   // Copy the successors into a vector, dropping one entry for the liveblock.
   SmallVector<SILBasicBlock*, 4> Dests;
@@ -2278,6 +2252,7 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
 
   auto *EI = dyn_cast<EnumInst>(SEI->getOperand());
   SILBuilderWithScope Builder(SEI);
+  BranchInst *branch = nullptr;
   if (!LiveBlock->args_empty()) {
     SILValue PayLoad;
     if (SEI->hasDefault() && LiveBlock == SEI->getDefaultBB()) {
@@ -2292,14 +2267,24 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
                                                   EnumCase.get());
       }
     }
-    Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
+    branch = Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
   } else {
     Builder.createBranch(SEI->getLoc(), LiveBlock);
   }
   SEI->eraseFromParent();
-  // TODO: also remove this EnumInst in OSSA default case when the only
-  // remaining uses are destroys, and incidental uses.
-  if (EI && EI->use_empty()) EI->eraseFromParent();
+  if (EI) {
+    if (isInstructionTriviallyDead(EI)) {
+      EI->replaceAllUsesOfAllResultsWithUndef();
+      EI->eraseFromParent();
+    }
+    else if (EI->getOperand()->getOwnershipKind() == OwnershipKind::Owned) {
+      SSAPrunedLivess liveness;
+      liveness.intializeForDef(EI->getOperand());
+      liveness.updateForUse()
+      PrunedLivenessBoundary boundary;
+
+    }
+  }
 
   addToWorklist(ThisBB);
 
@@ -2929,15 +2914,11 @@ bool SimplifyCFG::simplifyBlocks() {
 /// Canonicalize all switch_enum and switch_enum_addr instructions.
 /// If possible, replace the default with the corresponding unique case.
 bool SimplifyCFG::canonicalizeSwitchEnums() {
-  if (!EnableOSSASimplifyCFG && Fn.hasOwnership()) {
-    return false;
-  }
   bool Changed = false;
   for (auto &BB : Fn) {
     TermInst *TI = BB.getTerminator();
     if (!transform.continueWithNextSubpassRun(TI))
       return Changed;
-
 
     SwitchEnumTermInst SWI(TI);
     if (!SWI)
@@ -2949,13 +2930,7 @@ bool SimplifyCFG::canonicalizeSwitchEnums() {
     NullablePtr<EnumElementDecl> defaultDecl = SWI.getUniqueCaseForDefault();
     if (!defaultDecl)
       continue;
-    
-    if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-      if (!SWI.getOperand()->getType().isTrivial(Fn)) {
-        // TODO: Test and enable this case.
-        continue;
-      }
-    }
+
     LLVM_DEBUG(llvm::dbgs() << "simplify canonical switch_enum\n");
 
     // Construct a new instruction by copying all the case entries.
@@ -3040,12 +3015,6 @@ static bool shouldTailDuplicate(SILBasicBlock &Block) {
 bool SimplifyCFG::tailDuplicateObjCMethodCallSuccessorBlocks() {
   SmallVector<SILBasicBlock *, 16> ObjCBlocks;
 
-  // TODO: OSSA phi support. Even if all block arguments are trivial,
-  // jump-threading may require creation of guaranteed phis, which may require
-  // creation of nested borrow scopes.
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    return false;
-  }
   // Collect blocks to tail duplicate.
   for (auto &BB : Fn) {
     SILBasicBlock *DestBB;

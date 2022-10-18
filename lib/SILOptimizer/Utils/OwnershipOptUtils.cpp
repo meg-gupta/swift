@@ -1721,8 +1721,9 @@ protected:
       assert(inVal->getOwnershipKind() == OwnershipKind::None);
       return false;
     }
-    // This operand needs a nested borrow if inVal is not a BorrowedValue.
-    return !bool(BorrowedValue(inVal));
+    // This operand needs a nested borrow only if inVal is a function argument
+    return BorrowedValueKind::get(inVal) ==
+           BorrowedValueKind::SILFunctionArgument;
   }
 
   void borrowPhiOperand(Operand *oper) {

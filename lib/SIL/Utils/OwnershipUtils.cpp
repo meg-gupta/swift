@@ -101,6 +101,9 @@ bool swift::canOpcodeForwardGuaranteedValues(SILValue value) {
 }
 
 bool swift::canOpcodeForwardGuaranteedValues(Operand *use) {
+  if (isa<SelectValueInst>(use->getUser())) {
+    return true;
+  }
   if (auto *mixin = OwnershipForwardingMixin::get(use->getUser()))
     return mixin->preservesOwnership() &&
            !isa<OwnedFirstArgForwardingSingleValueInst>(use->getUser());
@@ -1759,6 +1762,13 @@ void swift::visitExtendedGuaranteedForwardingPhiBaseValuePairs(
   };
 
   collectGuaranteedForwardingPhis(borrow.value, borrow.value);
+  borrow.visitTransitiveLifetimeEndingUses([&](Operand *endUse) {
+    if (endUse->getOperandOwnership() == OperandOwnership::Reborrow) {
+      auto *phiValue = PhiOperand(endUse).getValue();
+      collectGuaranteedForwardingPhis(phiValue, phiValue);
+    }
+    return true;
+  });
 
   // For every (@guaranteed forwarding phi operand, base value) pair in the
   // worklist:
