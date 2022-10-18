@@ -685,7 +685,7 @@ bool SimplifyCFG::simplifyThreadedTerminators() {
           EI->replaceAllUsesOfAllResultsWithUndef();
           EI->eraseFromParent();
         }
-        HaveChangedCFG = true;
+       HaveChangedCFG = true;
       }
       continue;
     } else if (auto *CondBr = dyn_cast<CondBranchInst>(Term)) {
@@ -2250,9 +2250,9 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
 
   LLVM_DEBUG(llvm::dbgs() << "fold switch " << *SEI);
 
-  auto *EI = dyn_cast<EnumInst>(SEI->getOperand());
   SILBuilderWithScope Builder(SEI);
-  BranchInst *branch = nullptr;
+  auto *EI = dyn_cast<EnumInst>(SEI->getOperand());
+
   if (!LiveBlock->args_empty()) {
     SILValue PayLoad;
     if (SEI->hasDefault() && LiveBlock == SEI->getDefaultBB()) {
@@ -2261,29 +2261,36 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
     } else {
       if (EI) {
         PayLoad = EI->getOperand();
+        SEI->setOperand(0, SILUndef::get(EI->getType(), EI->getModule()));
+        if (PayLoad->getOwnershipKind() == OwnershipKind::Owned &&
+            !isInstructionTriviallyDead(EI)) {
+          auto *borrow =
+              SILBuilderWithScope(EI).createBeginBorrow(EI->getLoc(), PayLoad);
+          EI->setOperand(0, borrow);
+          EI->setForwardingOwnershipKind(OwnershipKind::Guaranteed);
+          auto *br = Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
+          SILBuilderWithScope(br).createEndBorrow(br->getLoc(), borrow);
+                 SEI->eraseFromParent();
+        } else {
+          auto *br = Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
+                 SEI->eraseFromParent();
+        }
       } else {
         PayLoad = Builder.createUncheckedEnumData(SEI->getLoc(),
                                                   SEI->getOperand(),
                                                   EnumCase.get());
+        Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
+        SEI->eraseFromParent();
       }
     }
-    branch = Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
   } else {
     Builder.createBranch(SEI->getLoc(), LiveBlock);
+    SEI->eraseFromParent();
   }
-  SEI->eraseFromParent();
-  if (EI) {
-    if (isInstructionTriviallyDead(EI)) {
-      EI->replaceAllUsesOfAllResultsWithUndef();
-      EI->eraseFromParent();
-    }
-    else if (EI->getOperand()->getOwnershipKind() == OwnershipKind::Owned) {
-      SSAPrunedLivess liveness;
-      liveness.intializeForDef(EI->getOperand());
-      liveness.updateForUse()
-      PrunedLivenessBoundary boundary;
-
-    }
+  
+  if (EI && isInstructionTriviallyDead(EI)) {
+    EI->replaceAllUsesOfAllResultsWithUndef();
+    EI->eraseFromParent();
   }
 
   addToWorklist(ThisBB);
