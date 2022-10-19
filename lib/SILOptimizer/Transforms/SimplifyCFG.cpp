@@ -2267,21 +2267,21 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
     if (SEI->hasDefault() && LiveBlock == SEI->getDefaultBB()) {
       assert(Fn.hasOwnership() && "Only OSSA default case has an argument");
       PayLoad = SEI->getOperand();
+      Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
     } else {
       if (EI) {
-        if (PayLoad->getOwnershipKind() == OwnershipKind::Owned &&
+        if (EI->getOperand()->getOwnershipKind() == OwnershipKind::Owned &&
             !isInstructionTriviallyDead(EI)) {
           PayLoad = Builder.createUncheckedEnumData(
               SEI->getLoc(), SEI->getOperand(), EnumCase.get());
         } else {
           PayLoad = EI->getOperand();
         }
-        Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
       } else {
         PayLoad = Builder.createUncheckedEnumData(
             SEI->getLoc(), SEI->getOperand(), EnumCase.get());
-        Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
       }
+      Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
     }
   } else {
     Builder.createBranch(SEI->getLoc(), LiveBlock);
