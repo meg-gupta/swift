@@ -101,6 +101,9 @@ bool swift::canOpcodeForwardGuaranteedValues(SILValue value) {
 }
 
 bool swift::canOpcodeForwardGuaranteedValues(Operand *use) {
+  if (isa<SelectValueInst>(use->getUser())) {
+    return true;
+  }
   if (auto *mixin = OwnershipForwardingMixin::get(use->getUser()))
     return mixin->preservesOwnership() &&
            !isa<OwnedFirstArgForwardingSingleValueInst>(use->getUser());
