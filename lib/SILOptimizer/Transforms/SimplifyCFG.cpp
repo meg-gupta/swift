@@ -1896,10 +1896,6 @@ static bool isOnlyUnreachable(SILBasicBlock *BB) {
 /// switch_enum where all but one block consists of just an
 /// "unreachable" with an unchecked_enum_data and branch.
 bool SimplifyCFG::simplifySwitchEnumUnreachableBlocks(SwitchEnumInst *SEI) {
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    if (!SEI->getOperand()->getType().isTrivial(Fn))
-      return false;
-  }
   auto Count = SEI->getNumCases();
 
   SILBasicBlock *Dest = nullptr;
@@ -2191,12 +2187,6 @@ static bool hasSameUltimateSuccessor(SILBasicBlock *noneBB, SILBasicBlock *someB
 ///    %4 = enum #Optional.none
 ///    br mergeBB(%4)
 bool SimplifyCFG::simplifySwitchEnumOnObjcClassOptional(SwitchEnumInst *SEI) {
-  // TODO: OSSA; handle non-trivial enum case cleanup
-  // (simplify_switch_enum_objc.sil).
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    return false;
-  }
-
   auto optional = SEI->getOperand();
   auto optionalPayloadType = optional->getType().getOptionalObjectType();
   if (!optionalPayloadType ||
@@ -2257,12 +2247,6 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
   auto *LiveBlock = SEI->getCaseDestination(EnumCase.get());
   auto *ThisBB = SEI->getParent();
 
-  if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-    // TODO: OSSA; cleanup terminator results.
-    if (!SEI->getOperand()->getType().isTrivial(Fn))
-      return false;
-  }
-
   bool DroppedLiveBlock = false;
   // Copy the successors into a vector, dropping one entry for the liveblock.
   SmallVector<SILBasicBlock*, 4> Dests;
@@ -2285,21 +2269,30 @@ bool SimplifyCFG::simplifySwitchEnumBlock(SwitchEnumInst *SEI) {
       PayLoad = SEI->getOperand();
     } else {
       if (EI) {
-        PayLoad = EI->getOperand();
+        if (PayLoad->getOwnershipKind() == OwnershipKind::Owned &&
+            !isInstructionTriviallyDead(EI)) {
+          PayLoad = Builder.createUncheckedEnumData(
+              SEI->getLoc(), SEI->getOperand(), EnumCase.get());
+        } else {
+          PayLoad = EI->getOperand();
+        }
+        Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
       } else {
-        PayLoad = Builder.createUncheckedEnumData(SEI->getLoc(),
-                                                  SEI->getOperand(),
-                                                  EnumCase.get());
+        PayLoad = Builder.createUncheckedEnumData(
+            SEI->getLoc(), SEI->getOperand(), EnumCase.get());
+        Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
       }
     }
-    Builder.createBranch(SEI->getLoc(), LiveBlock, PayLoad);
   } else {
     Builder.createBranch(SEI->getLoc(), LiveBlock);
   }
+
+  if (EI && isInstructionTriviallyDead(EI)) {
+    EI->replaceAllUsesOfAllResultsWithUndef();
+    EI->eraseFromParent();
+  }
+
   SEI->eraseFromParent();
-  // TODO: also remove this EnumInst in OSSA default case when the only
-  // remaining uses are destroys, and incidental uses.
-  if (EI && EI->use_empty()) EI->eraseFromParent();
 
   addToWorklist(ThisBB);
 
@@ -2929,9 +2922,6 @@ bool SimplifyCFG::simplifyBlocks() {
 /// Canonicalize all switch_enum and switch_enum_addr instructions.
 /// If possible, replace the default with the corresponding unique case.
 bool SimplifyCFG::canonicalizeSwitchEnums() {
-  if (!EnableOSSASimplifyCFG && Fn.hasOwnership()) {
-    return false;
-  }
   bool Changed = false;
   for (auto &BB : Fn) {
     TermInst *TI = BB.getTerminator();
@@ -2949,13 +2939,7 @@ bool SimplifyCFG::canonicalizeSwitchEnums() {
     NullablePtr<EnumElementDecl> defaultDecl = SWI.getUniqueCaseForDefault();
     if (!defaultDecl)
       continue;
-    
-    if (!EnableOSSARewriteTerminator && Fn.hasOwnership()) {
-      if (!SWI.getOperand()->getType().isTrivial(Fn)) {
-        // TODO: Test and enable this case.
-        continue;
-      }
-    }
+
     LLVM_DEBUG(llvm::dbgs() << "simplify canonical switch_enum\n");
 
     // Construct a new instruction by copying all the case entries.
