@@ -170,39 +170,8 @@ void BasicBlockCloner::updateOSSATerminatorResult(SILPhiArgument *termResult) {
 // needed per value, per new phi that the value reaches.
 void BasicBlockCloner::updateOSSAAfterCloning() {
   SmallVector<SILPhiArgument *, 4> updateSSAPhis;
-  if (!origBB->getParent()->hasOwnership()) {
-    updateSSAAfterCloning(updateSSAPhis);
-    return;
-  }
-
-  // If the original basic block has terminator results, then all phis in the
-  // exit blocks are new phis that used to be terminator results.
-  //
-  // Create nested borrow scopes for terminator results that were converted to
-  // phis during edge splitting. This is simpler to check before SSA update.
-  //
-  // This assumes that the phis introduced by update-SSA below cannot be users
-  // of the phis that were created in exitBBs during block cloning. Otherwise
-  // borrowPhiArguments would handle them twice.
-  auto *termInst = origBB->getTerminator();
-  // FIXME: cond_br args should not exist in OSSA
-  if (!isa<BranchInst>(termInst) && !isa<CondBranchInst>(termInst)) {
-    // Update all of the terminator results.
-    for (auto *succBB : origBB->getSuccessorBlocks()) {
-      for (SILArgument *termResult : succBB->getArguments()) {
-        updateOSSATerminatorResult(cast<SILPhiArgument>(termResult));
-      }
-    }
-  }
-
-  // Update SSA form before calling OSSA update utilities to maintain a layering
-  // of SIL invariants.
   updateSSAAfterCloning(updateSSAPhis);
-
-  // Create nested borrow scopes for phis created during SSA update.
-  for (auto *phi : updateSSAPhis) {
-    createBorrowScopeForPhiOperands(phi);
-  }
+  return;
 }
 
 void BasicBlockCloner::updateSSAAfterCloning(
