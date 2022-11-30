@@ -1153,7 +1153,8 @@ TrampolineDest::TrampolineDest(SILBasicBlock *sourceBB,
   // the same block.
   for (SILValue blockArg : targetBB->getArguments()) {
     Operand *operand = blockArg->getSingleUse();
-    if (!operand || operand->getUser() != targetBranch) {
+    if (!blockArg->getUses().empty() &&
+        (!operand || operand->getUser() != targetBranch)) {
       return;
     }
   }
