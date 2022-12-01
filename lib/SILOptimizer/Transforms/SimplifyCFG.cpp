@@ -2052,6 +2052,11 @@ bool SimplifyCFG::simplifySwitchEnumOnObjcClassOptional(SwitchEnumInst *SEI) {
 
   if (!someBB->args_empty()) {
     assert(someBB->getNumArguments() == 1);
+    auto *someBBArg = someBB->getArgument(0);
+    if (!someBBArg->use_empty()) {
+      assert(optionalPayload != someBBArg);
+      someBBArg->replaceAllUsesWith(payloadCast);
+    }
     someBB->eraseArgument(0);
     Builder.createBranch(SEI->getLoc(), someBB);
   }

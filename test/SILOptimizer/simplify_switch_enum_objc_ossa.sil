@@ -111,3 +111,28 @@ bb6:
   apply %11() : $@convention(thin) () -> ()
   br bb4
 }
+
+// CHECK-LABEL: sil [ossa] @test_switch_enum_objc_call5 :
+// CHECK-NOT: switch_enum
+// CHECK-LABEL: } // end sil function 'test_switch_enum_objc_call5'
+sil [ossa] @test_switch_enum_objc_call5 : $@convention(thin) (@guaranteed Optional<Test>) -> () {
+bb0(%0 : @guaranteed $Optional<Test>):
+  test_specification "simplify-cfg-simplify-switch-enum-on-objc-class-optional @instruction[0]"
+  switch_enum %0 : $Optional<Test>, case #Optional.some!enumelt: bb1, case #Optional.none!enumelt: bb6
+
+bb1(%8 : @guaranteed $Test):
+  %copy = copy_value %0 : $Optional<Test>
+  %some = unchecked_enum_data %0 : $Optional<Test>, #Optional.some
+  %9 = objc_method %8 : $Test, #Test.other!getter.foreign : (Test) -> () -> Test?, $@convention(objc_method) (Test) -> @autoreleased Optional<Test>
+  %10 = apply %9(%some) : $@convention(objc_method) (Test) -> @autoreleased Optional<Test>
+  destroy_value %10 : $Optional<Test>
+  destroy_value %copy : $Optional<Test>
+  br bb4
+
+bb4:
+  %20 = tuple ()
+  return %20 : $()
+
+bb6:
+  br bb4
+}
