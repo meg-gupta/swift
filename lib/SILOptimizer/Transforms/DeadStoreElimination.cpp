@@ -1275,6 +1275,12 @@ public:
   /// The entry point to the transformation.
   void run() override {
     SILFunction *F = getFunction();
+
+    // TODO: Migrate to OSSA. Need to fix store ownership qualifiers for OSSA.
+    if (F->hasOwnership()) {
+      return;
+    }
+
     LLVM_DEBUG(llvm::dbgs() << "*** DSE on function: " << F->getName()
                             << " ***\n");
 

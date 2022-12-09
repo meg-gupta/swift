@@ -907,9 +907,6 @@ SILPassPipelinePlan::getPerformancePassPipeline(const SILOptions &Options) {
   // importing this module.
   P.addSerializeSILPass();
 
-  // Strip any transparent functions that still have ownership.
-  P.addOwnershipModelEliminator();
-
   if (Options.StopOptimizationAfterSerialization)
     return P;
 
@@ -920,6 +917,9 @@ SILPassPipelinePlan::getPerformancePassPipeline(const SILOptions &Options) {
   // Perform optimizations that specialize.
   addClosureSpecializePassPipeline(P);
 
+
+  // Strip any transparent functions that still have ownership.
+  P.addOwnershipModelEliminator();
   // Run another iteration of the SSA optimizations to optimize the
   // devirtualized inline caches and constants propagated into closures
   // (CapturePropagation).
