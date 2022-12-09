@@ -377,6 +377,7 @@ void MemoryLifetimeVerifier::initDataflowInBlock(SILBasicBlock *block,
         }
         break;
       }
+      case SILInstructionKind::EndBorrowInst:
       case SILInstructionKind::DestroyAddrInst:
       case SILInstructionKind::DeallocStackInst:
         killBits(state, I.getOperand(0));
@@ -663,8 +664,11 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
         break;
       }
       case SILInstructionKind::EndBorrowInst: {
-        if (SILValue orig = cast<EndBorrowInst>(&I)->getSingleOriginalValue())
+        if (auto *orig = dyn_cast<StoreBorrowInst>(cast<EndBorrowInst>(&I)->getOperand())) {
           requireBitsSet(bits, orig, &I);
+          requireBitsSet(bits, orig->getDest(), &I);
+          locations.clearBits(bits, orig);
+        }
         break;
       }
       case SILInstructionKind::UncheckedRefCastAddrInst:
