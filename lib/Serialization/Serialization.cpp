@@ -4456,6 +4456,11 @@ static uint8_t getRawStableSILFunctionTypeRepresentation(
   llvm_unreachable("bad calling convention");
 }
 
+static uint32_t
+getRawStablePointerAuthQualifier(clang::PointerAuthQualifier ptrAuthQual) {
+  return ptrAuthQual.getAsOpaqueValue();
+}
+
 /// Translate from the AST coroutine-kind enum to the Serialization enum
 /// values, which are guaranteed to be stable.
 static uint8_t getRawStableSILCoroutineKind(
@@ -4853,16 +4858,14 @@ public:
     auto globalActor = S.addTypeRef(fnTy->getGlobalActor());
 
     unsigned abbrCode = S.DeclTypeAbbrCodes[FunctionTypeLayout::Code];
-    FunctionTypeLayout::emitRecord(S.Out, S.ScratchRecord, abbrCode,
-        resultType,
+    FunctionTypeLayout::emitRecord(
+        S.Out, S.ScratchRecord, abbrCode, resultType,
         getRawStableFunctionTypeRepresentation(fnTy->getRepresentation()),
-        clangType,
-        fnTy->isNoEscape(),
-        fnTy->isSendable(),
-        fnTy->isAsync(),
+        clangType, fnTy->isNoEscape(), fnTy->isSendable(), fnTy->isAsync(),
         fnTy->isThrowing(),
         getRawStableDifferentiabilityKind(fnTy->getDifferentiabilityKind()),
-        globalActor);
+        globalActor,
+        getRawStablePointerAuthQualifier(fnTy->getPointerAuthQualifier()));
 
     serializeFunctionTypeParams(fnTy);
   }

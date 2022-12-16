@@ -5464,6 +5464,11 @@ getActualFunctionTypeRepresentation(uint8_t rep) {
   }
 }
 
+static clang::PointerAuthQualifier
+getActualPointerAuthQualifier(uint32_t rawPtrAuthQual) {
+  return clang::PointerAuthQualifier::fromOpaqueValue(rawPtrAuthQual);
+}
+
 /// Translate from the Serialization function type repr enum values to the AST
 /// strongly-typed enum.
 ///
@@ -5831,6 +5836,7 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
                                            StringRef blobData, bool isGeneric) {
   TypeID resultID;
   uint8_t rawRepresentation, rawDiffKind;
+  uint32_t rawPointerAuthQual;
   bool noescape = false, concurrent, async, throws;
   GenericSignature genericSig;
   TypeID clangTypeID;
@@ -5839,7 +5845,7 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
   if (!isGeneric) {
     decls_block::FunctionTypeLayout::readRecord(
         scratch, resultID, rawRepresentation, clangTypeID, noescape, concurrent,
-        async, throws, rawDiffKind, globalActorTypeID);
+        async, throws, rawDiffKind, globalActorTypeID, rawPointerAuthQual);
   } else {
     GenericSignatureID rawGenericSig;
     decls_block::GenericFunctionTypeLayout::readRecord(
@@ -5847,6 +5853,7 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
         rawDiffKind, globalActorTypeID, rawGenericSig);
     genericSig = MF.getGenericSignature(rawGenericSig);
     clangTypeID = 0;
+    rawPointerAuthQual = 0;
   }
 
   auto representation = getActualFunctionTypeRepresentation(rawRepresentation);
@@ -5874,12 +5881,14 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
     globalActor = globalActorTy.get();
   }
 
-  auto info = FunctionType::ExtInfoBuilder(
-                  *representation, noescape, throws, *diffKind,
-                  clangFunctionType, globalActor, clang::PointerAuthQualifier())
-                  .withConcurrent(concurrent)
-                  .withAsync(async)
-                  .build();
+  auto ptrAuthQual = getActualPointerAuthQualifier(rawPointerAuthQual);
+
+  auto info =
+      FunctionType::ExtInfoBuilder(*representation, noescape, throws, *diffKind,
+                                   clangFunctionType, globalActor, ptrAuthQual)
+          .withConcurrent(concurrent)
+          .withAsync(async)
+          .build();
 
   auto resultTy = MF.getTypeChecked(resultID);
   if (!resultTy)
