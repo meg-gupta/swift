@@ -176,7 +176,7 @@ static const PointerAuthSchema &getFunctionPointerSchema(IRGenModule &IGM,
   switch (fnType->getRepresentation()) {
   case SILFunctionTypeRepresentation::CXXMethod:
   case SILFunctionTypeRepresentation::CFunctionPointer:
-    return options.FunctionPointers;
+    return options.SwiftFunctionPointers;
 
   case SILFunctionTypeRepresentation::Thin:
   case SILFunctionTypeRepresentation::Thick:
@@ -236,6 +236,15 @@ PointerAuthInfo PointerAuthInfo::emit(IRGenFunction &IGF,
   }
 
   return PointerAuthInfo(key, discriminator);
+}
+
+PointerAuthInfo
+PointerAuthInfo::emit(IRGenModule &IGM,
+                      clang::PointerAuthQualifier pointerAuthQual) {
+  return PointerAuthInfo(
+      pointerAuthQual.getKey(),
+      llvm::ConstantInt::get(IGM.Int64Ty,
+                             pointerAuthQual.getExtraDiscriminator()));
 }
 
 llvm::ConstantInt *

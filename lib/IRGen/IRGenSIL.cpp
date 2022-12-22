@@ -5748,7 +5748,6 @@ void IRGenSILFunction::visitBeginAccessInst(BeginAccessInst *access) {
 
   case SILAccessEnforcement::Static:
   case SILAccessEnforcement::Unsafe:
-  case SILAccessEnforcement::Signed:
     // nothing to do
     setLoweredAddress(access, addr);
     return;
@@ -5770,6 +5769,30 @@ void IRGenSILFunction::visitBeginAccessInst(BeginAccessInst *access) {
 
     setLoweredDynamicallyEnforcedAddress(access, addr, scratch);
     return;
+  }
+  case SILAccessEnforcement::Signed: {
+    auto &ti = getTypeInfo(access->getType());
+    auto *sea = cast<StructElementAddrInst>(access->getOperand());
+    auto *Int64PtrTy = llvm::Type::getInt64PtrTy(IGM.getLLVMContext());
+    auto *Int64PtrPtrTy = Int64PtrTy->getPointerTo();
+    if (access->getAccessKind() == SILAccessKind::Read) {
+      auto pointerAuthQual = sea->getField()->getPointerAuthQualifier();
+      auto temp = ti.allocateStack(*this, access->getType(), "ptrauth.temp");
+      auto *pointerToSignedFptr = getLoweredAddress(sea).getAddress();
+      auto *pointerToIntPtr =
+          Builder.CreateBitCast(pointerToSignedFptr, Int64PtrPtrTy);
+      auto *signedFptr = Builder.CreateLoad(pointerToIntPtr, Int64PtrTy,
+                                            IGM.getPointerAlignment());
+      auto *unsignedFptr = emitPointerAuthAuth(
+          *this, signedFptr, PointerAuthInfo::emit(IGM, pointerAuthQual));
+      auto *tempAddressToIntPtr =
+          Builder.CreateBitCast(temp.getAddressPointer(), Int64PtrPtrTy);
+      Builder.CreateStore(unsignedFptr, tempAddressToIntPtr,
+                          IGM.getPointerAlignment());
+      setLoweredAddress(access, temp.getAddress());
+      return;
+    }
+    llvm_unreachable("Incompatible access kind with begin_access [signed]");
   }
   }
   llvm_unreachable("bad access enforcement");
@@ -5835,7 +5858,6 @@ void IRGenSILFunction::visitEndAccessInst(EndAccessInst *i) {
 
   case SILAccessEnforcement::Static:
   case SILAccessEnforcement::Unsafe:
-  case SILAccessEnforcement::Signed:
     // nothing to do
     return;
 
@@ -5850,6 +5872,11 @@ void IRGenSILFunction::visitEndAccessInst(EndAccessInst *i) {
     call->setDoesNotThrow();
 
     Builder.CreateLifetimeEnd(scratch);
+    return;
+  }
+
+  case SILAccessEnforcement::Signed: {
+    // nothing to do.
     return;
   }
   }
