@@ -5893,6 +5893,8 @@ public:
     });
   }
 
+  clang::PointerAuthQualifier getPointerAuthQualifier() const;
+
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { 
     return D->getKind() == DeclKind::Var || D->getKind() == DeclKind::Param; 
