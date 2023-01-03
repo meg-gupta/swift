@@ -5030,15 +5030,12 @@ Callee irgen::getSwiftFunctionPointerCallee(
   return Callee(std::move(calleeInfo), fn, dataPtr);
 }
 
-Callee irgen::getCFunctionPointerCallee(IRGenFunction &IGF,
-                                        llvm::Value *fnPtr,
+Callee irgen::getCFunctionPointerCallee(IRGenFunction &IGF, llvm::Value *fnPtr,
                                         CalleeInfo &&calleeInfo) {
   auto sig = emitCastOfFunctionPointer(IGF, fnPtr, calleeInfo.OrigFnType);
-  auto authInfo =
-    PointerAuthInfo::forFunctionPointer(IGF.IGM, calleeInfo.OrigFnType);
 
-  auto fn = FunctionPointer::createSigned(FunctionPointer::Kind::Function,
-                                          fnPtr, authInfo, sig);
+  auto fn = FunctionPointer::createUnsigned(FunctionPointer::Kind::Function,
+                                            fnPtr, sig);
 
   return Callee(std::move(calleeInfo), fn);
 }
