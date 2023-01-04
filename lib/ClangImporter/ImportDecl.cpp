@@ -2024,9 +2024,24 @@ namespace {
         return nullptr;
       }
 
+      auto isNonTrivialDueToAddressDiversifiedtrAuth =
+          [](const clang::RecordDecl *decl) {
+            for (auto *field : decl->fields()) {
+              if (!field->getType().isNonTrivialToPrimitiveCopy()) {
+                continue;
+              }
+              if (field->getType().isNonTrivialToPrimitiveCopy() !=
+                  clang::QualType::PCK_PtrAuth) {
+                return false;
+              }
+            }
+            return true;
+          };
+
       // FIXME: We should actually support strong ARC references and similar in
       // C structs. That'll require some SIL and IRGen work, though.
-      if (decl->isNonTrivialToPrimitiveCopy() ||
+      if ((decl->isNonTrivialToPrimitiveCopy() &&
+           !isNonTrivialDueToAddressDiversifiedtrAuth(decl)) ||
           decl->isNonTrivialToPrimitiveDestroy()) {
         // Note that there is a third predicate related to these,
         // isNonTrivialToPrimitiveDefaultInitialize. That one's not important
@@ -2039,9 +2054,9 @@ namespace {
         // referencing the name, which would sidestep our availability
         // diagnostics.
         Impl.addImportDiagnostic(
-            decl, Diagnostic(
-                      diag::record_non_trivial_copy_destroy,
-                      Impl.SwiftContext.AllocateCopy(decl->getNameAsString())),
+            decl,
+            Diagnostic(diag::record_non_trivial_copy_destroy,
+                       Impl.SwiftContext.AllocateCopy(decl->getNameAsString())),
             decl->getLocation());
         return nullptr;
       }
