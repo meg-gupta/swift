@@ -2024,28 +2024,6 @@ namespace {
         return nullptr;
       }
 
-      // FIXME: We should actually support strong ARC references and similar in
-      // C structs. That'll require some SIL and IRGen work, though.
-      if (decl->isNonTrivialToPrimitiveCopy() ||
-          decl->isNonTrivialToPrimitiveDestroy()) {
-        // Note that there is a third predicate related to these,
-        // isNonTrivialToPrimitiveDefaultInitialize. That one's not important
-        // for us because Swift never "trivially default-initializes" a struct
-        // (i.e. uses whatever bits were lying around as an initial value).
-
-        // FIXME: It would be nice to instead import the declaration but mark
-        // it as unavailable, but then it might get used as a type for an
-        // imported function and the developer would be able to use it without
-        // referencing the name, which would sidestep our availability
-        // diagnostics.
-        Impl.addImportDiagnostic(
-            decl, Diagnostic(
-                      diag::record_non_trivial_copy_destroy,
-                      Impl.SwiftContext.AllocateCopy(decl->getNameAsString())),
-            decl->getLocation());
-        return nullptr;
-      }
-
       // Import the name.
       ImportedName importedName;
       Optional<ImportedName> correctSwiftName;

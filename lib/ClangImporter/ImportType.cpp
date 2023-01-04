@@ -953,8 +953,8 @@ namespace {
     }
 
     ImportResult VisitRecordType(const clang::RecordType *type) {
-      auto decl = dyn_cast_or_null<TypeDecl>(
-          Impl.importDecl(type->getDecl(), Impl.CurrentVersion));
+      auto tmp = Impl.importDecl(type->getDecl(), Impl.CurrentVersion);
+      auto decl = dyn_cast_or_null<TypeDecl>(tmp);
       if (!decl)
         return nullptr;
 

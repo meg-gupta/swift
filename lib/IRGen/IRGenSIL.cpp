@@ -5784,7 +5784,8 @@ void IRGenSILFunction::visitBeginAccessInst(BeginAccessInst *access) {
       auto *signedFptr = Builder.CreateLoad(pointerToIntPtr, Int64PtrTy,
                                             IGM.getPointerAlignment());
       auto *unsignedFptr = emitPointerAuthAuth(
-          *this, signedFptr, PointerAuthInfo::emit(IGM, pointerAuthQual));
+          *this, signedFptr,
+          PointerAuthInfo::emit(*this, pointerAuthQual, pointerToSignedFptr));
       auto *tempAddressToIntPtr =
           Builder.CreateBitCast(temp.getAddressPointer(), Int64PtrPtrTy);
       Builder.CreateStore(unsignedFptr, tempAddressToIntPtr,
