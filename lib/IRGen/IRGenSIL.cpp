@@ -5793,6 +5793,11 @@ void IRGenSILFunction::visitBeginAccessInst(BeginAccessInst *access) {
       setLoweredAddress(access, temp.getAddress());
       return;
     }
+    if (access->getAccessKind() == SILAccessKind::Modify) {
+      auto temp = ti.allocateStack(*this, access->getType(), "ptrauth.temp");
+      setLoweredAddress(access, temp.getAddress());
+      return;
+    }
     llvm_unreachable("Incompatible access kind with begin_access [signed]");
   }
   }
@@ -5877,7 +5882,29 @@ void IRGenSILFunction::visitEndAccessInst(EndAccessInst *i) {
   }
 
   case SILAccessEnforcement::Signed: {
-    // nothing to do.
+    if (access->getAccessKind() != SILAccessKind::Modify) {
+      // nothing to do.
+      return;
+    }
+
+    auto *Int64PtrTy = llvm::Type::getInt64PtrTy(IGM.getLLVMContext());
+    auto *Int64PtrPtrTy = Int64PtrTy->getPointerTo();
+    auto pointerAuthQual = cast<StructElementAddrInst>(access->getOperand())
+                               ->getField()
+                               ->getPointerAuthQualifier();
+    auto tempAddress = getLoweredAddress(access);
+    auto *tempAddressToIntPtr =
+        Builder.CreateBitCast(tempAddress.getAddress(), Int64PtrPtrTy);
+    auto *tempAddressValue = Builder.CreateLoad(tempAddressToIntPtr, Int64PtrTy,
+                                                IGM.getPointerAlignment());
+    auto *signedFptr = emitPointerAuthSign(
+        *this, tempAddressValue, PointerAuthInfo::emit(IGM, pointerAuthQual));
+
+    auto *pointerToSignedFptr =
+        getLoweredAddress(access->getOperand()).getAddress();
+    auto *pointerToIntPtr =
+        Builder.CreateBitCast(pointerToSignedFptr, Int64PtrPtrTy);
+    Builder.CreateStore(signedFptr, pointerToIntPtr, IGM.getPointerAlignment());
     return;
   }
   }
