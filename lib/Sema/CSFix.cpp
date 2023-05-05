@@ -2779,7 +2779,9 @@ AllowValueExpansionWithoutPackReferences::create(ConstraintSystem &cs,
 
 bool IgnoreMissingEachKeyword::diagnose(const Solution &solution,
                                         bool asNote) const {
-  return false;
+  MissingEachForValuePackReference failure(solution, ValuePackType,
+                                           getLocator());
+  return failure.diagnose(asNote);
 }
 
 IgnoreMissingEachKeyword *
