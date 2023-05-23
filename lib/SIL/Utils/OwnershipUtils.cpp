@@ -25,7 +25,7 @@
 
 using namespace swift;
 
-bool swift::hasPointerEscape(BorrowedValue original) {
+bool swift::findPointerEscape(BorrowedValue original) {
   ValueWorklist worklist(original->getFunction());
   worklist.push(*original);
 
@@ -68,9 +68,9 @@ bool swift::hasPointerEscape(BorrowedValue original) {
   return false;
 }
 
-bool swift::hasPointerEscape(SILValue original) {
+bool swift::findPointerEscape(SILValue original) {
   if (auto borrowedValue = BorrowedValue(original)) {
-    return hasPointerEscape(borrowedValue);
+    return findPointerEscape(borrowedValue);
   }
   assert(original->getOwnershipKind() == OwnershipKind::Owned);
 
@@ -2317,7 +2317,7 @@ bool swift::isRedundantMoveValue(MoveValueInst *mvi) {
   auto *singleUser =
       original->getSingleUse() ? original->getSingleUse()->getUser() : nullptr;
   if (mvi == singleUser && !SILArgument::asPhi(original)) {
-    assert(!hasPointerEscape(original));
+    assert(!findPointerEscape(original));
     assert(original->getSingleConsumingUse()->getUser() == mvi);
     // - !escaping(original)
     // - singleConsumingUser(original) == move
@@ -2329,7 +2329,7 @@ bool swift::isRedundantMoveValue(MoveValueInst *mvi) {
   // Explicitly check both
   // - !escaping(original)
   // - singleConsumingUser(original) == move
-  auto originalHasEscape = hasPointerEscape(original);
+  auto originalHasEscape = findPointerEscape(original);
   auto *singleConsumingUser = original->getSingleConsumingUse()
                                   ? original->getSingleConsumingUse()->getUser()
                                   : nullptr;
@@ -2338,6 +2338,6 @@ bool swift::isRedundantMoveValue(MoveValueInst *mvi) {
   }
 
   // (3) Escaping matches?  (Expensive check, saved for last.)
-  auto moveHasEscape = hasPointerEscape(mvi);
+  auto moveHasEscape = findPointerEscape(mvi);
   return moveHasEscape == originalHasEscape;
 }
