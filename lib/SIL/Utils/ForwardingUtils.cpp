@@ -14,6 +14,7 @@
 #include "swift/SIL/ForwardingUtils.h"
 #include "swift/SIL/NodeDatastructures.h"
 #include "swift/SIL/OwnershipUtils.h"
+#include "swift/SIL/SILBuilder.h"
 
 using namespace swift;
 
@@ -51,7 +52,6 @@ bool ForwardingValue::visitDefs(function_ref<bool(SILValue)> visitor) {
         }
       } else {
         auto *inst = value->getDefiningInstructionOrTerminator();
-        assert(inst->getNumRealOperands() <= 1);
         if (inst->getNumRealOperands() > 0) {
           auto opValue = inst->getOperand(0);
           worklist.pushIfNotVisited(opValue);
@@ -69,6 +69,84 @@ bool ForwardingValue::visitDefs(function_ref<bool(SILValue)> visitor) {
         worklist.pushIfNotVisited(operand->get());
         return true;
       });
+    }
+  }
+  return true;
+}
+
+bool ForwardingValue::visitIntroducers(
+    function_ref<bool(SILValue)> visitor, bool createIntroducers) {
+  ValueWorklist worklist(forwardingValue);
+  if (auto *allArgFwd =
+          dyn_cast<AllArgOwnershipForwardingSingleValueInst>(forwardingValue)) {
+    for (auto opValue : allArgFwd->getOperandValues()) {
+      worklist.pushIfNotVisited(opValue);
+    }
+  } else {
+    auto *inst = forwardingValue->getDefiningInstructionOrTerminator();
+    auto opValue = inst->getOperand(0);
+    worklist.pushIfNotVisited(opValue);
+  }
+
+  while (auto value = worklist.pop()) {
+    if (ForwardingValue(value)) {
+      if (auto *allArgFwd =
+              dyn_cast<AllArgOwnershipForwardingSingleValueInst>(value)) {
+        for (auto opValue : allArgFwd->getOperandValues()) {
+          worklist.pushIfNotVisited(opValue);
+        }
+      } else {
+        auto *inst = value->getDefiningInstructionOrTerminator();
+        if (inst->getNumRealOperands() > 0) {
+          auto opValue = inst->getOperand(0);
+          worklist.pushIfNotVisited(opValue);
+        }
+      }
+      continue;
+    }
+    if (isa<BeginBorrowInst>(value) || isa<MoveValueInst>(value) ||
+        isa<AllocBoxInst>(value)) {
+      if (!visitor(value)) {
+        return false;
+      }
+      continue;
+    }
+    if (auto *arg = dyn_cast<SILArgument>(value)) {
+      if (arg->isTerminatorResult()) {
+        assert(isa<TryApplyInst>(arg->getTerminatorForResult()));
+        if (!visitor(arg)) {
+          return false;
+        }
+        continue;
+      }
+      if (!visitor(value)) {
+        return false;
+      }
+      continue;
+    }
+    if (!createIntroducers) {
+      continue;
+    }
+    assert(!isCandidateIntroducer(value));
+    if (value->getOwnershipKind() == OwnershipKind::Owned) {
+      auto *move = SILBuilderWithScope(
+                       value->getDefiningInsertionPoint()->getNextInstruction())
+                       .createMoveValue(value.getLoc(), value);
+      value->replaceAllUsesWith(move);
+      move->setOperand(value);
+      if (!visitor(move)) {
+        return false;
+      }
+      continue;
+    }
+    assert(value->getOwnershipKind() == OwnershipKind::Guaranteed);
+    auto *borrow = SILBuilderWithScope(
+                       value->getDefiningInsertionPoint()->getNextInstruction())
+                       .createBeginBorrow(value.getLoc(), value);
+    value->replaceAllUsesWith(borrow);
+    borrow->setOperand(value);
+    if (!visitor(borrow)) {
+      return false;
     }
   }
   return true;

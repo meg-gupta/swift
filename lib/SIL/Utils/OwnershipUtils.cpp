@@ -51,6 +51,7 @@ bool swift::findPointerEscape(SILValue original) {
 
   while (auto value = worklist.pop()) {
     for (auto use : value->getUses()) {
+      auto *user = use->getUser();
       switch (use->getOperandOwnership()) {
       case OperandOwnership::PointerEscape:
       case OperandOwnership::ForwardingUnowned:
@@ -66,8 +67,91 @@ bool swift::findPointerEscape(SILValue original) {
         break;
       }
       case OperandOwnership::Borrow: {
-        auto *borrow = cast<SingleValueInstruction>(use->getUser());
-        worklist.pushIfNotVisited(borrow);
+        for (auto res : user->getResults()) {
+          worklist.pushIfNotVisited(res);
+        }
+        break;
+      }
+      case OperandOwnership::Reborrow: {
+        SILArgument *phi = PhiOperand(use).getValue();
+        worklist.pushIfNotVisited(phi);
+        break;
+      }
+      case OperandOwnership::GuaranteedForwarding: {
+        // This may follow guaranteed phis.
+        ForwardingOperand(use).visitForwardedValues([&](SILValue result) {
+          // Do not include transitive uses with 'none' ownership
+          if (result->getOwnershipKind() == OwnershipKind::None)
+            return true;
+          worklist.pushIfNotVisited(result);
+          return true;
+        });
+        break;
+      }
+      case OperandOwnership::InteriorPointer: {
+        if (InteriorPointerOperandKind::get(use) ==
+            InteriorPointerOperandKind::Invalid) {
+          return false;
+        }
+        if (InteriorPointerOperand(use).findTransitiveUses() !=
+            AddressUseKind::NonEscaping) {
+          return true;
+        }
+        break;
+      }
+      default:
+        break;
+      }
+    }
+  }
+  return false;
+}
+
+bool swift::hasPointerEscape(SILValue original) {
+  if (original->getOwnershipKind() != OwnershipKind::Owned &&
+      original->getOwnershipKind() != OwnershipKind::Guaranteed) {
+    return false;
+  }
+
+  ValueWorklist worklist(original->getFunction());
+  worklist.push(original);
+
+  while (auto value = worklist.pop()) {
+    if (auto *arg = dyn_cast<SILArgument>(value)) {
+      return arg->isEscaping();
+    }
+    if (auto forwardValue = ForwardingValue(value)) {
+      bool escaping = false;
+      forwardValue.visitIntroducers([&](SILValue introducer) {
+        if (isEscaping(introducer)) {
+          escaping = true;
+          return false;
+        }
+        return true;
+      });
+      return escaping;
+    }
+
+    for (auto use : value->getUses()) {
+      auto *user = use->getUser();
+      switch (use->getOperandOwnership()) {
+      case OperandOwnership::PointerEscape:
+      case OperandOwnership::ForwardingUnowned:
+        return true;
+      case OperandOwnership::ForwardingConsume: {
+        auto *branch = dyn_cast<BranchInst>(use->getUser());
+        if (!branch) {
+          // Non-phi forwarding consumes end the lifetime of an owned value.
+          break;
+        }
+        auto *phi = branch->getDestBB()->getArgument(use->getOperandNumber());
+        worklist.pushIfNotVisited(phi);
+        break;
+      }
+      case OperandOwnership::Borrow: {
+        for (auto res : user->getResults()) {
+          worklist.pushIfNotVisited(res);
+        }
         break;
       }
       case OperandOwnership::Reborrow: {
@@ -2339,4 +2423,50 @@ bool swift::isRedundantMoveValue(MoveValueInst *mvi) {
   // (3) Escaping matches?  (Expensive check, saved for last.)
   auto moveHasEscape = findPointerEscape(mvi);
   return moveHasEscape == originalHasEscape;
+}
+
+bool swift::isCandidateIntroducer(SILValue def) {
+  if (auto *arg = dyn_cast<SILArgument>(def)) {
+    return true;
+  }
+  if (isa<MoveValueInst>(def) || isa<BeginBorrowInst>(def) ||
+      isa<AllocBoxInst>(def)) {
+    return true;
+  }
+  return false;
+}
+
+void swift::setEscaping(SILValue def) {
+  assert(isCandidateIntroducer(def));
+
+  if (auto *arg = dyn_cast<SILArgument>(def)) {
+    arg->setEscaping(true);
+    return;
+  }
+  if (auto *move = dyn_cast<MoveValueInst>(def)) {
+    move->setEscaping(true);
+    return;
+  }
+  if (auto *borrow = dyn_cast<BeginBorrowInst>(def)) {
+    borrow->setEscaping(true);
+    return;
+  }
+  auto *alloc = cast<AllocBoxInst>(def);
+  alloc->setEscaping(true);
+}
+
+bool swift::isEscaping(SILValue def) {
+  assert(isCandidateIntroducer(def));
+
+  if (auto *arg = dyn_cast<SILArgument>(def)) {
+    return arg->isEscaping();
+  }
+  if (auto *move = dyn_cast<MoveValueInst>(def)) {
+    return move->isEscaping();
+  }
+  if (auto *borrow = dyn_cast<BeginBorrowInst>(def)) {
+    return borrow->isEscaping();
+  }
+  auto *alloc = cast<AllocBoxInst>(def);
+  return alloc->isEscaping();
 }

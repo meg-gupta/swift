@@ -169,6 +169,8 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
   // End Ownership Optimizations
   //===---
 
+  P.addAnnotateOSSA();
+
 #ifndef NDEBUG
   // Add a verification pass to check our work when skipping
   // function bodies.

@@ -31,6 +31,8 @@ public:
   explicit ForwardingValue(SILValue value);
 
   bool visitDefs(function_ref<bool(SILValue)> visitor);
+  bool visitIntroducers(function_ref<bool(SILValue)> visitor,
+                        bool createIntroducers = false);
 
   operator bool() const { return bool(forwardingValue); }
   const SILValue operator->() const {

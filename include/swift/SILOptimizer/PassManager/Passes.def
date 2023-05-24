@@ -116,6 +116,7 @@ PASS(AllocBoxToStack, "allocbox-to-stack",
      "Stack Promotion of Box Objects")
 IRGEN_PASS(AllocStackHoisting, "alloc-stack-hoisting",
            "SIL alloc_stack Hoisting")
+PASS(AnnotateOSSA, "annotate-ossa", "Annotate OSSA")           
 PASS(ArrayCountPropagation, "array-count-propagation",
      "Array Count Propagation")
 PASS(ArrayElementPropagation, "array-element-propagation",

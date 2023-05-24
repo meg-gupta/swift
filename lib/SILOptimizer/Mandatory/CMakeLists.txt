@@ -2,6 +2,7 @@ target_sources(swiftSILOptimizer PRIVATE
   AccessEnforcementSelection.cpp
   AccessMarkerElimination.cpp
   AddressLowering.cpp
+  AnnotateOSSA.cpp
   CapturePromotion.cpp
   ClosureLifetimeFixup.cpp
   ConsumeOperatorCopyableAddressesChecker.cpp

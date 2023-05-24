@@ -92,13 +92,13 @@ inline bool isForwardingConsume(SILValue value) {
 //                        Ownership Def-Use Utilities
 //===----------------------------------------------------------------------===//
 
-bool findPointerEscape(BorrowedValue value);
-
 /// Whether the specified OSSA-lifetime introducer has a pointer escape.
 ///
 /// precondition: \p value introduces an OSSA-lifetime, either a BorrowedValue
 /// can be constructed from it or it's an owned value
 bool findPointerEscape(SILValue value);
+
+bool hasPointerEscape(SILValue value);
 
 /// Find leaf "use points" of \p guaranteedValue that determine its lifetime
 /// requirement. Return true if no PointerEscape use was found.
@@ -1379,6 +1379,12 @@ bool isNestedLexicalBeginBorrow(BeginBorrowInst *bbi);
 /// - escaping
 /// then the move_value is redundant.
 bool isRedundantMoveValue(MoveValueInst *mvi);
+
+bool isCandidateIntroducer(SILValue value);
+
+void setEscaping(SILValue value);
+
+bool isEscaping(SILValue value);
 
 } // namespace swift
 
