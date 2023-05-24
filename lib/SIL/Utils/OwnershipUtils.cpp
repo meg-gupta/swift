@@ -14,6 +14,7 @@
 #include "swift/Basic/Defer.h"
 #include "swift/Basic/GraphNodeWorklist.h"
 #include "swift/Basic/SmallPtrSetVector.h"
+#include "swift/SIL/ForwardingUtils.h"
 #include "swift/SIL/InstructionUtils.h"
 #include "swift/SIL/LinearLifetimeChecker.h"
 #include "swift/SIL/MemAccessUtils.h"
@@ -33,9 +34,17 @@ bool swift::findPointerEscape(SILValue original) {
 
   ValueWorklist worklist(original->getFunction());
   worklist.push(original);
+
   if (auto *phi = SILArgument::asPhi(original)) {
     phi->visitTransitiveIncomingPhiOperands([&](auto *phi, auto *operand) {
       worklist.pushIfNotVisited(operand->get());
+      return true;
+    });
+  }
+
+  if (auto forwardValue = ForwardingValue(original)) {
+    forwardValue.visitDefs([&](SILValue def) {
+      worklist.pushIfNotVisited(def);
       return true;
     });
   }
@@ -78,6 +87,10 @@ bool swift::findPointerEscape(SILValue original) {
         break;
       }
       case OperandOwnership::InteriorPointer: {
+        if (InteriorPointerOperandKind::get(use) ==
+            InteriorPointerOperandKind::Invalid) {
+          return false;
+        }
         if (InteriorPointerOperand(use).findTransitiveUses() !=
             AddressUseKind::NonEscaping) {
           return true;

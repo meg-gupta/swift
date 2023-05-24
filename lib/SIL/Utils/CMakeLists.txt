@@ -6,6 +6,7 @@ target_sources(swiftSIL PRIVATE
   Dominance.cpp
   DynamicCasts.cpp
   FieldSensitivePrunedLiveness.cpp
+  ForwardingUtils.cpp
   GenericSpecializationMangler.cpp
   InstructionUtils.cpp
   LoopInfo.cpp

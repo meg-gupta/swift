@@ -50,6 +50,8 @@ struct BorrowedValue;
 /// with Guaranteed ownership.
 bool canOpcodeForwardInnerGuaranteedValues(SILValue value);
 
+bool canOpcodeForwardValues(SILValue value);
+
 /// Is the opcode that consumes \p use capable of forwarding inner guaranteed
 /// values?
 ///
