@@ -1335,7 +1335,7 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn,
     ResultInst = Builder.createAllocBox(
         Loc, cast<SILBoxType>(MF->getType(TyID)->getCanonicalType()), None,
         hasDynamicLifetime, reflection, usesMoveableValueDebugInfo,
-        /*skipVarDeclAssert*/ false, pointerEscape);
+        pointerEscape);
     break;
   }
   case SILInstructionKind::AllocStackInst: {

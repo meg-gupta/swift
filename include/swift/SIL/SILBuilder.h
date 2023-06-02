@@ -472,20 +472,20 @@ public:
                                bool hasPointerEscape = false) {
     return createAllocBox(loc, SILBoxType::get(fieldType.getASTType()), Var,
                           hasDynamicLifetime, reflection,
-                          usesMoveableValueDebugInfo,
-                          /*skipVarDeclAssert*/ false, hasPointerEscape);
+                          usesMoveableValueDebugInfo, hasPointerEscape);
   }
 
   AllocBoxInst *createAllocBox(SILLocation Loc, CanSILBoxType BoxType,
                                Optional<SILDebugVariable> Var = None,
                                bool hasDynamicLifetime = false,
                                bool reflection = false,
-                               bool usesMoveableValueDebugInfo = false
+                               bool usesMoveableValueDebugInfo = false,
+                               bool hasPointerEscape = false
 #ifndef NDEBUG
                                ,
-                               bool skipVarDeclAssert = false,
+                               bool skipVarDeclAssert = false
 #endif
-                               bool hasPointerEscape = false) {
+  ) {
     llvm::SmallString<4> Name;
     Loc.markAsPrologue();
     assert((skipVarDeclAssert ||

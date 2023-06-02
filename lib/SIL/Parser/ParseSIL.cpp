@@ -2907,8 +2907,7 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
 
     ResultVal = B.createAllocBox(InstLoc, Ty.castTo<SILBoxType>(), VarInfo,
                                  hasDynamicLifetime, hasReflection,
-                                 usesMoveableValueDebugInfo,
-                                 /*skipVarDeclAssert*/ false, hasPointerEscape);
+                                 usesMoveableValueDebugInfo, hasPointerEscape);
     break;
   }
   case SILInstructionKind::ApplyInst:
