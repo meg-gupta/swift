@@ -1369,7 +1369,7 @@ ValueOwnershipKind ForwardingOperand::getForwardingOwnershipKind() const {
   if (auto *ofsvi = dyn_cast<AllArgOwnershipForwardingSingleValueInst>(user))
     return ofsvi->getForwardingOwnershipKind();
 
-  if (auto *ofsvi = dyn_cast<FirstArgOwnershipForwardingSingleValueInst>(user))
+  if (auto *ofsvi = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     return ofsvi->getForwardingOwnershipKind();
 
   if (auto *ofci = dyn_cast<OwnershipForwardingConversionInst>(user))
@@ -1407,7 +1407,7 @@ void ForwardingOperand::setForwardingOwnershipKind(
   // new subclass of OwnershipForwardingInst is added
   if (auto *ofsvi = dyn_cast<AllArgOwnershipForwardingSingleValueInst>(user))
     return ofsvi->setForwardingOwnershipKind(newKind);
-  if (auto *ofsvi = dyn_cast<FirstArgOwnershipForwardingSingleValueInst>(user))
+  if (auto *ofsvi = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     return ofsvi->setForwardingOwnershipKind(newKind);
   if (auto *ofci = dyn_cast<OwnershipForwardingConversionInst>(user))
     return ofci->setForwardingOwnershipKind(newKind);
@@ -1475,7 +1475,7 @@ void ForwardingOperand::replaceOwnershipKind(ValueOwnershipKind oldKind,
     if (fInst->getForwardingOwnershipKind() == oldKind)
       return fInst->setForwardingOwnershipKind(newKind);
 
-  if (auto *fInst = dyn_cast<FirstArgOwnershipForwardingSingleValueInst>(user))
+  if (auto *fInst = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     if (fInst->getForwardingOwnershipKind() == oldKind)
       return fInst->setForwardingOwnershipKind(newKind);
 
@@ -1733,7 +1733,7 @@ bool swift::visitForwardedGuaranteedOperands(
   if (inst->getNumRealOperands() == 0) {
     return false;
   }
-  if (isa<FirstArgOwnershipForwardingSingleValueInst>(inst) ||
+  if (isa<FirstArgOwnershipForwardingSingleValueInst>(inst)
       isa<OwnershipForwardingConversionInst>(inst) ||
       isa<OwnershipForwardingSelectEnumInstBase>(inst) ||
       isa<OwnershipForwardingMultipleValueInstruction>(inst) ||
