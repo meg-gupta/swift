@@ -78,8 +78,6 @@ static void deleteCopyAndMoveChain(SILValue v, InstructionDeleter &deleter) {
 ///   OwnershipForwardingConversionInst (all kinds of ref casts)
 ///   OwnershipForwardingMultipleValueInstruction
 ///     (DestructureStruct, DestructureTuple)
-///   AllArgOwnershipForwardingSingleValueInst
-///     (Struct, Tuple)
 ///   FirstArgOwnershipForwardingSingleValueInst
 ///     (Object, Enum, UncheckedEnumData, SelectValue, Open/InitExistentialRef,
 ///      MarkDependence)
@@ -96,7 +94,8 @@ bool CanonicalizeBorrowScope::isRewritableOSSAForward(SILInstruction *inst) {
   if (inst->getNumOperands() != 1)
     return false;
 
-  if (ForwardingInstruction::canForwardAllOperands(inst)) {
+  if (ForwardingInstruction::canForwardFirstOperandOnly(inst) &&
+      !isa<TermInst>(inst)) {
     Operand *forwardedOper = &inst->getOperandRef(0);
     // Trivial conversions do not need to be hoisted out of a borrow scope.
     auto operOwnership = forwardedOper->getOperandOwnership();
