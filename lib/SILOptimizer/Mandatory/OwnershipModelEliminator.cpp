@@ -122,7 +122,7 @@ struct OwnershipModelEliminatorVisitor
   bool visitSILInstruction(SILInstruction *inst) {
     // Make sure this wasn't a forwarding instruction in case someone adds a new
     // forwarding instruction but does not update this code.
-    if (OwnershipForwardingMixin::isa(inst)) {
+    if (ForwardingInstruction::isa(inst)) {
       llvm::errs() << "Found unhandled forwarding inst: " << *inst;
       llvm_unreachable("standard error handler");
     }
@@ -193,7 +193,7 @@ struct OwnershipModelEliminatorVisitor
     if (isa<SelectValueInst>(i)) {                                             \
       return true;                                                             \
     }                                                                          \
-    OwnershipForwardingMixin::get(i)->setForwardingOwnershipKind(              \
+    ForwardingInstruction::get(i)->setForwardingOwnershipKind(                 \
         OwnershipKind::None);                                                  \
     return true;                                                               \
   }

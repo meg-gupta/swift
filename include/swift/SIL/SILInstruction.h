@@ -1191,14 +1191,14 @@ public:
 ///
 /// NOTE: We assume that the constructor for the instruction subclass that
 /// initializes the kind field on our object is run before our constructor runs.
-class OwnershipForwardingMixin {
+class ForwardingInstruction {
   ValueOwnershipKind ownershipKind;
   bool preservesOwnershipFlag;
 
 protected:
-  OwnershipForwardingMixin(SILInstructionKind kind,
-                           ValueOwnershipKind ownershipKind,
-                           bool preservesOwnership = true)
+  ForwardingInstruction(SILInstructionKind kind,
+                        ValueOwnershipKind ownershipKind,
+                        bool preservesOwnership = true)
       : ownershipKind(ownershipKind),
         preservesOwnershipFlag(preservesOwnership) {
     assert(isa(kind) && "Invalid subclass?!");
@@ -1240,7 +1240,7 @@ public:
   }
 
   /// Defined inline below due to forward declaration issues.
-  static OwnershipForwardingMixin *get(SILInstruction *inst);
+  static ForwardingInstruction *get(SILInstruction *inst);
   /// Defined inline below due to forward declaration issues.
   static bool isa(SILInstructionKind kind);
   static bool isa(const SILInstruction *inst) { return isa(inst->getKind()); }
@@ -1272,14 +1272,14 @@ public:
 /// operation that has no operand at all, like `enum .None`.
 class FirstArgOwnershipForwardingSingleValueInst
     : public SingleValueInstruction,
-      public OwnershipForwardingMixin {
+      public ForwardingInstruction {
 protected:
   FirstArgOwnershipForwardingSingleValueInst(SILInstructionKind kind,
                                              SILDebugLocation debugLoc,
                                              SILType ty,
                                              ValueOwnershipKind ownershipKind)
       : SingleValueInstruction(kind, debugLoc, ty),
-        OwnershipForwardingMixin(kind, ownershipKind) {
+        ForwardingInstruction(kind, ownershipKind) {
     assert(classof(kind) && "classof missing new subclass?!");
   }
 
@@ -1405,16 +1405,15 @@ FirstArgOwnershipForwardingSingleValueInst::classof(SILInstructionKind kind) {
   }
 }
 
-class AllArgOwnershipForwardingSingleValueInst
-    : public SingleValueInstruction,
-      public OwnershipForwardingMixin {
+class AllArgOwnershipForwardingSingleValueInst : public SingleValueInstruction,
+                                                 public ForwardingInstruction {
 protected:
   AllArgOwnershipForwardingSingleValueInst(SILInstructionKind kind,
                                            SILDebugLocation debugLoc,
                                            SILType ty,
                                            ValueOwnershipKind ownershipKind)
       : SingleValueInstruction(kind, debugLoc, ty),
-        OwnershipForwardingMixin(kind, ownershipKind) {
+        ForwardingInstruction(kind, ownershipKind) {
     assert(classof(kind) && "classof missing new subclass?!");
   }
 
@@ -5550,13 +5549,13 @@ public:
 ///
 /// The first operand is the ownership equivalent source.
 class OwnershipForwardingConversionInst : public ConversionInst,
-                                          public OwnershipForwardingMixin {
+                                          public ForwardingInstruction {
 protected:
   OwnershipForwardingConversionInst(SILInstructionKind kind,
                                     SILDebugLocation debugLoc, SILType ty,
                                     ValueOwnershipKind ownershipKind)
       : ConversionInst(kind, debugLoc, ty),
-        OwnershipForwardingMixin(kind, ownershipKind) {
+        ForwardingInstruction(kind, ownershipKind) {
     assert(classof(kind) && "classof missing subclass?!");
   }
 
@@ -6785,7 +6784,7 @@ public:
 
 /// A select enum inst that produces a static OwnershipKind.
 class OwnershipForwardingSelectEnumInstBase : public SelectEnumInstBase,
-                                              public OwnershipForwardingMixin {
+                                              public ForwardingInstruction {
 protected:
   OwnershipForwardingSelectEnumInstBase(
       SILInstructionKind kind, SILDebugLocation debugLoc, SILType type,
@@ -6793,7 +6792,7 @@ protected:
       ProfileCounter defaultCount, ValueOwnershipKind ownershipKind)
       : SelectEnumInstBase(kind, debugLoc, type, defaultValue, caseCounts,
                            defaultCount),
-        OwnershipForwardingMixin(kind, ownershipKind) {
+        ForwardingInstruction(kind, ownershipKind) {
     assert(classof(kind) && "classof missing subclass");
   }
 
@@ -8458,7 +8457,7 @@ public:
 class MarkMustCheckInst
     : public UnaryInstructionBase<SILInstructionKind::MarkMustCheckInst,
                                   SingleValueInstruction>,
-      public OwnershipForwardingMixin {
+      public ForwardingInstruction {
   friend class SILBuilder;
 
 public:
@@ -8498,8 +8497,8 @@ private:
   MarkMustCheckInst(SILDebugLocation DebugLoc, SILValue operand,
                     CheckKind checkKind)
       : UnaryInstructionBase(DebugLoc, operand, operand->getType()),
-        OwnershipForwardingMixin(SILInstructionKind::MarkMustCheckInst,
-                                 operand->getOwnershipKind()),
+        ForwardingInstruction(SILInstructionKind::MarkMustCheckInst,
+                              operand->getOwnershipKind()),
         kind(checkKind) {
     assert(operand->getType().isMoveOnly() &&
            "mark_must_check can only take a move only typed value");
@@ -8529,7 +8528,7 @@ class MarkUnresolvedReferenceBindingInst
     : public UnaryInstructionBase<
           SILInstructionKind::MarkUnresolvedReferenceBindingInst,
           SingleValueInstruction>,
-      public OwnershipForwardingMixin {
+      public ForwardingInstruction {
   friend class SILBuilder;
 
 public:
@@ -8545,7 +8544,7 @@ private:
   MarkUnresolvedReferenceBindingInst(SILDebugLocation debugLoc,
                                      SILValue operand, Kind kind)
       : UnaryInstructionBase(debugLoc, operand, operand->getType()),
-        OwnershipForwardingMixin(
+        ForwardingInstruction(
             SILInstructionKind::MarkUnresolvedReferenceBindingInst,
             operand->getOwnershipKind()),
         kind(kind) {}
@@ -9316,14 +9315,14 @@ public:
 
 // Forwards the first operand to a result in each successor block.
 class OwnershipForwardingTermInst : public TermInst,
-                                    public OwnershipForwardingMixin {
+                                    public ForwardingInstruction {
 protected:
   OwnershipForwardingTermInst(SILInstructionKind kind,
                               SILDebugLocation debugLoc,
                               ValueOwnershipKind ownershipKind,
                               bool preservesOwnership = true)
       : TermInst(kind, debugLoc),
-        OwnershipForwardingMixin(kind, ownershipKind, preservesOwnership) {
+        ForwardingInstruction(kind, ownershipKind, preservesOwnership) {
     assert(classof(kind));
   }
 
@@ -10836,13 +10835,13 @@ SILFunction *ApplyInstBase<Impl, Base, false>::getCalleeFunction() const {
 /// The first operand is the ownership equivalent source.
 class OwnershipForwardingMultipleValueInstruction
     : public MultipleValueInstruction,
-      public OwnershipForwardingMixin {
+      public ForwardingInstruction {
 public:
   OwnershipForwardingMultipleValueInstruction(SILInstructionKind kind,
                                               SILDebugLocation loc,
                                               ValueOwnershipKind ownershipKind)
       : MultipleValueInstruction(kind, loc),
-        OwnershipForwardingMixin(kind, ownershipKind) {
+        ForwardingInstruction(kind, ownershipKind) {
     assert(classof(kind) && "Missing subclass from classof?!");
   }
 
@@ -10986,7 +10985,7 @@ inline bool Operand::isTypeDependent() const {
   return getUser()->isTypeDependentOperand(*this);
 }
 
-inline bool OwnershipForwardingMixin::isa(SILInstructionKind kind) {
+inline bool ForwardingInstruction::isa(SILInstructionKind kind) {
   return FirstArgOwnershipForwardingSingleValueInst::classof(kind) ||
          AllArgOwnershipForwardingSingleValueInst::classof(kind) ||
          OwnershipForwardingTermInst::classof(kind) ||
@@ -10997,8 +10996,7 @@ inline bool OwnershipForwardingMixin::isa(SILInstructionKind kind) {
          kind == SILInstructionKind::MarkUnresolvedReferenceBindingInst;
 }
 
-inline OwnershipForwardingMixin *
-OwnershipForwardingMixin::get(SILInstruction *inst) {
+inline ForwardingInstruction *ForwardingInstruction::get(SILInstruction *inst) {
   // I am purposely performing this cast in this manner rather than reinterpret
   // casting to OwnershipForwardingMixin to ensure that we offset to the
   // appropriate offset inside of inst instead of converting inst's current
