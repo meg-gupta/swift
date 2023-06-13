@@ -1240,6 +1240,32 @@ public:
   }
 
   /// Defined inline below due to forward declaration issues.
+  static bool canForwardAllOperands(SILInstruction *inst);
+
+  static bool canForwardFirstOperandOnly(SILInstruction *inst) {
+    return !canForwardAllOperands(inst);
+  }
+
+  static bool canForwardOwnedCompatibleValuesOnly(SILInstruction *inst) {
+    switch (inst->getKind()) {
+    case SILInstructionKind::MarkUninitializedInst:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  static bool canForwardGuaranteedCompatibleValuesOnly(SILInstruction *inst) {
+    switch (inst->getKind()) {
+    case SILInstructionKind::TupleExtractInst:
+    case SILInstructionKind::StructExtractInst:
+    case SILInstructionKind::DifferentiableFunctionExtractInst:
+      return true;
+    default:
+      return false;
+    }
+  }
+
   static ForwardingInstruction *get(SILInstruction *inst);
   /// Defined inline below due to forward declaration issues.
   static bool isa(SILInstructionKind kind);
@@ -1295,30 +1321,6 @@ public:
     return classof(inst->getKind());
   }
 };
-
-inline bool
-OwnershipForwardingSingleValueInstruction::classof(SILInstructionKind kind) {
-  if (OwnershipForwardingSingleValueInstruction::classof(kind))
-    return true;
-  if (OwnershipForwardingSingleValueInstruction::classof(kind))
-    return true;
-
-  switch (kind) {
-  case SILInstructionKind::ObjectInst:
-  case SILInstructionKind::EnumInst:
-  case SILInstructionKind::UncheckedEnumDataInst:
-  case SILInstructionKind::SelectValueInst:
-  case SILInstructionKind::OpenExistentialRefInst:
-  case SILInstructionKind::InitExistentialRefInst:
-  case SILInstructionKind::MarkDependenceInst:
-  case SILInstructionKind::MoveOnlyWrapperToCopyableValueInst:
-  case SILInstructionKind::MoveOnlyWrapperToCopyableBoxInst:
-  case SILInstructionKind::CopyableToMoveOnlyWrapperValueInst:
-    return true;
-  default:
-    return false;
-  }
-}
 
 /// A value base result of a multiple value instruction.
 ///
@@ -8335,8 +8337,7 @@ public:
 /// checking by the checkers that rely upon this instruction.
 class MarkMustCheckInst
     : public UnaryInstructionBase<SILInstructionKind::MarkMustCheckInst,
-                                  SingleValueInstruction>,
-      public ForwardingInstruction {
+                                  OwnershipForwardingSingleValueInstruction> {
   friend class SILBuilder;
 
 public:
@@ -8375,9 +8376,8 @@ private:
 
   MarkMustCheckInst(SILDebugLocation DebugLoc, SILValue operand,
                     CheckKind checkKind)
-      : UnaryInstructionBase(DebugLoc, operand, operand->getType()),
-        ForwardingInstruction(SILInstructionKind::MarkMustCheckInst,
-                              operand->getOwnershipKind()),
+      : UnaryInstructionBase(DebugLoc, operand, operand->getType(),
+                             operand->getOwnershipKind()),
         kind(checkKind) {
     assert(operand->getType().isMoveOnly() &&
            "mark_must_check can only take a move only typed value");
@@ -8406,8 +8406,7 @@ public:
 class MarkUnresolvedReferenceBindingInst
     : public UnaryInstructionBase<
           SILInstructionKind::MarkUnresolvedReferenceBindingInst,
-          SingleValueInstruction>,
-      public ForwardingInstruction {
+          OwnershipForwardingSingleValueInstruction> {
   friend class SILBuilder;
 
 public:
@@ -8422,10 +8421,8 @@ private:
 
   MarkUnresolvedReferenceBindingInst(SILDebugLocation debugLoc,
                                      SILValue operand, Kind kind)
-      : UnaryInstructionBase(debugLoc, operand, operand->getType()),
-        ForwardingInstruction(
-            SILInstructionKind::MarkUnresolvedReferenceBindingInst,
-            operand->getOwnershipKind()),
+      : UnaryInstructionBase(debugLoc, operand, operand->getType(),
+                             operand->getOwnershipKind()),
         kind(kind) {}
 
 public:
@@ -10602,6 +10599,47 @@ public:
     return extractee;
   }
 };
+
+inline bool
+OwnershipForwardingSingleValueInstruction::classof(SILInstructionKind kind) {
+  switch (kind) {
+  case SILInstructionKind::ObjectInst:
+  case SILInstructionKind::EnumInst:
+  case SILInstructionKind::UncheckedEnumDataInst:
+  case SILInstructionKind::SelectValueInst:
+  case SILInstructionKind::OpenExistentialRefInst:
+  case SILInstructionKind::InitExistentialRefInst:
+  case SILInstructionKind::MarkDependenceInst:
+  case SILInstructionKind::MoveOnlyWrapperToCopyableValueInst:
+  case SILInstructionKind::CopyableToMoveOnlyWrapperValueInst:
+  case SILInstructionKind::MarkUninitializedInst:
+  case SILInstructionKind::TupleExtractInst:
+  case SILInstructionKind::StructExtractInst:
+  case SILInstructionKind::DifferentiableFunctionExtractInst:
+  case SILInstructionKind::LinearFunctionExtractInst:
+  case SILInstructionKind::OpenExistentialValueInst:
+  case SILInstructionKind::OpenExistentialBoxValueInst:
+  case SILInstructionKind::StructInst:
+  case SILInstructionKind::TupleInst:
+  case SILInstructionKind::LinearFunctionInst:
+  case SILInstructionKind::DifferentiableFunctionInst:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool ForwardingInstruction::canForwardAllOperands(SILInstruction *inst) {
+  switch (inst->getKind()) {
+  case SILInstructionKind::StructInst:
+  case SILInstructionKind::TupleInst:
+  case SILInstructionKind::LinearFunctionInst:
+  case SILInstructionKind::DifferentiableFunctionInst:
+    return true;
+  default:
+    return false;
+  }
+}
 
 /// DifferentiabilityWitnessFunctionInst - Looks up a differentiability witness
 /// function for a given original function.
