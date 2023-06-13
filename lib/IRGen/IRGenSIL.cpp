@@ -4399,13 +4399,11 @@ IRGenSILFunction::visitSwitchEnumAddrInst(SwitchEnumAddrInst *inst) {
 
 // FIXME: We could lower select_enum directly to LLVM select in a lot of cases.
 // For now, just emit a switch and phi nodes, like a chump.
-template <class C, class T, class B>
-static llvm::BasicBlock *
-emitBBMapForSelect(IRGenSILFunction &IGF, Explosion &resultPHI,
-                   SmallVectorImpl<std::pair<T, llvm::BasicBlock *>> &BBs,
-                   llvm::BasicBlock *&defaultBB,
-                   SelectInstBase<C, T, B> *inst) {
-
+template <class D, class B>
+static llvm::BasicBlock *emitBBMapForSelect(
+    IRGenSILFunction &IGF, Explosion &resultPHI,
+    SmallVectorImpl<std::pair<EnumElementDecl *, llvm::BasicBlock *>> &BBs,
+    llvm::BasicBlock *&defaultBB, SelectEnumInstBase<D, B> *inst) {
   auto origBB = IGF.Builder.GetInsertBlock();
 
   // Set up a continuation BB and phi nodes to receive the result value.
@@ -4536,10 +4534,10 @@ mapTriviallyToInt(IRGenSILFunction &IGF, const EnumImplStrategy &EIS, SelectEnum
   return result;
 }
 
-template <class C, class T, class B>
+template <class D, class B>
 static LoweredValue getLoweredValueForSelect(IRGenSILFunction &IGF,
                                              Explosion &result,
-                                             SelectInstBase<C, T, B> *inst) {
+                                             SelectEnumInstBase<D, B> *inst) {
   if (inst->getType().isAddress())
     // FIXME: Loses potentially better alignment info we might have.
     return LoweredValue(Address(
@@ -4549,14 +4547,14 @@ static LoweredValue getLoweredValueForSelect(IRGenSILFunction &IGF,
 }
 
 static void emitSingleEnumMemberSelectResult(IRGenSILFunction &IGF,
-                                             SelectEnumInstBase *inst,
+                                             SelectEnumOperation seo,
                                              llvm::Value *isTrue,
                                              Explosion &result) {
-  assert((inst->getNumCases() == 1 && inst->hasDefault()) ||
-         (inst->getNumCases() == 2 && !inst->hasDefault()));
-  
+  assert((seo.getNumCases() == 1 && seo.hasDefault()) ||
+         (seo.getNumCases() == 2 && !seo.hasDefault()));
+
   // Extract the true values.
-  auto trueValue = inst->getCase(0).second;
+  auto trueValue = seo.getCase(0).second;
   SmallVector<llvm::Value*, 4> TrueValues;
   if (trueValue->getType().isAddress()) {
     TrueValues.push_back(IGF.getLoweredAddress(trueValue).getAddress());
@@ -4568,7 +4566,7 @@ static void emitSingleEnumMemberSelectResult(IRGenSILFunction &IGF,
     
   // Extract the false values.
   auto falseValue =
-    inst->hasDefault() ? inst->getDefaultResult() : inst->getCase(1).second;
+      seo.hasDefault() ? seo.getDefaultResult() : seo.getCase(1).second;
   SmallVector<llvm::Value*, 4> FalseValues;
   if (falseValue->getType().isAddress()) {
     FalseValues.push_back(IGF.getLoweredAddress(falseValue).getAddress());
@@ -4596,7 +4594,6 @@ static void emitSingleEnumMemberSelectResult(IRGenSILFunction &IGF,
   }
 }
 
-
 void IRGenSILFunction::visitSelectEnumInst(SelectEnumInst *inst) {
   auto &EIS = getEnumImplStrategy(IGM, inst->getEnumOperand()->getType());
   Explosion result;
@@ -4609,7 +4606,8 @@ void IRGenSILFunction::visitSelectEnumInst(SelectEnumInst *inst) {
     // particularly common when testing optionals.
     Explosion value = getLoweredExplosion(inst->getEnumOperand());
     auto isTrue = EIS.emitValueCaseTest(*this, value, inst->getCase(0).first);
-    emitSingleEnumMemberSelectResult(*this, inst, isTrue, result);
+    emitSingleEnumMemberSelectResult(*this, SelectEnumOperation(inst), isTrue,
+                                     result);
   } else {
     Explosion value = getLoweredExplosion(inst->getEnumOperand());
 
@@ -4642,7 +4640,8 @@ void IRGenSILFunction::visitSelectEnumAddrInst(SelectEnumAddrInst *inst) {
     auto isTrue = EIS.emitIndirectCaseTest(*this,
                                            inst->getEnumOperand()->getType(),
                                            value, inst->getCase(0).first);
-    emitSingleEnumMemberSelectResult(*this, inst, isTrue, result);
+    emitSingleEnumMemberSelectResult(*this, SelectEnumOperation(inst), isTrue,
+                                     result);
   } else {
       // Map the SIL dest bbs to their LLVM bbs.
     SmallVector<std::pair<EnumElementDecl*, llvm::BasicBlock*>, 4> dests;
