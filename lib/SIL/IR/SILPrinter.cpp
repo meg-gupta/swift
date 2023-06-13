@@ -2728,21 +2728,6 @@ public:
     printSelectEnumInst(SEI);
   }
 
-  void visitSelectValueInst(SelectValueInst *SVI) {
-    *this << getIDAndType(SVI->getOperand());
-
-    for (unsigned i = 0, e = SVI->getNumCases(); i < e; ++i) {
-      SILValue casevalue;
-      SILValue result;
-      std::tie(casevalue, result) = SVI->getCase(i);
-      *this << ", case " << Ctx.getID(casevalue) << ": " << Ctx.getID(result);
-    }
-    if (SVI->hasDefault())
-      *this << ", default " << Ctx.getID(SVI->getDefaultResult());
-
-    *this << " : " << SVI->getType();
-  }
-  
   void visitDynamicMethodBranchInst(DynamicMethodBranchInst *DMBI) {
     *this << getIDAndType(DMBI->getOperand()) << ", " << DMBI->getMember()
           << ", " << Ctx.getID(DMBI->getHasMethodBB()) << ", "
