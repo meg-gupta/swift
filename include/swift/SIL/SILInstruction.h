@@ -8449,7 +8449,7 @@ public:
 class MoveOnlyWrapperToCopyableBoxInst
     : public UnaryInstructionBase<
           SILInstructionKind::MoveOnlyWrapperToCopyableBoxInst,
-          FirstArgOwnershipForwardingSingleValueInst> {
+          OwnershipForwardingSingleValueInstruction> {
   friend class SILBuilder;
 
   MoveOnlyWrapperToCopyableBoxInst(SILDebugLocation DebugLoc, SILValue operand,
