@@ -464,13 +464,10 @@ SymbolicValue ConstExprFunctionState::computeConstantValue(SILValue value) {
   }
 
   if (isa<SelectEnumInst>(value) || isa<SelectEnumAddrInst>(value)) {
-    SelectEnumInstBase *selectInst = dyn_cast<SelectEnumInst>(value);
-    if (!selectInst) {
-      selectInst = dyn_cast<SelectEnumAddrInst>(value);
-    }
+    auto selectInst = SelectEnumOperation(value->getDefiningInstruction());
 
-    SILValue enumOperand = selectInst->getEnumOperand();
-    SymbolicValue enumValue = isa<SelectEnumInst>(selectInst)
+    SILValue enumOperand = selectInst.getEnumOperand();
+    SymbolicValue enumValue = isa<SelectEnumInst>(value)
                                   ? getConstantValue(enumOperand)
                                   : getConstAddrAndLoadResult(enumOperand);
     if (!enumValue.isConstant())
@@ -479,8 +476,7 @@ SymbolicValue ConstExprFunctionState::computeConstantValue(SILValue value) {
     assert(enumValue.getKind() == SymbolicValue::Enum ||
            enumValue.getKind() == SymbolicValue::EnumWithPayload);
 
-    SILValue resultOperand =
-        selectInst->getCaseResult(enumValue.getEnumValue());
+    SILValue resultOperand = selectInst.getCaseResult(enumValue.getEnumValue());
     return getConstantValue(resultOperand);
   }
 

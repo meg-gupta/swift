@@ -1975,12 +1975,14 @@ SwitchValueInst *SwitchValueInst::create(
   return ::new (buf) SwitchValueInst(Loc, Operand, DefaultBB, Cases, BBs);
 }
 
-template <typename SELECT_ENUM_INST>
-SELECT_ENUM_INST *SelectEnumInstBase::createSelectEnum(
+template <typename SELECT_ENUM_INST, typename BaseTy>
+template <typename... RestTys>
+SELECT_ENUM_INST *
+SelectEnumInstBase<SELECT_ENUM_INST, BaseTy>::createSelectEnum(
     SILDebugLocation Loc, SILValue Operand, SILType Ty, SILValue DefaultValue,
     ArrayRef<std::pair<EnumElementDecl *, SILValue>> DeclsAndValues,
     SILModule &Mod, Optional<ArrayRef<ProfileCounter>> CaseCounts,
-    ProfileCounter DefaultCount, ValueOwnershipKind forwardingOwnership) {
+    ProfileCounter DefaultCount, RestTys &&...restArgs) {
   // Allocate enough room for the instruction with tail-allocated
   // EnumElementDecl and operand arrays. There are `CaseBBs.size()` decls
   // and `CaseBBs.size() + (DefaultBB ? 1 : 0)` values.
@@ -1999,9 +2001,9 @@ SELECT_ENUM_INST *SelectEnumInstBase::createSelectEnum(
                                                        CaseDecls.size());
   auto Buf = Mod.allocateInst(Size + sizeof(ProfileCounter),
                               alignof(SELECT_ENUM_INST));
-  return ::new (Buf) SELECT_ENUM_INST(Loc, Operand, Ty, bool(DefaultValue),
-                                      CaseValues, CaseDecls, CaseCounts,
-                                      DefaultCount, forwardingOwnership);
+  return ::new (Buf) SELECT_ENUM_INST(
+      Loc, Operand, Ty, bool(DefaultValue), CaseValues, CaseDecls, CaseCounts,
+      DefaultCount, std::forward<RestTys>(restArgs)...);
 }
 
 SelectEnumInst *SelectEnumInst::create(
@@ -2009,9 +2011,8 @@ SelectEnumInst *SelectEnumInst::create(
     ArrayRef<std::pair<EnumElementDecl *, SILValue>> CaseValues, SILModule &M,
     Optional<ArrayRef<ProfileCounter>> CaseCounts, ProfileCounter DefaultCount,
     ValueOwnershipKind forwardingOwnership) {
-  return createSelectEnum<SelectEnumInst>(Loc, Operand, Type, DefaultValue,
-                                          CaseValues, M, CaseCounts,
-                                          DefaultCount, forwardingOwnership);
+  return createSelectEnum(Loc, Operand, Type, DefaultValue, CaseValues, M,
+                          CaseCounts, DefaultCount, forwardingOwnership);
 }
 
 SelectEnumAddrInst *SelectEnumAddrInst::create(
@@ -2022,9 +2023,8 @@ SelectEnumAddrInst *SelectEnumAddrInst::create(
   // We always pass in false since SelectEnumAddrInst doesn't use ownership. We
   // have to pass something in since SelectEnumInst /does/ need to consider
   // ownership and both use the same creation function.
-  return createSelectEnum<SelectEnumAddrInst>(
-      Loc, Operand, Type, DefaultValue, CaseValues, M, CaseCounts, DefaultCount,
-      ValueOwnershipKind(OwnershipKind::None));
+  return createSelectEnum(Loc, Operand, Type, DefaultValue, CaseValues, M,
+                          CaseCounts, DefaultCount);
 }
 
 namespace {
@@ -2058,12 +2058,16 @@ namespace {
   }
 } // end anonymous namespace
 
-NullablePtr<EnumElementDecl> SelectEnumInstBase::getUniqueCaseForDefault() {
+template <typename Derived, typename Base>
+NullablePtr<EnumElementDecl>
+SelectEnumInstBase<Derived, Base>::getUniqueCaseForDefault() {
   return getUniqueCaseForDefaultValue(this, getEnumOperand());
 }
 
-NullablePtr<EnumElementDecl> SelectEnumInstBase::getSingleTrueElement() const {
-  auto SEIType = getType().getAs<BuiltinIntegerType>();
+template <typename Derived, typename Base>
+NullablePtr<EnumElementDecl>
+SelectEnumInstBase<Derived, Base>::getSingleTrueElement() const {
+  auto SEIType = static_cast<Base*>(this)->getType().template getAs<BuiltinIntegerType>();
   if (!SEIType)
     return nullptr;
   if (SEIType->getWidth() != BuiltinIntegerWidth::fixed(1))

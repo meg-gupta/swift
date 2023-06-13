@@ -1375,9 +1375,6 @@ ValueOwnershipKind ForwardingOperand::getForwardingOwnershipKind() const {
   if (auto *ofci = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     return ofci->getForwardingOwnershipKind();
 
-  if (auto *ofseib = dyn_cast<OwnershipForwardingSelectEnumInstBase>(user))
-    return ofseib->getForwardingOwnershipKind();
-
   if (auto *ofmvi =
           dyn_cast<OwnershipForwardingMultipleValueInstruction>(user)) {
     assert(ofmvi->getNumOperands() == 1);
@@ -1409,8 +1406,6 @@ void ForwardingOperand::setForwardingOwnershipKind(
     return ofsvi->setForwardingOwnershipKind(newKind);
   if (auto *ofci = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     return ofci->setForwardingOwnershipKind(newKind);
-  if (auto *ofseib = dyn_cast<OwnershipForwardingSelectEnumInstBase>(user))
-    return ofseib->setForwardingOwnershipKind(newKind);
   if (auto *ofmvi = dyn_cast<OwnershipForwardingMultipleValueInstruction>(user)) {
     assert(ofmvi->getNumOperands() == 1);
     if (!ofmvi->getOperand(0)->getType().isTrivial(*ofmvi->getFunction())) {
@@ -1476,10 +1471,6 @@ void ForwardingOperand::replaceOwnershipKind(ValueOwnershipKind oldKind,
   if (auto *ofci = dyn_cast<OwnershipForwardingSingleValueInstruction>(user))
     if (ofci->getForwardingOwnershipKind() == oldKind)
       return ofci->setForwardingOwnershipKind(newKind);
-
-  if (auto *ofseib = dyn_cast<OwnershipForwardingSelectEnumInstBase>(user))
-    if (ofseib->getForwardingOwnershipKind() == oldKind)
-      return ofseib->setForwardingOwnershipKind(newKind);
 
   if (auto *ofmvi = dyn_cast<OwnershipForwardingMultipleValueInstruction>(user)) {
     if (ofmvi->getForwardingOwnershipKind() == oldKind) {
