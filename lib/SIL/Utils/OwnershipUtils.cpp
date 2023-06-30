@@ -40,6 +40,16 @@ bool swift::findPointerEscape(SILValue original) {
     });
   }
 
+  auto *defInst = original->getDefiningInstructionOrTerminator();
+  if (defInst) {
+    if (auto fwdOp = ForwardingOperation(defInst)) {
+      fwdOp.visitRoots([&](SILValue def) {
+        worklist.pushIfNotVisited(def);
+        return true;
+      });
+    }
+  }
+
   while (auto value = worklist.pop()) {
     for (auto use : value->getUses()) {
       switch (use->getOperandOwnership()) {
