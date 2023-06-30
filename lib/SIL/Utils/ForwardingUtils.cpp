@@ -73,3 +73,23 @@ bool ForwardingOperation::isAddressOnly() const {
   return forwardingInst->getOperand(0)->getType().isAddressOnly(
       *forwardingInst->getFunction());
 }
+
+bool ForwardingOperation::visitRoots(function_ref<bool(SILValue)> visitor) {
+  ValueWorklist worklist(forwardingInst->getFunction());
+
+  while (auto value = worklist.pop()) {
+    auto *defInst = value->getDefiningInstructionOrTerminator();
+    if (defInst) {
+      if (auto fwdOp = ForwardingOperation(defInst)) {
+        for (auto &op : fwdOp.getForwardedOperands()) {
+          worklist.pushIfNotVisited(op.get());
+        }
+      }
+    }
+
+    if (!visitor(value)) {
+      return false;
+    }
+  }
+  return true;
+}

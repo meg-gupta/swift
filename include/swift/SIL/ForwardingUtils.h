@@ -107,6 +107,10 @@ public:
   /// Return true if the forwarded value is address-only either before or after
   /// forwarding.
   bool isAddressOnly() const;
+
+  /// Do a use def traveral to find the roots of the forwarding instruction.
+  /// A 'root' is a non-forwarding defining value.
+  bool visitRoots(function_ref<bool(SILValue)> visitor);
 };
 } // namespace swift
 
