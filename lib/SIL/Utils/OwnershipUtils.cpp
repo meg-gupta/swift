@@ -2361,9 +2361,8 @@ visitRecursivelyLifetimeEndingUses(SILValue i, bool &noUsers,
       continue;
     }
 
-    assert(use->getUser()->hasResults() &&
-           use->getUser()->getNumResults() == 1);
-    if (!visitRecursivelyLifetimeEndingUses(use->getUser()->getResult(0),
+    auto fwdOp = ForwardingOperand(use);
+    if (!visitRecursivelyLifetimeEndingUses(fwdOp.getSingleForwardedValue(),
                                             noUsers, func)) {
       return false;
     }
