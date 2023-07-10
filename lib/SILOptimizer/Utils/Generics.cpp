@@ -2494,7 +2494,7 @@ replaceWithSpecializedCallee(ApplySite applySite, SILValue callee,
     auto *pai = cast<PartialApplyInst>(applySite);
     // Let go of borrows introduced for stack closures.
     if (pai->isOnStack() && pai->getFunction()->hasOwnership()) {
-      pai->visitOnStackLifetimeEnds([&](Operand *op) -> bool {
+      visitOnStackLifetimeEnds(pai, [&](Operand *op) -> bool {
         SILBuilderWithScope argBuilder(op->getUser()->getNextInstruction());
         cleanupCallArguments(argBuilder, loc, arguments, argsNeedingEndBorrow);
         return true;

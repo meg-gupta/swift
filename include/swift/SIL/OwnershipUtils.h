@@ -1378,6 +1378,10 @@ bool isNestedLexicalBeginBorrow(BeginBorrowInst *bbi);
 /// then the move_value is redundant.
 bool isRedundantMoveValue(MoveValueInst *mvi);
 
+
+/// Visit the instructions that end the lifetime of an OSSA on-stack closure.
+bool visitOnStackLifetimeEnds(SingleValueInstruction *inst,
+                              llvm::function_ref<bool(Operand *)> func);
 } // namespace swift
 
 #endif

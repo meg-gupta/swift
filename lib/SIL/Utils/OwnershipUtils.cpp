@@ -703,7 +703,7 @@ bool BorrowingOperand::visitScopeEndingUses(
     // The closure's borrow lifetimes end when the closure itself ends its
     // lifetime. That may happen transitively through conversions that forward
     // ownership of the closure.
-    return user->visitOnStackLifetimeEnds(func);
+    return visitOnStackLifetimeEnds(user, func);
   }
   case BorrowingOperandKind::BeginAsyncLet: {
     auto user = cast<BuiltinInst>(op->getUser());
@@ -2347,4 +2347,43 @@ bool swift::isRedundantMoveValue(MoveValueInst *mvi) {
   // (3) Escaping matches?  (Expensive check, saved for last.)
   auto moveHasEscape = findPointerEscape(mvi);
   return moveHasEscape == originalHasEscape;
+}
+
+static bool
+visitRecursivelyLifetimeEndingUses(SILValue i, bool &noUsers,
+                                   llvm::function_ref<bool(Operand *)> func) {
+  for (Operand *use : i->getConsumingUses()) {
+    noUsers = false;
+    if (isa<DestroyValueInst>(use->getUser())) {
+      if (!func(use)) {
+        return false;
+      }
+      continue;
+    }
+
+    assert(use->getUser()->hasResults() &&
+           use->getUser()->getNumResults() == 1);
+    if (!visitRecursivelyLifetimeEndingUses(use->getUser()->getResult(0),
+                                            noUsers, func)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool swift::visitOnStackLifetimeEnds(SingleValueInstruction *inst,
+                                     llvm::function_ref<bool(Operand *)> func) {
+  assert(isa<CopyValueInst>(inst) || isa<PartialApplyInst>(inst));
+  assert(inst->getFunction()->hasOwnership() && "only meaningful in OSSA");
+#ifndef NDEBUG
+  auto *pai = cast<PartialApplyInst>(lookThroughOwnershipInsts(inst));
+  assert(pai->isOnStack() && "only meaningful on stack closures");
+#endif
+
+  bool noUsers = true;
+  if (!visitRecursivelyLifetimeEndingUses(inst, noUsers, func)) {
+    return false;
+  }
+  return !noUsers;
 }

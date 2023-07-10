@@ -205,6 +205,10 @@ private:
 /// polymorphic builtin or does not have any available overload for these types,
 /// return SILValue().
 SILValue getStaticOverloadForSpecializedPolymorphicBuiltin(BuiltinInst *bi);
+
+/// Visit the instructions that end the lifetime of an OSSA on-stack closure.
+bool visitOnStackLifetimeEnds(SingleValueInstruction *inst,
+                              llvm::function_ref<bool(Operand *)> func);
 } // end namespace swift
 
 #endif
