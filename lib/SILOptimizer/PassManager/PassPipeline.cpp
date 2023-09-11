@@ -421,16 +421,6 @@ void addFunctionPasses(SILPassPipelinePlan &P,
   // Cleanup, which is important if the inliner has restarted the pass pipeline.
   P.addPerformanceConstantPropagation();
 
-  if (!P.getOptions().EnableOSSAModules) {
-    if (P.getOptions().StopOptimizationBeforeLoweringOwnership)
-      return;
-
-    if (SILPrintFinalOSSAModule) {
-      addModulePrinterPipeline(P, "SIL Print Final OSSA Module");
-    }
-    P.addNonTransparentFunctionOwnershipModelEliminator();
-  }
-
   addSimplifyCFGSILCombinePasses(P);
 
   P.addArrayElementPropagation();
@@ -469,15 +459,6 @@ void addFunctionPasses(SILPassPipelinePlan &P,
   P.addDevirtualizer();
   P.addARCSequenceOpts();
 
-  if (P.getOptions().EnableOSSAModules) {
-    // We earlier eliminated ownership if we are not compiling the stdlib. Now
-    // handle the stdlib functions, re-simplifying, eliminating ARC as we do.
-    if (P.getOptions().CopyPropagation != CopyPropagationOption::Off) {
-      P.addCopyPropagation();
-    }
-    P.addSemanticARCOpts();
-  }
-
   switch (OpLevel) {
   case OptimizationLevelKind::HighLevel:
     // Does not inline functions with defined semantics or effects.
@@ -488,6 +469,22 @@ void addFunctionPasses(SILPassPipelinePlan &P,
     // Inlines everything
     P.addPerfInliner();
     break;
+  }
+
+  if (!P.getOptions().EnableOSSAModules) {
+    // Last chance to run ossa opts, run them here before lowering to non-ossa.
+    if (P.getOptions().CopyPropagation == CopyPropagationOption::On) {
+      P.addComputeSideEffects();
+      P.addCopyPropagation();
+    }
+    P.addSemanticARCOpts();
+    if (P.getOptions().StopOptimizationBeforeLoweringOwnership)
+      return;
+
+    if (SILPrintFinalOSSAModule) {
+      addModulePrinterPipeline(P, "SIL Print Final OSSA Module");
+    }
+    P.addNonTransparentFunctionOwnershipModelEliminator();
   }
 
   // Clean up Semantic ARC before we perform additional post-inliner opts.
