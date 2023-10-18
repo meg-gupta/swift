@@ -375,4 +375,9 @@ public struct Builder {
     let endMutation = bridged.createEndCOWMutation(instance.bridged, keepUnique)
     return notifyNew(endMutation.getAs(EndCOWMutationInst.self))
   }
+
+  public func createMarkDependence(value: Value, base: Value, _ escaping: MarkDependenceInst.Escaping) -> MarkDependenceInst {
+    let markDependence = bridged.createMarkDependence(value.bridged, base.bridged, escaping == .nonEscaping)
+    return notifyNew(markDependence.getAs(MarkDependenceInst.self))
+  }
 }

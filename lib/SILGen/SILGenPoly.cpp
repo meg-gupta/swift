@@ -5284,7 +5284,8 @@ SILGenFunction::createWithoutActuallyEscapingClosure(
   // long as we represent these captures by the same value the following works.
   thunkedFn = emitManagedRValueWithCleanup(
     B.createMarkDependence(loc, thunkedFn.forward(*this),
-                           noEscapingFunctionValue.getValue()));
+                           noEscapingFunctionValue.getValue(),
+                           /*isNonEscaping*/false));
 
   return thunkedFn;
 }

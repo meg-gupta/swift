@@ -736,6 +736,7 @@ struct BridgedInstruction {
   BRIDGED_INLINE SwiftInt SwitchEnumInst_getCaseIndex(SwiftInt idx) const;
   BRIDGED_INLINE SwiftInt StoreInst_getStoreOwnership() const;
   BRIDGED_INLINE SwiftInt AssignInst_getAssignOwnership() const;
+  BRIDGED_INLINE bool MarkDependenceInst_isNonEscaping() const;
   BRIDGED_INLINE AccessKind BeginAccessInst_getAccessKind() const;
   BRIDGED_INLINE bool BeginAccessInst_isStatic() const;
   BRIDGED_INLINE bool CopyAddrInst_isTakeOfSrc() const;
@@ -1060,6 +1061,7 @@ struct BridgedBuilder{
                                           BridgedType::MetatypeRepresentation representation) const;
   SWIFT_IMPORT_UNSAFE BRIDGED_INLINE BridgedInstruction createEndCOWMutation(BridgedValue instance,
                                                                              bool keepUnique) const;
+  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE BridgedInstruction createMarkDependence(BridgedValue value, BridgedValue base, bool isNonEscaping) const;
 };
 
 // Passmanager and Context

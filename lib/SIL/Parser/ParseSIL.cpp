@@ -3764,9 +3764,11 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
   }
 
   case SILInstructionKind::MarkDependenceInst: {
+    bool nonEscaping = false;
     SILValue Base;
-    if (parseTypedValueRef(Val, B) || parseVerbatim("on") ||
-        parseTypedValueRef(Base, B))
+    if (parseSILOptional(nonEscaping, *this, "nonescaping")
+        || parseTypedValueRef(Val, B) || parseVerbatim("on")
+        || parseTypedValueRef(Base, B))
       return true;
 
     ValueOwnershipKind forwardingOwnership = Val->getOwnershipKind();
@@ -3774,7 +3776,8 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
         || parseSILDebugLocation(InstLoc, B))
       return true;
 
-    ResultVal = B.createMarkDependence(InstLoc, Val, Base, forwardingOwnership);
+    ResultVal = B.createMarkDependence(InstLoc, Val, Base, forwardingOwnership,
+                                       nonEscaping);
     break;
   }
 

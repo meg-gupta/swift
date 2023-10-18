@@ -5503,7 +5503,7 @@ mark_dependence
 
 ::
 
-  sil-instruction :: 'mark_dependence' sil-operand 'on' sil-operand
+  sil-instruction :: 'mark_dependence' '[nonescaping]'? sil-operand 'on' sil-operand
 
   %2 = mark_dependence %0 : $*T on %1 : $Builtin.NativeObject
 
@@ -5521,6 +5521,14 @@ the same.  Transformations should be somewhat forgiving here.
 The second operand may have either object or address type.  In the
 latter case, the dependency is on the current value stored in the
 address.
+
+The optional ``nonescaping`` attribute indicates that no value derived
+from ``value`` escapes the lifetime of ``base``. Derived values
+include copies and values transitively forwarded from the original or
+any copy. If ``base`` is identical to ``value`` this simply means that
+copies do not outlive the original ``value``.  Furthermore, no value
+derived from ``value`` may have a bitwise escape (conversion to
+UnsafePointer) or pointer escapes (unknown use).
 
 is_unique
 `````````
