@@ -96,3 +96,10 @@ bool ForwardingOperation::visitForwardedValues(
     return visitor(args[0]);
   });
 }
+
+SILValue ForwardingOperation::getSingleForwardedValue() {
+  if (auto *svi = dyn_cast<SingleValueInstruction>(forwardingInst)) {
+    return svi;
+  }
+  return nullptr;
+}

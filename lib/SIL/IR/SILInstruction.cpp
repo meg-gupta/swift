@@ -1778,13 +1778,20 @@ static bool visitRecursivelyLifetimeEndingUses(
       }
       continue;
     }
-    
+
     // There shouldn't be any dead-end consumptions of a nonescaping
     // partial_apply that don't forward it along, aside from destroy_value.
-    assert(use->getUser()->hasResults()
-           && use->getUser()->getNumResults() == 1);
-    if (!visitRecursivelyLifetimeEndingUses(use->getUser()->getResult(0),
-                                            noUsers, func)) {
+    SILValue forwardedValue;
+    if (auto phiOp = PhiOperand(use)) {
+      forwardedValue = phiOp.getValue();
+    } else if (auto *svi = dyn_cast<SingleValueInstruction>(use->getUser())) {
+      // Cannot use ForwardingOperation here because partial_apply/apply etc are
+      // not modelled as forwarding.
+      forwardedValue = svi;
+    }
+ 
+    assert(forwardedValue);
+    if (!visitRecursivelyLifetimeEndingUses(forwardedValue, noUsers, func)) {
       return false;
     }
   }

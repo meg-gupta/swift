@@ -333,6 +333,8 @@ public:
   // Call \p visitor on all forwarded results of the current forwarding
   // operation.
   bool visitForwardedValues(function_ref<bool(SILValue)> visitor);
+
+  SILValue getSingleForwardedValue();
 };
 } // end namespace swift
 
