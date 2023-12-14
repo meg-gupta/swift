@@ -48,6 +48,13 @@ public struct Operand : CustomStringConvertible, NoReflectionChildren {
   public var description: String { "operand #\(index) of \(instruction)" }
 }
 
+extension Value {
+  public typealias FilteredUses = LazyFilterSequence<UseList>
+  public var lifetimeEndingUses: FilteredUses {
+    return uses.lazy.filter { $0.endsLifetime }
+  }
+}
+
 public struct OperandArray : RandomAccessCollection, CustomReflectable {
   private let base: OptionalBridgedOperand
   public let count: Int
