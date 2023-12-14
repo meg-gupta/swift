@@ -2036,6 +2036,7 @@ protected:
   //
   void recursivelyFindDefsOfReborrow(SILPhiArgument *reborrow,
                                      StackList<SILValue> &enclosingDefs) {
+    //!!! test the failure mode for this assert
     assert(enclosingDefs.empty());
     LocalValueSetVector visitedDefs;
 
