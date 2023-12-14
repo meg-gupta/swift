@@ -181,3 +181,17 @@ struct InstructionRange : CustomStringConvertible, NoReflectionChildren {
     blockRange.deinitialize()
   }
 }
+
+extension InstructionRange {
+  // TODO: Add direct support for phis or function args. This workaround will be problematic when used in a pass that mutates the block.
+  static func getRepresentativeInstruction(for value: Value) -> Instruction {
+    if let def = value.definingInstruction {
+      return def
+    }
+    if let result = TerminatorResult(value) {
+      return result.terminator
+    }
+    assert(Phi(value) != nil || value is FunctionArgument)
+    return value.parentBlock.instructions.first!
+  }
+}
