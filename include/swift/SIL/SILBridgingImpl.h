@@ -58,12 +58,15 @@ BridgedResultInfo BridgedResultInfoArray::at(SwiftInt argumentIndex) const {
   return BridgedResultInfo(unbridged()[argumentIndex]);
 }
 
+//!!!  bool IsTrivial =
+//      getSILStorageType(M, FTy, TypeExpansionContext::minimal()).isTrivial(F);
+
 //===----------------------------------------------------------------------===//
 //                               BridgedASTType
 //===----------------------------------------------------------------------===//
 
 bool BridgedASTType::isOpenedExistentialWithError() const {
-  return unbridged()->isOpenedExistentialWithError();
+  return unbridged()->isOpenedExistentialWithError();  
 }
 
 BridgedResultInfoArray BridgedASTType::SILFunctionType_getResults() const {

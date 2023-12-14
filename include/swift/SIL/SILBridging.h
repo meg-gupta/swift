@@ -107,8 +107,7 @@ struct BridgedResultInfoArray {
 
   BRIDGED_INLINE SwiftInt count() const;
 
-  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
-  BridgedResultInfo at(SwiftInt argumentIndex) const;
+  BRIDGED_INLINE BridgedResultInfo at(SwiftInt argumentIndex) const;
 };
 
 // Temporary access to the AST type within SIL until ASTBridging provides it.
@@ -127,8 +126,7 @@ struct BridgedASTType {
   //                              SILFunctionType
   // =========================================================================//
 
-  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
-  BridgedResultInfoArray SILFunctionType_getResults() const;
+  BRIDGED_INLINE BridgedResultInfoArray SILFunctionType_getResults() const;
 
   BRIDGED_INLINE SwiftUInt SILFunctionType_getNumIndirectFormalResults() const;
 
