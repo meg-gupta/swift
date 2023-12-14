@@ -91,8 +91,7 @@ public struct Phi {
     return value.parentBlock
   }
 
-  public func incomingOperand(inPredecessor predecessor: BasicBlock)
-  -> Operand {
+  public func incomingOperand(predecessor: BasicBlock) -> Operand {
     let blockArgIdx = value.index
     switch predecessor.terminator {
     case let br as BranchInst:
@@ -111,7 +110,7 @@ public struct Phi {
   }
 
   public var incomingOperands: LazyMapSequence<PredecessorList, Operand> {
-    predecessors.lazy.map { incomingOperand(inPredecessor: $0) }
+    predecessors.lazy.map { incomingOperand(predecessor: $0) }
   }
 
   public var incomingValues: LazyMapSequence<LazyMapSequence<PredecessorList, Operand>, Value> {
