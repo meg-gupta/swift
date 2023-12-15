@@ -42,6 +42,8 @@ extension Value {
     }
   }
 
+  func findPointerEscape() -> Bool { bridged.findPointerEscape() }
+
   /// Walks over all fields of an aggregate and checks if a reference count
   /// operation for this value is required. This differs from a simple `Type.isTrivial`
   /// check, because it treats a value_to_bridge_object instruction as "trivial".
