@@ -886,6 +886,7 @@ final public class BeginBorrowInst : SingleValueInstruction, UnaryInstruction, B
   public var borrowedValue: Value { operand.value }
 
   public var isLexical: Bool { bridged.BeginBorrow_isLexical() }
+  public var isFromVarDecl: Bool { bridged.BeginBorrow_isFromVarDecl() }
 }
 
 final public class ProjectBoxInst : SingleValueInstruction, UnaryInstruction {
@@ -899,6 +900,8 @@ final public class CopyValueInst : SingleValueInstruction, UnaryInstruction {
 
 final public class MoveValueInst : SingleValueInstruction, UnaryInstruction {
   public var fromValue: Value { operand.value }
+
+  public var isFromVarDecl: Bool { bridged.MoveValue_isFromVarDecl() }
 }
 
 final public class DropDeinitInst : SingleValueInstruction, UnaryInstruction {
