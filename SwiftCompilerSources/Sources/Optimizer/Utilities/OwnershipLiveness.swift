@@ -363,6 +363,7 @@ extension InteriorUseVisitor: AddressDefUseWalker {
     if address.value.type.objectType.isTrivial(in: function) {
       return .continueWalk
     }
+    //!!! handleBeginAccess
     switch address.instruction {
     case let load as LoadBorrowInst:
       return visitUsesOfInner(value: load)
