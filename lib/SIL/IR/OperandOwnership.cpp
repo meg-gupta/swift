@@ -658,6 +658,11 @@ OperandOwnershipClassifier::visitMarkDependenceInst(MarkDependenceInst *mdi) {
     return getOwnershipKind().getForwardingOperandOwnership(
       /*allowUnowned*/true);
   }
+
+  if (mdi->isNonEscaping()) {
+    return OperandOwnership::InstantaneousUse;
+  }
+
   // FIXME: Add an end_dependence instruction so we can treat mark_dependence as
   // a borrow of the base (mark_dependence %base -> end_dependence is analogous
   // to a borrow scope).
