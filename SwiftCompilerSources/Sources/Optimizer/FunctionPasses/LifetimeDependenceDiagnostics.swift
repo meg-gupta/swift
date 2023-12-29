@@ -322,6 +322,9 @@ extension DiagnoseDependenceWalker {
       // of stores as a single callback.
     case is StoreInst:
       return leafUse(address)
+   
+    case is EndAccessInst:
+      return leafUse(address)
 
     case let apply as FullApplySite:
       if let callerArgIdx = apply.argumentIndex(of: address) {
