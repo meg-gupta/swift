@@ -118,7 +118,7 @@ extension LifetimeDependence {
   /// TODO: Add SIL verification that all mark_depedence [nonescaping]
   /// have a valid LifetimeDependence.
   init?(markDependenceInst: MarkDependenceInst, _ context: some Context) {
-    if markDependenceInst.escaping == .nonEscaping { return nil }
+    if markDependenceInst.escaping == .escaping { return nil }
     guard let scope = Scope(base: markDependenceInst.base, context) else {
       return nil
     }
@@ -134,13 +134,14 @@ extension LifetimeDependence.Scope {
   init?(base: Value, _ context: some Context) {
     if base.type.isAddress {
       let accessScope = base.enclosingAccessScope
-      guard case let .scope(access) = accessScope else {
-        // TODO: Handle singly initialize address-only values and
-        // create a LifetimeDependence.initialized
-        fatalError("a non-escaping scope's address must be in an access scope")
+      switch accessScope {
+      case let .scope(bai):
+        self = .access(bai)
+        return
+      case .base:
+        self = .initialized(base)
+        return
       }
-      self = .access(access)
-      return
     }
     switch base.ownership {
     case .owned:
