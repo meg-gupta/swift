@@ -20,7 +20,7 @@
 
 import SIL
 
-private let verbose = false
+private let verbose = true
 
 private func log(_ message: @autoclosure () -> String) {
   if verbose {
@@ -49,9 +49,14 @@ private struct LifetimeDependentApply {
     self.applySite = apply
     // At least one non-escapable result means this is a
     // lifetime-dependent instruction.
-    if dependentValues.contains(where: { $0.type.isEscapable }) { return }
-    // TODO: Check the @_resultDependsOn attribute.
-    return nil
+    guard dependentValues.contains(where: { !$0.type.isEscapable }) else { return nil }
+
+    guard let calleeFn = apply.referencedFunction else {
+        return nil
+    }
+
+    guard calleeFn.arguments.contains(where: { $0.hasResultDependsOn}) ||
+            calleeFn.hasResultDependsOnSelf else { return nil}
   }
 
   init?(withResult value: Value) {
@@ -111,15 +116,32 @@ extension LifetimeDependentApply {
   }
 
   func inferDependencies() -> [LifetimeArgument] {
-    // A method always infers dependence on self.
-    //!!!
-
-    // Infer dependence on the single argument of a function or initializer.
-    //!!!
-
-    // Issue a diagnostic if no inferrence is possible.
-    //!!!
-    return []
+      let calleeFn = applySite.referencedFunction!
+      var lifetimeArgs : [LifetimeArgument] = []
+      if (calleeFn.hasResultDependsOnSelf) {
+        // TODO: Bridge ApplySite.getSelfArgument()
+        let selfArg = applySite.arguments[applySite.arguments.count - 1]
+        switch calleeFn.selfArgument.convention {
+        case .directOwned: lifetimeArgs.append(LifetimeArgument.copy(selfArg))
+        case .directGuaranteed: lifetimeArgs.append(LifetimeArgument.borrow(selfArg))
+        default:
+          fatalError("_resultDependsOnSelf with unsupported self ownership")
+        }
+      }
+      
+      for arg in calleeFn.arguments {
+          if (arg.hasResultDependsOn) {
+            let value = applySite.arguments[arg.index]
+            switch calleeFn.arguments[arg.index].convention {
+            case .directOwned: lifetimeArgs.append(LifetimeArgument.copy(value))
+            case .directGuaranteed: lifetimeArgs.append(LifetimeArgument.borrow(value))
+            case .indirectInout: lifetimeArgs.append(LifetimeArgument.mutate(value))
+            default:
+              fatalError("_resultDependsOn with unsupported arg ownership")
+            }
+          }
+      }
+      return lifetimeArgs
   }
 }
 
@@ -174,10 +196,11 @@ private func recursivelyFindDependenceBases(of apply: LifetimeDependentApply,
       }
     case let .borrow(baseValue), let .mutate(baseValue):
       // Create a new dependence on the apply's access to the argument.
-      if let scope = LifetimeDependence.Scope(base: baseValue, context) {
-        log("Borrowed lifetime from \(baseValue)")
-        log("  scope: \(scope)")
-        bases.append(scope.parentValue)
+      _ = LifetimeDependence.visitDependenceRoots(enclosing: baseValue,
+                                                             context) {
+        (scope: LifetimeDependence.Scope) in
+         bases.append(scope.parentValue)
+         return .continueWalk
       }
     case .new:
       // Create a self dependence on the return value.
