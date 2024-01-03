@@ -237,7 +237,7 @@ struct InteriorUseVisitor: OwnershipUseVisitor {
     return innerScopeHandler(borrow.value)
   }
 
-  func handleAccess(address: any BeginAccessInst) -> WalkResult {
+  func handleAccess(address: BeginAccessInst) -> WalkResult {
     guard let innerScopeHandler else { return .continueWalk }
     return innerScopeHandler(address)
   }
@@ -481,7 +481,7 @@ protocol OwnershipUseVisitor {
   ///
   /// This may add uses to the inner scope, but it may not modify the use-list
   /// containing \p scopedAddress or in any outer scopes.
-  mutating func handleAccess(address: any BeginAccessInst) -> WalkResult
+  mutating func handleAccess(address: BeginAccessInst) -> WalkResult
 }
 
 // Default requirements: Visit everything as a regular use except escapes.
@@ -490,7 +490,7 @@ extension OwnershipUseVisitor {
     return .continueWalk
   }
 
-  mutating func handleAccess(address: any BeginAccessInst) -> WalkResult {
+  mutating func handleAccess(address: BeginAccessInst) -> WalkResult {
     return .continueWalk
   }
 }
