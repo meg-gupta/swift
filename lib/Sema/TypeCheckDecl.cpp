@@ -2440,7 +2440,10 @@ ParamSpecifierRequest::evaluate(Evaluator &evaluator,
 
   if (auto isolated = dyn_cast<IsolatedTypeRepr>(nestedRepr))
     nestedRepr = isolated->getBase();
-  
+
+  if (auto resultDependsOn = dyn_cast<ResultDependsOnTypeRepr>(nestedRepr))
+    nestedRepr = resultDependsOn->getBase();
+
   if (auto ownershipRepr = dyn_cast<OwnershipTypeRepr>(nestedRepr)) {
     if (ownershipRepr->getSpecifier() == ParamSpecifier::InOut
         && param->isDefaultArgument()) {
