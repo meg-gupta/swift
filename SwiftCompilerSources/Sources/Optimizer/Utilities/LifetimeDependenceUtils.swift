@@ -392,8 +392,6 @@ extension LifetimeDependenceUseDefWalker {
     switch value.definingInstruction {
     case let copyInst as CopyValueInst:
       return walkUp(value: copyInst.fromValue)
-    case let moveInst as MoveValueInst:
-      return walkUp(value: moveInst.fromValue)
     case let borrow as BeginBorrowInst:
       return walkUp(value: borrow.borrowedValue)
     case let load as LoadInstruction:
