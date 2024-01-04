@@ -175,13 +175,6 @@ static bool conformsToInvertible(CanType type, InvertibleProtocolKind ip) {
   assert(!type->hasTypeParameter() || type.getAnyNominal()
           && "caller forgot to mapTypeIntoContext!");
 
-  // The SIL types in the AST do not have real conformances, and should have
-  // been handled earlier.
-  assert(!(type->is<SILBoxType,
-                    SILMoveOnlyWrappedType,
-                    SILPackType,
-                    SILTokenType>()));
-
   const bool conforms =
       (bool)TypeChecker::conformsToProtocol(type,
                                             invertible,

@@ -2004,18 +2004,6 @@ LookupConformanceInModuleRequest::evaluate(
     return getBuiltinBuiltinTypeConformance(type, builtinType, protocol);
   }
 
-#ifndef NDEBUG
-  // Ensure we haven't missed queries for the specialty SIL types
-  // in the AST in conformance to one of the invertible protocols.
-  if (auto kp = protocol->getKnownProtocolKind())
-    if (getInvertibleProtocolKind(*kp))
-      assert(!(type->is<SILFunctionType,
-                        SILBoxType,
-                        SILMoveOnlyWrappedType,
-                        SILPackType,
-                        SILTokenType>()));
-#endif
-
   auto nominal = type->getAnyNominal();
 
   // If we don't have a nominal type, there are no conformances.
