@@ -2160,10 +2160,20 @@ ERROR(duplicate_storage_restrictions_attr_label,none,
 ERROR(storage_restrictions_attr_expected_name,none,
       "expected property name in @storageRestrictions list", ())
 
+// Lifetime dependence diagnostics
 ERROR(requires_non_escapable_types, none,
       "'%0' %select{attribute|parameter specifier}1 is only valid when experimental "
       "NonescapableTypes is enabled",
       (StringRef, bool))
+
+ERROR(expected_lparen_lifetimedep, PointsToFirstBadToken,
+      "expected '(' after lifetime dependence specifier", ())
+
+ERROR(expected_identifier_or_self_after_lifetime_dependence, PointsToFirstBadToken, 
+      "expected identifier or self within '%0'", (StringRef))
+
+ERROR(expected_rparen_lifetimedep, PointsToFirstBadToken,
+      "expected ')' after param list in lifetime dependence specifier", ())
 
 #define UNDEFINE_DIAGNOSTIC_MACROS
 #include "DefineDiagnosticMacros.h"

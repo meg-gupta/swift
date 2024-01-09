@@ -22,6 +22,7 @@
 #include "swift/AST/Module.h"
 #include "swift/AST/SourceFile.h"
 #include "swift/AST/TypeRepr.h"
+#include "swift/Basic/Defer.h"
 #include "swift/Basic/StringExtras.h"
 #include "swift/Parse/IDEInspectionCallbacks.h"
 #include "llvm/ADT/SmallString.h"
@@ -782,20 +783,14 @@ Parser::parseFunctionArguments(SmallVectorImpl<Identifier> &NamePieces,
 ///   func-signature:
 ///     func-arguments ('async'|'reasync')? func-throws? func-signature-result?
 ///   func-signature-result:
-///     '->' type
+///     '->'('copy(paramList)|'consume(paramList)'|'borrow(paramList)|'mutate(paramList)'')type
 ///
 /// Note that this leaves retType as null if unspecified.
-ParserStatus
-Parser::parseFunctionSignature(DeclBaseName SimpleName,
-                               DeclName &FullName,
-                               ParameterList *&bodyParams,
-                               DefaultArgumentInfo &defaultArgs,
-                               SourceLoc &asyncLoc,
-                               bool &reasync,
-                               SourceLoc &throwsLoc,
-                               bool &rethrows,
-                               TypeRepr *&thrownType,
-                               TypeRepr *&retType) {
+ParserStatus Parser::parseFunctionSignature(
+    DeclBaseName SimpleName, DeclName &FullName, ParameterList *&bodyParams,
+    DefaultArgumentInfo &defaultArgs, SourceLoc &asyncLoc, bool &reasync,
+    SourceLoc &throwsLoc, bool &rethrows, TypeRepr *&thrownType,
+    SourceLoc &lifetimeDependenceLoc, TypeRepr *&retType) {
   SmallVector<Identifier, 4> NamePieces;
   ParserStatus Status;
 
@@ -831,6 +826,8 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
     parseEffectsSpecifiers(arrowLoc, asyncLoc, &reasync, throwsLoc, &rethrows,
                            thrownType);
 
+    parseResultSpecifiers(lifetimeDependenceLoc);
+
     ParserResult<TypeRepr> ResultType =
         parseDeclResultType(diag::expected_type_function_result);
     retType = ResultType.getPtrOrNull();
@@ -847,6 +844,11 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
   }
 
   return Status;
+}
+
+bool Parser::isLifetimeDependenceSpecifier(const Token &T) {
+  return T.isContextualKeyword("copy") || T.isContextualKeyword("consume") ||
+         T.isContextualKeyword("borrow") || T.isContextualKeyword("mutate");
 }
 
 bool Parser::isThrowsEffectSpecifier(const Token &T) {
@@ -997,6 +999,99 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
     break;
   }
   return status;
+}
+
+ParserStatus Parser::parseResultSpecifiers(SourceLoc lifetimeDependenceLoc) {
+  ParserStatus status;
+  SmallVector<LifetimeDependenceSpecifierEntry> lifetimeDependenceList;
+  SourceLoc FirstEntryLoc, LastEntryRParenLoc;
+
+  while (isLifetimeDependenceSpecifier(Tok)) {
+    bool isCopy = Tok.isContextualKeyword("copy");
+    bool isConsume = Tok.isContextualKeyword("consume");
+    bool isBorrow = Tok.isContextualKeyword("borrow");
+    bool isMutate = Tok.isContextualKeyword("mutate");
+
+    SourceLoc copyLoc, consumeLoc, borrowLoc, mutateLoc;
+    auto lifetimeDependenceSpecifierTok = Tok;
+    if (FirstEntryLoc.isInvalid()) {
+      FirstEntryLoc = lifetimeDependenceSpecifierTok.getLoc();
+    }
+    if (isCopy && copyLoc.isValid()) {
+      diagnose(Tok, diag::duplicate_effects_specifier, Tok.getText())
+          .highlight(copyLoc)
+          .fixItRemove(Tok.getLoc());
+    }
+    if (isBorrow && borrowLoc.isValid()) {
+      diagnose(Tok, diag::duplicate_effects_specifier, Tok.getText())
+          .highlight(borrowLoc)
+          .fixItRemove(Tok.getLoc());
+    }
+    if (isConsume && consumeLoc.isValid()) {
+      diagnose(Tok, diag::duplicate_effects_specifier, Tok.getText())
+          .highlight(consumeLoc)
+          .fixItRemove(Tok.getLoc());
+    }
+    if (isMutate && mutateLoc.isValid()) {
+      diagnose(Tok, diag::duplicate_effects_specifier, Tok.getText())
+          .highlight(mutateLoc)
+          .fixItRemove(Tok.getLoc());
+    }
+    if (lifetimeDependenceLoc.isInvalid()) {
+      Tok.setKind(tok::contextual_keyword);
+      lifetimeDependenceLoc = Tok.getLoc();
+    }
+    consumeToken();
+
+    if (!Tok.is(tok::l_paren)) {
+      diagnose(Tok, diag::expected_lparen_lifetimedep);
+    }
+    consumeToken();
+
+    bool hasNext = false;
+    if (!Tok.is(tok::r_paren)) {
+      do {
+        SWIFT_DEFER { hasNext = consumeIf(tok::comma); };
+        if (Tok.isNot(tok::identifier, tok::kw_self)) {
+          diagnose(Tok,
+                   diag::expected_identifier_or_self_after_lifetime_dependence,
+                   lifetimeDependenceSpecifierTok.getRawText());
+          skipUntil(tok::comma, tok::r_paren);
+          continue;
+        }
+
+        SourceLoc nameLoc = Tok.getLoc();
+        auto name = Context.getIdentifier(Tok.getText());
+        consumeToken();
+
+        auto *VD =
+            new (Context) VarDecl(/*isStatic*/ false, VarDecl::Introducer::Let,
+                                  nameLoc, name, CurDeclContext);
+
+        auto pattern = NamedPattern::createImplicit(Context, VD);
+
+        auto *PBD = PatternBindingDecl::create(
+            Context, /*StaticLoc*/ SourceLoc(), StaticSpellingKind::None,
+            /*VarLoc*/ nameLoc, pattern, /*EqualLoc*/ SourceLoc(),
+            /* initializer */ nullptr, CurDeclContext);
+        lifetimeDependenceList.emplace_back(
+            LifetimeDependenceSpecifierEntry(PBD));
+      } while (hasNext);
+
+      if (!Tok.is(tok::r_paren)) {
+        diagnose(Tok, diag::expected_rparen_lifetimedep);
+      }
+      LastEntryRParenLoc = Tok.getLoc();
+    }
+    consumeToken();
+  }
+
+  Expr *result = nullptr;
+  if (!lifetimeDependenceList.empty())
+    result = LifetimeDependenceSpecifiersExpr::create(
+        Context, lifetimeDependenceList, FirstEntryLoc, LastEntryRParenLoc);
+
+  return makeParserResult(status, result);
 }
 
 /// Parse a pattern with an optional type annotation.

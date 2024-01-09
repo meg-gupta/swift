@@ -974,6 +974,11 @@ class Traversal : public ASTVisitor<Traversal, Expr*, Stmt*,
     return E;
   }
 
+  Expr *
+  visitLifetimeDependenceListExpr(LifetimeDependenceSpecifiersExpr *expr) {
+    return expr;
+  }
+
   Expr *visitCaptureListExpr(CaptureListExpr *expr) {
     for (auto c : expr->getCaptureList()) {
       if (Walker.shouldWalkCaptureInitializerExpressions()) {

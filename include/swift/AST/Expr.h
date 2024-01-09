@@ -325,6 +325,11 @@ protected:
     NumCaptures : 32
   );
 
+  SWIFT_INLINE_BITFIELD_FULL(LifetimeDependenceSpecifiersExpr, Expr, 32,
+    : NumPadBits,
+    NumSpecifiers : 32
+  );
+
   SWIFT_INLINE_BITFIELD(ApplyExpr, Expr, 1+1+1+1+1,
     ThrowsIsSet : 1,
     ImplicitlyAsync : 1,
@@ -4368,6 +4373,60 @@ public:
   static bool classof(const Expr *E) {
     return E->getKind() == ExprKind::CaptureList;
   }
+};
+
+struct LifetimeDependenceSpecifierEntry {
+  PatternBindingDecl *PBD;
+
+  explicit LifetimeDependenceSpecifierEntry(PatternBindingDecl *PBD);
+
+  VarDecl *getVar() const;
+};
+
+class LifetimeDependenceSpecifiersExpr final
+    : public Expr,
+      private llvm::TrailingObjects<LifetimeDependenceSpecifiersExpr,
+                                    LifetimeDependenceSpecifierEntry> {
+  friend TrailingObjects;
+  SourceLoc FirstEntryLParenLoc;
+  SourceLoc LastEntryRParenLoc;
+  LifetimeDependenceSpecifiersExpr(
+      ArrayRef<LifetimeDependenceSpecifierEntry> lifetimeDependenceSpecifiers,
+      SourceLoc FirstEntryLParenLoc, SourceLoc LastEntryRParenLoc)
+      : Expr(ExprKind::LifetimeDependenceSpecifiers, /*Implicit=*/false,
+             Type()),
+        FirstEntryLParenLoc(FirstEntryLParenLoc),
+        LastEntryRParenLoc(LastEntryRParenLoc) {
+    Bits.LifetimeDependenceSpecifiersExpr.NumSpecifiers =
+        lifetimeDependenceSpecifiers.size();
+    std::uninitialized_copy(
+        lifetimeDependenceSpecifiers.begin(),
+        lifetimeDependenceSpecifiers.end(),
+        getTrailingObjects<LifetimeDependenceSpecifierEntry>());
+  }
+
+public:
+  static LifetimeDependenceSpecifiersExpr *
+  create(ASTContext &ctx,
+         ArrayRef<LifetimeDependenceSpecifierEntry> lifetimeDependenceList,
+         SourceLoc FirstEntryLParenLoc, SourceLoc LastEntryRParenLoc);
+
+  ArrayRef<LifetimeDependenceSpecifierEntry> getLifetimeDependenceSpecifiers() {
+    return {getTrailingObjects<LifetimeDependenceSpecifierEntry>(),
+            Bits.LifetimeDependenceSpecifiersExpr.NumSpecifiers};
+  }
+
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Expr *E) {
+    return E->getKind() == ExprKind::LifetimeDependenceSpecifiers;
+  }
+
+  SourceLoc getLoc() const { return FirstEntryLParenLoc; }
+  SourceRange getSourceRange() const {
+    return SourceRange(FirstEntryLParenLoc, LastEntryRParenLoc);
+  }
+  SourceLoc getStartLoc() const { return FirstEntryLParenLoc; }
+  SourceLoc getEndLoc() const { return LastEntryRParenLoc; }
 };
 
 /// DynamicTypeExpr - "type(of: base)" - Produces a metatype value.

@@ -2724,6 +2724,16 @@ public:
     printFoot();
   }
 
+  void
+  visitLifetimeDependenceSpecifiersExpr(LifetimeDependenceSpecifiersExpr *E,
+                                        StringRef label) {
+    printCommon(E, "lifetime_dependence_specifiers", label);
+    for (auto specfier : E->getLifetimeDependenceSpecifiers()) {
+      printRec(specfier.PBD);
+    }
+    printFoot();
+  }
+
   void visitCaptureListExpr(CaptureListExpr *E, StringRef label) {
     printCommon(E, "capture_list", label);
     for (auto capture : E->getCaptureList()) {

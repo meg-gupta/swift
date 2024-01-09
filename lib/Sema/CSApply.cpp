@@ -3805,6 +3805,11 @@ namespace {
       return expr;
     }
 
+    Expr *visitLifetimeDependenceSpecifiersExpr(
+        LifetimeDependenceSpecifiersExpr *expr) {
+      return expr;
+    }
+
     Expr *visitCaptureListExpr(CaptureListExpr *expr) {
       // The type of the capture list is the type of the closure contained
       // inside it.

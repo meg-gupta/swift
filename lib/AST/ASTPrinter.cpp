@@ -5618,6 +5618,9 @@ void PrintAST::visitForceValueExpr(ForceValueExpr *expr) {
 void PrintAST::visitKeyPathDotExpr(KeyPathDotExpr *expr) {
 }
 
+void PrintAST::visitLifetimeDependenceSpecifiersExpr(
+    LifetimeDependenceSpecifiersExpr *expr) {}
+
 void PrintAST::visitAutoClosureExpr(AutoClosureExpr *expr) {
   visit(expr->getSingleExpressionBody());
 }

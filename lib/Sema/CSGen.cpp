@@ -3006,6 +3006,11 @@ namespace {
       llvm_unreachable("Unhandled pattern kind");
     }
 
+    Type visitLifetimeDependenceSpecifiersExpr(
+        LifetimeDependenceSpecifiersExpr *expr) {
+      return Type();
+    }
+
     Type visitCaptureListExpr(CaptureListExpr *expr) {
       // The type of the capture list is just the type of its closure.
       return CS.getType(expr->getClosureBody());

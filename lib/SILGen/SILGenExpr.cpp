@@ -511,6 +511,9 @@ namespace {
                                      SGFContext C);
     RValue visitDestructureTupleExpr(DestructureTupleExpr *E, SGFContext C);
     RValue visitDynamicTypeExpr(DynamicTypeExpr *E, SGFContext C);
+    RValue
+    visitLifetimeDependenceSpecifiersExpr(LifetimeDependenceSpecifiersExpr *E,
+                                          SGFContext C);
     RValue visitCaptureListExpr(CaptureListExpr *E, SGFContext C);
     RValue visitAbstractClosureExpr(AbstractClosureExpr *E, SGFContext C);
     RValue visitInterpolatedStringLiteralExpr(InterpolatedStringLiteralExpr *E,
@@ -2800,6 +2803,11 @@ RValue RValueEmitter::visitDynamicTypeExpr(DynamicTypeExpr *E, SGFContext C) {
   auto metatype = SGF.emitMetatypeOfValue(E, E->getBase());
   return RValue(SGF, E,
                 ManagedValue::forObjectRValueWithoutOwnership(metatype));
+}
+
+RValue RValueEmitter::visitLifetimeDependenceSpecifiersExpr(
+    LifetimeDependenceSpecifiersExpr *E, SGFContext C) {
+  return RValue();
 }
 
 RValue RValueEmitter::visitCaptureListExpr(CaptureListExpr *E, SGFContext C) {

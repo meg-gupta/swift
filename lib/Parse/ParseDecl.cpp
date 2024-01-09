@@ -8581,11 +8581,10 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
   SourceLoc throwsLoc;
   bool rethrows;
   TypeRepr *thrownTy = nullptr;
-  Status |= parseFunctionSignature(SimpleName, FullName, BodyParams,
-                                   DefaultArgs,
-                                   asyncLoc, reasync,
-                                   throwsLoc, rethrows, thrownTy,
-                                   FuncRetTy);
+  SourceLoc lifetimeDependenceLoc;
+  Status |= parseFunctionSignature(
+      SimpleName, FullName, BodyParams, DefaultArgs, asyncLoc, reasync,
+      throwsLoc, rethrows, thrownTy, lifetimeDependenceLoc, FuncRetTy);
   if (Status.hasCodeCompletion() && !CodeCompletionCallbacks) {
     // Trigger delayed parsing, no need to continue.
     return Status;
@@ -9679,12 +9678,11 @@ Parser::parseDeclInit(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   SourceLoc throwsLoc;
   bool rethrows;
   TypeRepr *thrownTy = nullptr;
+  SourceLoc lifetimeDependenceLoc;
   Status |= parseFunctionSignature(DeclBaseName::createConstructor(), FullName,
-                                   BodyParams,
-                                   DefaultArgs,
-                                   asyncLoc, reasync,
+                                   BodyParams, DefaultArgs, asyncLoc, reasync,
                                    throwsLoc, rethrows, thrownTy,
-                                   FuncRetTy);
+                                   lifetimeDependenceLoc, FuncRetTy);
   if (Status.hasCodeCompletion() && !CodeCompletionCallbacks) {
     // Trigger delayed parsing, no need to continue.
     return Status;

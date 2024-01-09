@@ -1585,16 +1585,11 @@ public:
                                       ParameterList *&BodyParams,
                                       ParameterContextKind paramContext,
                                       DefaultArgumentInfo &defaultArgs);
-  ParserStatus parseFunctionSignature(DeclBaseName functionName,
-                                      DeclName &fullName,
-                                      ParameterList *&bodyParams,
-                                      DefaultArgumentInfo &defaultArgs,
-                                      SourceLoc &asyncLoc,
-                                      bool &reasync,
-                                      SourceLoc &throws,
-                                      bool &rethrows,
-                                      TypeRepr *&thrownType,
-                                      TypeRepr *&retType);
+  ParserStatus parseFunctionSignature(
+      DeclBaseName functionName, DeclName &fullName, ParameterList *&bodyParams,
+      DefaultArgumentInfo &defaultArgs, SourceLoc &asyncLoc, bool &reasync,
+      SourceLoc &throws, bool &rethrows, TypeRepr *&thrownType,
+      SourceLoc &lifetimeDependenceLoc, TypeRepr *&retType);
 
   /// Parse 'async' and 'throws', if present, putting the locations of the
   /// keywords into the \c SourceLoc parameters.
@@ -1613,11 +1608,18 @@ public:
                                       SourceLoc &throwsLoc, bool *rethrows,
                                       TypeRepr *&thrownType);
 
+  /// Parse lifetime dependence specifiers, if present, putting the locations of
+  /// the keyword into \p lifetimeDependenceLoc.
+  ParserStatus parseResultSpecifiers(SourceLoc lifetimeDependenceLoc);
+
   /// Returns 'true' if \p T is consider a throwing effect specifier.
   static bool isThrowsEffectSpecifier(const Token &T);
 
   /// Returns 'true' if \p T is considered effects specifier.
   static bool isEffectsSpecifier(const Token &T);
+
+  /// Returns  'true' if \p T is considered a lifetime dependence specifier.
+  static bool isLifetimeDependenceSpecifier(const Token &T);
 
   //===--------------------------------------------------------------------===//
   // Pattern Parsing

@@ -390,6 +390,7 @@ ConcreteDeclRef Expr::getReferencedDecl(bool stopAtParenExpr) const {
 
   NO_REFERENCE(KeyPathApplication);
   NO_REFERENCE(TupleElement);
+  NO_REFERENCE(LifetimeDependenceSpecifiers);
   NO_REFERENCE(CaptureList);
   NO_REFERENCE(Closure);
 
@@ -735,6 +736,9 @@ bool Expr::canAppendPostfixExpression(bool appendingPostfixOperator) const {
   case ExprKind::TupleElement:
     return true;
 
+  case ExprKind::LifetimeDependenceSpecifiers:
+    return false;
+
   case ExprKind::CaptureList:
   case ExprKind::Closure:
   case ExprKind::AutoClosure:
@@ -949,6 +953,7 @@ bool Expr::isValidParentOfTypeExpr(Expr *typeExpr) const {
   case ExprKind::Dictionary:
   case ExprKind::KeyPathApplication:
   case ExprKind::TupleElement:
+  case ExprKind::LifetimeDependenceSpecifiers:
   case ExprKind::CaptureList:
   case ExprKind::Closure:
   case ExprKind::AutoClosure:
@@ -1325,6 +1330,24 @@ UnresolvedSpecializeExpr *UnresolvedSpecializeExpr::create(ASTContext &ctx,
   auto mem = ctx.Allocate(size, alignof(UnresolvedSpecializeExpr));
   return ::new (mem) UnresolvedSpecializeExpr(SubExpr, LAngleLoc,
                                               UnresolvedParams, RAngleLoc);
+}
+
+LifetimeDependenceSpecifierEntry::LifetimeDependenceSpecifierEntry(
+    PatternBindingDecl *PBD)
+    : PBD(PBD) {
+  assert(PBD);
+}
+
+LifetimeDependenceSpecifiersExpr *LifetimeDependenceSpecifiersExpr::create(
+    ASTContext &ctx,
+    ArrayRef<LifetimeDependenceSpecifierEntry> lifetimeDependenceList,
+    SourceLoc FirstEntryLParenLoc, SourceLoc LastEntryRParenLoc) {
+  auto size = totalSizeToAlloc<LifetimeDependenceSpecifierEntry>(
+      lifetimeDependenceList.size());
+  auto mem = ctx.Allocate(size, alignof(LifetimeDependenceSpecifiersExpr));
+  auto *expr = ::new (mem) LifetimeDependenceSpecifiersExpr(
+      lifetimeDependenceList, FirstEntryLParenLoc, LastEntryRParenLoc);
+  return expr;
 }
 
 CaptureListEntry::CaptureListEntry(PatternBindingDecl *PBD) : PBD(PBD) {
