@@ -452,6 +452,16 @@ SILBoxTypeRepr *SILBoxTypeRepr::create(ASTContext &C,
                                   ArgLAngleLoc, GenericArgs, ArgRAngleLoc);
 }
 
+LifetimeDependentReturnTypeRepr *LifetimeDependentReturnTypeRepr::create(
+    ASTContext &C, TypeRepr *base,
+    ArrayRef<LifetimeDependenceSpecifier> specifiers,
+    SourceLoc FirstEntryLBraceLoc, SourceLoc LastEntryRBraceLoc) {
+  auto size = totalSizeToAlloc<LifetimeDependenceSpecifier>(specifiers.size());
+  auto mem = C.Allocate(size, alignof(LifetimeDependenceSpecifier));
+  return new (mem) LifetimeDependentReturnTypeRepr(
+      base, specifiers, FirstEntryLBraceLoc, LastEntryRBraceLoc);
+}
+
 SourceLoc FunctionTypeRepr::getStartLocImpl() const {
   return ArgsTy->getStartLoc();
 }
@@ -599,6 +609,23 @@ void InverseTypeRepr::printImpl(ASTPrinter &Printer,
                                 const PrintOptions &Opts) const {
   Printer << "~";
   printTypeRepr(Constraint, Printer, Opts);
+}
+
+SourceLoc LifetimeDependentReturnTypeRepr::getStartLocImpl() const {
+  return FirstEntryLBraceLoc;
+}
+
+SourceLoc LifetimeDependentReturnTypeRepr::getEndLocImpl() const {
+  return LastEntryRBraceLoc;
+}
+
+SourceLoc LifetimeDependentReturnTypeRepr::getLocImpl() const {
+  return base->getLoc();
+}
+
+void LifetimeDependentReturnTypeRepr::printImpl(
+    ASTPrinter &Printer, const PrintOptions &Opts) const {
+  printTypeRepr(base, Printer, Opts);
 }
 
 void SpecifierTypeRepr::printImpl(ASTPrinter &Printer,

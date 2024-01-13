@@ -3044,6 +3044,7 @@ directReferencesForTypeRepr(Evaluator &evaluator,
   case TypeReprKind::Pack:
   case TypeReprKind::OpaqueReturn:
   case TypeReprKind::NamedOpaqueReturn:
+  case TypeReprKind::LifetimeDependentReturn:
   case TypeReprKind::Existential:
   case TypeReprKind::Inverse:
   case TypeReprKind::ResultDependsOn:

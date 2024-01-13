@@ -2612,6 +2612,11 @@ NeverNullType TypeResolver::resolveType(TypeRepr *repr,
     return ErrorType::get(getASTContext());
   }
 
+  case TypeReprKind::LifetimeDependentReturn: {
+    auto lifetimeDependenceRepr = cast<LifetimeDependentReturnTypeRepr>(repr);
+    return resolveType(lifetimeDependenceRepr->getBase(), options);
+  }
+
   case TypeReprKind::Placeholder: {
     auto &ctx = getASTContext();
     // Fill in the placeholder if there's an appropriate handler.
@@ -3740,9 +3745,11 @@ NeverNullType TypeResolver::resolveASTFunctionType(
     }
   }
 
+  // TODO: Get the lifetime dependence info.
   FunctionType::ExtInfoBuilder extInfoBuilder(
       FunctionTypeRepresentation::Swift, noescape, repr->isThrowing(), thrownTy,
-      diffKind, /*clangFunctionType*/ nullptr, Type());
+      diffKind, /*clangFunctionType*/ nullptr, Type(),
+      LifetimeDependenceInfo());
 
   const clang::Type *clangFnType = parsedClangFunctionType;
   if (shouldStoreClangType(representation) && !clangFnType)
@@ -5423,6 +5430,7 @@ public:
     case TypeReprKind::Composition:
     case TypeReprKind::OpaqueReturn:
     case TypeReprKind::NamedOpaqueReturn:
+    case TypeReprKind::LifetimeDependentReturn:
     case TypeReprKind::Existential:
     case TypeReprKind::SimpleIdent:
     case TypeReprKind::GenericIdent:

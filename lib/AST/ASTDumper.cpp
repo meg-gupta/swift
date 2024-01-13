@@ -405,18 +405,7 @@ static StringRef getDumpString(ParamSpecifier specifier) {
   return ParamDecl::getSpecifierSpelling(specifier);
 }
 static StringRef getDumpString(ValueOwnership ownership) {
-  switch (ownership) {
-  case ValueOwnership::Default:
-      return "";
-  case ValueOwnership::Owned:
-      return "owned";
-  case ValueOwnership::Shared:
-      return "shared";
-  case ValueOwnership::InOut:
-      return "inout";
-  }
-
-  llvm_unreachable("Unhandled ValueOwnership in switch.");
+  return getOwnershipSpelling(ownership);
 }
 static StringRef getDumpString(ForeignErrorConvention::IsOwned_t owned) {
   switch (owned) {
@@ -3413,6 +3402,23 @@ public:
 
   void visitNamedOpaqueReturnTypeRepr(NamedOpaqueReturnTypeRepr *T, StringRef label) {
     printCommon("type_named_opaque_return", label);
+    printRec(T->getBase());
+    printFoot();
+  }
+
+  void visitLifetimeDependentReturnTypeRepr(LifetimeDependentReturnTypeRepr *T,
+                                            StringRef label) {
+    printCommon("type_lifetime_dependent_return", label);
+    for (auto &dep : T->getLifetimeDependencies()) {
+      printFieldRaw(
+          [&](raw_ostream &out) {
+            out << getLifetimeDependenceKindAsString(
+                       dep.getLifetimeDependenceKind())
+                << "(";
+            out << dep.getName() << ")";
+          },
+          "");
+    }
     printRec(T->getBase());
     printFoot();
   }

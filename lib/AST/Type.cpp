@@ -1481,7 +1481,6 @@ bool ParameterListInfo::isVariadicGenericParameter(unsigned paramIdx) const {
       : false;
 }
 
-
 /// Turn a param list into a symbolic and printable representation that does not
 /// include the types, something like (_:, b:, c:)
 std::string swift::getParamListAsString(ArrayRef<AnyFunctionType::Param> params) {
@@ -1499,6 +1498,21 @@ std::string swift::getParamListAsString(ArrayRef<AnyFunctionType::Param> params)
 
   result += ')';
   return result;
+}
+
+std::string
+swift::getLifetimeDependenceKindAsString(LifetimeDependenceKind kind) {
+  switch (kind) {
+  case LifetimeDependenceKind::Copy:
+    return "copy";
+  case LifetimeDependenceKind::Consume:
+    return "consume";
+  case LifetimeDependenceKind::Borrow:
+    return "borrow";
+  case LifetimeDependenceKind::Mutate:
+    return "mutate";
+  }
+  llvm_unreachable("Invalid lifetime dependence kind\n");
 }
 
 /// Rebuilds the given 'self' type using the given object type as the
@@ -4138,6 +4152,19 @@ ClangTypeInfo AnyFunctionType::getClangTypeInfo() const {
   }
 }
 
+LifetimeDependenceInfo AnyFunctionType::getLifetimeDependenceInfo() const {
+  switch (getKind()) {
+  case TypeKind::Function:
+    return cast<FunctionType>(this)->getLifetimeDependenceInfo();
+  case TypeKind::GenericFunction:
+    // TODO: Handle GenericFunction
+    return LifetimeDependenceInfo();
+
+  default:
+    llvm_unreachable("Illegal type kind for AnyFunctionType.");
+  }
+}
+
 Type AnyFunctionType::getThrownError() const {
   switch (getKind()) {
   case TypeKind::Function:
@@ -4199,7 +4226,7 @@ AnyFunctionType::getCanonicalExtInfo(bool useClangFunctionType) const {
   return ExtInfo(bits,
                  useClangFunctionType ? getCanonicalClangTypeInfo()
                                       : ClangTypeInfo(),
-                 globalActor, thrownError);
+                 globalActor, thrownError, getLifetimeDependenceInfo());
 }
 
 bool AnyFunctionType::hasNonDerivableClangType() {

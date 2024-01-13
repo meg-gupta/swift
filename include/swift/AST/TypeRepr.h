@@ -42,6 +42,7 @@ namespace swift {
   class TypeDecl;
 
 enum class ParamSpecifier : uint8_t;
+enum class LifetimeDependenceKind : uint8_t;
 
 enum class TypeReprKind : uint8_t {
 #define TYPEREPR(ID, PARENT) ID,
@@ -107,6 +108,11 @@ protected:
   SWIFT_INLINE_BITFIELD_FULL(PackTypeRepr, TypeRepr, 32,
     /// The number of elements contained.
     NumElements : 32
+  );
+  
+  SWIFT_INLINE_BITFIELD_FULL(LifetimeDependentReturnTypeRepr, TypeRepr, 32,
+     : NumPadBits,
+     NumDependencies : 32
   );
 
   } Bits;
@@ -1331,6 +1337,122 @@ private:
   friend class TypeRepr;
 };
 
+class LifetimeDependenceSpecifier {
+public:
+  enum class SpecifierKind { Named, Ordered, Self };
+
+private:
+  SourceLoc loc;
+  SpecifierKind specifierKind;
+  LifetimeDependenceKind lifetimeDependenceKind;
+  union Value {
+    struct {
+      Identifier name;
+    } Named;
+    struct {
+      unsigned index;
+    } Ordered;
+    struct {
+    } self;
+    Value(Identifier name) : Named({name}) {}
+    Value(unsigned index) : Ordered({index}) {}
+    Value() {}
+  } value;
+
+  LifetimeDependenceSpecifier(SourceLoc loc, SpecifierKind specifierKind,
+                              LifetimeDependenceKind lifetimeDependenceKind,
+                              Value value)
+      : loc(loc), specifierKind(specifierKind),
+        lifetimeDependenceKind(lifetimeDependenceKind), value(value) {}
+
+public:
+  static LifetimeDependenceSpecifier getNamedLifetimeDependenceSpecifier(
+      SourceLoc loc, LifetimeDependenceKind kind, Identifier name) {
+    return {loc, SpecifierKind::Named, kind, name};
+  }
+
+  static LifetimeDependenceSpecifier getOrderedLifetimeDependenceSpecifier(
+      SourceLoc loc, LifetimeDependenceKind kind, unsigned index) {
+    return {loc, SpecifierKind::Ordered, kind, index};
+  }
+
+  static LifetimeDependenceSpecifier
+  getSelfLifetimeDependenceSpecifier(SourceLoc loc,
+                                     LifetimeDependenceKind kind) {
+    return {loc, SpecifierKind::Self, kind, {}};
+  }
+
+  SourceLoc getLoc() const { return loc; }
+
+  SpecifierKind getSpecifierKind() const { return specifierKind; }
+
+  LifetimeDependenceKind getLifetimeDependenceKind() const {
+    return lifetimeDependenceKind;
+  }
+
+  Identifier getName() const {
+    assert(specifierKind == SpecifierKind::Named);
+    return value.Named.name;
+  }
+
+  unsigned getIndex() const {
+    assert(specifierKind == SpecifierKind::Ordered);
+    return value.Ordered.index;
+  }
+};
+
+class LifetimeDependentReturnTypeRepr final
+    : public TypeRepr,
+      private llvm::TrailingObjects<LifetimeDependentReturnTypeRepr,
+                                    LifetimeDependenceSpecifier> {
+  friend TrailingObjects;
+  TypeRepr *base;
+
+  SourceLoc FirstEntryLBraceLoc, LastEntryRBraceLoc;
+
+  size_t
+  numTrailingObjects(OverloadToken<LifetimeDependentReturnTypeRepr>) const {
+    return Bits.LifetimeDependentReturnTypeRepr.NumDependencies;
+  }
+
+public:
+  LifetimeDependentReturnTypeRepr(
+      TypeRepr *base, ArrayRef<LifetimeDependenceSpecifier> specifiers,
+      SourceLoc FirstEntryLBraceLoc, SourceLoc LastEntryRBraceLoc)
+      : TypeRepr(TypeReprKind::LifetimeDependentReturn), base(base),
+        FirstEntryLBraceLoc(FirstEntryLBraceLoc),
+        LastEntryRBraceLoc(LastEntryRBraceLoc) {
+    assert(base);
+    Bits.LifetimeDependentReturnTypeRepr.NumDependencies = specifiers.size();
+    std::uninitialized_copy(specifiers.begin(), specifiers.end(),
+                            getTrailingObjects<LifetimeDependenceSpecifier>());
+  }
+
+  static LifetimeDependentReturnTypeRepr *
+  create(ASTContext &C, TypeRepr *base,
+         ArrayRef<LifetimeDependenceSpecifier> specifiers,
+         SourceLoc FirstEntryLBraceLoc, SourceLoc LastEntryRBraceLoc);
+
+  TypeRepr *getBase() const { return base; }
+
+  ArrayRef<LifetimeDependenceSpecifier> getLifetimeDependencies() const {
+    return {getTrailingObjects<LifetimeDependenceSpecifier>(),
+            Bits.LifetimeDependentReturnTypeRepr.NumDependencies};
+  }
+
+  static bool classof(const TypeRepr *T) {
+    return T->getKind() == TypeReprKind::LifetimeDependentReturn;
+  }
+  static bool classof(const LifetimeDependentReturnTypeRepr *T) { return true; }
+
+private:
+  SourceLoc getStartLocImpl() const;
+  SourceLoc getEndLocImpl() const;
+  SourceLoc getLocImpl() const;
+  void printImpl(ASTPrinter &Printer, const PrintOptions &Opts) const;
+  friend class TypeRepr;
+};
+
 /// A TypeRepr for an existential type spelled with \c any
 ///
 /// Can appear anywhere a normal existential type would. This is
@@ -1517,6 +1639,7 @@ inline bool TypeRepr::isSimple() const {
   case TypeReprKind::NamedOpaqueReturn:
   case TypeReprKind::Existential:
   case TypeReprKind::PackElement:
+  case TypeReprKind::LifetimeDependentReturn:
     return false;
   case TypeReprKind::SimpleIdent:
   case TypeReprKind::GenericIdent:

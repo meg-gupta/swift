@@ -927,6 +927,7 @@ protected:
       if (result.isError())
         return result;
 
+      // TODO: Handle demangling with lifetime dependence info.
       return Builder.createFunctionType(
           parameters, result.getType(), flags, diffKind, globalActorType,
           thrownErrorType);

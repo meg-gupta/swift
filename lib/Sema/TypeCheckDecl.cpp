@@ -2561,6 +2561,106 @@ static Type validateParameterType(ParamDecl *decl) {
   return Ty;
 }
 
+static LifetimeDependenceInfo computeLifetimeDependenceInfo(
+    LifetimeDependentReturnTypeRepr *lifetimeDependentRepr, Decl *decl,
+    bool allowIndex) {
+  auto *afd = cast<AbstractFunctionDecl>(decl);
+  auto *dc = decl->getDeclContext();
+  auto &ctx = dc->getASTContext();
+  auto &diags = ctx.Diags;
+  SmallBitVector copyLifetimeParamIndices(afd->getParameters()->size() + 1);
+  SmallBitVector borrowLifetimeParamIndices(afd->getParameters()->size() + 1);
+
+  auto checkAndCreateLifetimeDependenceInfo =
+      [&](LifetimeDependenceSpecifier specifier, unsigned paramIndexToSet,
+          ValueOwnership ownership) {
+        auto loc = specifier.getLoc();
+        auto kind = specifier.getLifetimeDependenceKind();
+
+        // Sema cannot diagnose illegal lifetime dependence kinds when no
+        // ownership parameter modifiers are specified. They can be diagnosed
+        // later in SIL.
+        if (ownership != ValueOwnership::Default) {
+          if (kind == LifetimeDependenceKind::Borrow &&
+              ownership != ValueOwnership::Shared) {
+            diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind,
+                           "borrow", getOwnershipSpelling(ownership));
+          } else if (kind == LifetimeDependenceKind::Mutate &&
+                     ownership != ValueOwnership::InOut) {
+            diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind,
+                           "mutate", getOwnershipSpelling(ownership));
+          } else if (kind == LifetimeDependenceKind::Consume &&
+                     ownership != ValueOwnership::Owned) {
+            diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind,
+                           "consume", getOwnershipSpelling(ownership));
+          }
+        }
+        if (copyLifetimeParamIndices.test(paramIndexToSet) ||
+            borrowLifetimeParamIndices.test(paramIndexToSet)) {
+          diags.diagnose(loc, diag::lifetime_dependence_duplicate_param_id);
+        }
+        if (kind == LifetimeDependenceKind::Copy ||
+            kind == LifetimeDependenceKind::Consume) {
+          copyLifetimeParamIndices.set(paramIndexToSet);
+        } else {
+          assert(kind == LifetimeDependenceKind::Borrow ||
+                 kind == LifetimeDependenceKind::Mutate);
+          borrowLifetimeParamIndices.set(paramIndexToSet);
+        }
+      };
+
+  for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
+    switch (specifier.getSpecifierKind()) {
+    case LifetimeDependenceSpecifier::SpecifierKind::Named: {
+      bool foundParamName = false;
+      unsigned paramIndexToSet = 1;
+      for (auto *param : *afd->getParameters()) {
+        if (param->getParameterName() == specifier.getName()) {
+          foundParamName = true;
+          checkAndCreateLifetimeDependenceInfo(specifier, paramIndexToSet,
+                                               param->getValueOwnership());
+          break;
+        }
+        paramIndexToSet++;
+      }
+      if (!foundParamName) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_param_name,
+                       specifier.getName());
+      }
+      break;
+    }
+    case LifetimeDependenceSpecifier::SpecifierKind::Ordered: {
+      auto paramIndex = specifier.getIndex();
+      if (paramIndex > afd->getParameters()->size()) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_param_index,
+                       paramIndex);
+        continue;
+      }
+      checkAndCreateLifetimeDependenceInfo(
+          specifier, /*paramIndexToSet*/ specifier.getIndex() + 1,
+          afd->getParameters()->get(paramIndex)->getValueOwnership());
+      break;
+    }
+    case LifetimeDependenceSpecifier::SpecifierKind::Self: {
+      if (!afd->hasImplicitSelfDecl()) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_self);
+        continue;
+      }
+      checkAndCreateLifetimeDependenceInfo(
+          specifier, /*selfIndex*/ 0,
+          afd->getImplicitSelfDecl()->getValueOwnership());
+      break;
+    }
+    }
+  }
+
+  return {IndexSubset::get(ctx, copyLifetimeParamIndices),
+          IndexSubset::get(ctx, borrowLifetimeParamIndices)};
+}
+
 Type
 InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
   auto &Context = D->getASTContext();
@@ -2718,6 +2818,16 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
       }
     }
 
+    auto *returnTypeRepr = AFD->getResultTypeRepr();
+    LifetimeDependenceInfo lifetimeDependenceInfo;
+    if (returnTypeRepr) {
+      if (auto *lifetimeDependentRepr =
+              dyn_cast<LifetimeDependentReturnTypeRepr>(returnTypeRepr)) {
+        lifetimeDependenceInfo = computeLifetimeDependenceInfo(
+            lifetimeDependentRepr, D, /*allowIndex*/ false);
+      }
+    }
+
     // Result
     Type resultTy;
     if (auto fn = dyn_cast<FuncDecl>(D)) {
@@ -2743,6 +2853,9 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
       // Defer bodies must not escape.
       if (auto fd = dyn_cast<FuncDecl>(D))
         infoBuilder = infoBuilder.withNoEscape(fd->isDeferBody());
+
+      infoBuilder =
+          infoBuilder.withLifetimeDependenceInfo(lifetimeDependenceInfo);
       auto info = infoBuilder.build();
 
       if (sig && !hasSelf) {

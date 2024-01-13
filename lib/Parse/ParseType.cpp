@@ -19,6 +19,7 @@
 #include "swift/AST/GenericParamList.h"
 #include "swift/AST/SourceFile.h" // only for isMacroSignatureFile
 #include "swift/AST/TypeRepr.h"
+#include "swift/Basic/Defer.h"
 #include "swift/Basic/Nullability.h"
 #include "swift/Parse/IDEInspectionCallbacks.h"
 #include "swift/Parse/Lexer.h"
@@ -661,7 +662,102 @@ AFTER_TY_PARSE:
   return ty;
 }
 
-ParserResult<TypeRepr> Parser::parseTypeWithOpaqueParams(Diag<> MessageID) {
+llvm::Optional<LifetimeDependenceKind>
+getLifetimeDependenceKind(const Token &T) {
+  if (T.isContextualKeyword("_copy")) {
+    return LifetimeDependenceKind::Copy;
+  }
+  if (T.isContextualKeyword("_consume")) {
+    return LifetimeDependenceKind::Consume;
+  }
+  if (T.isContextualKeyword("_borrow")) {
+    return LifetimeDependenceKind::Borrow;
+  }
+  if (T.isContextualKeyword("_mutate")) {
+    return LifetimeDependenceKind::Mutate;
+  }
+  return llvm::None;
+}
+
+ParserStatus Parser::parseLifetimeDependenceSpecifiers(
+    SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList,
+    SourceLoc &FirstEntryLoc, SourceLoc &LastEntryRParenLoc, bool allowIndex) {
+  ParserStatus status;
+
+  // TODO: Add fixits for diagnostics in this function.
+  do {
+    auto lifetimeDependenceKind = getLifetimeDependenceKind(Tok);
+    if (!lifetimeDependenceKind.has_value()) {
+      break;
+    }
+    if (FirstEntryLoc.isInvalid()) {
+      FirstEntryLoc = Tok.getLoc();
+    }
+    // consume the lifetime dependence kind
+    consumeToken();
+
+    if (!Tok.is(tok::l_paren)) {
+      diagnose(Tok, diag::expected_lparen_after_lifetime_dependence);
+      continue;
+    }
+    // consume the l_paren
+    consumeToken();
+
+    do {
+      auto loc = Tok.getLoc();
+      switch (Tok.getKind()) {
+      case tok::identifier: {
+        Identifier paramName;
+        auto paramLoc =
+            consumeIdentifier(paramName, /*diagnoseDollarPrefix=*/false);
+        specifierList.push_back(
+            LifetimeDependenceSpecifier::getNamedLifetimeDependenceSpecifier(
+                paramLoc, *lifetimeDependenceKind, paramName));
+        break;
+      }
+      case tok::integer_literal: {
+        SourceLoc paramLoc;
+        unsigned paramNum;
+        if (parseUnsignedInteger(
+                paramNum, paramLoc,
+                diag::expected_param_index_lifetime_dependence)) {
+          skipUntil(tok::comma, tok::r_paren);
+          continue;
+        }
+        specifierList.push_back(
+            LifetimeDependenceSpecifier::getOrderedLifetimeDependenceSpecifier(
+                paramLoc, *lifetimeDependenceKind, paramNum));
+        break;
+      }
+      case tok::kw_self: {
+        auto paramLoc = consumeToken(tok::kw_self);
+        specifierList.push_back(
+            LifetimeDependenceSpecifier::getSelfLifetimeDependenceSpecifier(
+                paramLoc, *lifetimeDependenceKind));
+        break;
+      }
+      default:
+        diagnose(
+            Tok,
+            diag::
+                expected_identifier_or_index_or_self_after_lifetime_dependence);
+        skipUntil(tok::comma, tok::r_paren);
+      }
+    } while (consumeIf(tok::comma));
+
+    if (!Tok.is(tok::r_paren)) {
+      diagnose(Tok, diag::expected_rparen_after_lifetime_dependence);
+      continue;
+    }
+    LastEntryRParenLoc = Tok.getLoc();
+    // consume the r_paren
+    consumeToken();
+  } while (true);
+
+  return status;
+}
+
+ParserResult<TypeRepr> Parser::parseQualifiedResultType(Diag<> MessageID) {
   GenericParamList *genericParams = nullptr;
   if (Context.LangOpts.hasFeature(Feature::NamedOpaqueTypes)) {
     auto result = maybeParseGenericParams();
@@ -670,16 +766,27 @@ ParserResult<TypeRepr> Parser::parseTypeWithOpaqueParams(Diag<> MessageID) {
       return makeParserCodeCompletionStatus();
   }
 
+  SmallVector<LifetimeDependenceSpecifier> specifierList;
+  SourceLoc firstEntrySourceLoc, lastEntrySourceLoc;
+
+  if (Context.LangOpts.hasFeature(Feature::NonescapableTypes)) {
+    auto status = parseLifetimeDependenceSpecifiers(
+        specifierList, firstEntrySourceLoc, lastEntrySourceLoc);
+  }
+
   auto typeResult = parseType(MessageID);
   if (auto type = typeResult.getPtrOrNull()) {
-    return makeParserResult(
-        ParserStatus(typeResult),
-        genericParams ? new (Context)
-                            NamedOpaqueReturnTypeRepr(type, genericParams)
-                      : type);
-  } else {
-    return typeResult;
+    if (genericParams) {
+      type = new (Context) NamedOpaqueReturnTypeRepr(type, genericParams);
+    }
+    if (!specifierList.empty()) {
+      type = LifetimeDependentReturnTypeRepr::create(
+          Context, type, specifierList, firstEntrySourceLoc,
+          lastEntrySourceLoc);
+    }
+    return makeParserResult(ParserStatus(typeResult), type);
   }
+  return typeResult;
 }
 
 ParserResult<TypeRepr> Parser::parseDeclResultType(Diag<> MessageID) {
@@ -691,7 +798,7 @@ ParserResult<TypeRepr> Parser::parseDeclResultType(Diag<> MessageID) {
     return makeParserCodeCompletionStatus();
   }
 
-  auto result = parseTypeWithOpaqueParams(MessageID);
+  auto result = parseQualifiedResultType(MessageID);
 
   if (!result.isParseErrorOrHasCompletion()) {
     if (Tok.is(tok::r_square)) {

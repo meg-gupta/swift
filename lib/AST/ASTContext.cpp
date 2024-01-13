@@ -4103,6 +4103,7 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
                                 Type result, llvm::Optional<ExtInfo> info) {
   Type thrownError;
   Type globalActor;
+
   if (info.has_value()) {
     thrownError = info->getThrownError();
     globalActor = info->getGlobalActor();
@@ -4142,9 +4143,14 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
       info.has_value() && !info.value().getClangTypeInfo().empty();
 
   unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0);
-  size_t allocSize = totalSizeToAlloc<
-      AnyFunctionType::Param, ClangTypeInfo, Type
-    >(params.size(), hasClangInfo ? 1 : 0, numTypes);
+
+  bool hasLifetimeDependenceInfo =
+      info.has_value() && !info.value().getLifetimeDependenceInfo().empty();
+
+  size_t allocSize = totalSizeToAlloc<AnyFunctionType::Param, ClangTypeInfo,
+                                      Type, LifetimeDependenceInfo>(
+      params.size(), hasClangInfo ? 1 : 0, numTypes,
+      hasLifetimeDependenceInfo ? 1 : 0);
   void *mem = ctx.Allocate(allocSize, alignof(FunctionType), arena);
 
   bool isCanonical = isAnyFunctionTypeCanonical(params, result);
@@ -4180,7 +4186,7 @@ FunctionType::FunctionType(ArrayRef<AnyFunctionType::Param> params, Type output,
   std::uninitialized_copy(params.begin(), params.end(),
                           getTrailingObjects<AnyFunctionType::Param>());
   if (info.has_value()) {
-    auto clangTypeInfo = info.value().getClangTypeInfo();
+    auto clangTypeInfo = info->getClangTypeInfo();
     if (!clangTypeInfo.empty())
       *getTrailingObjects<ClangTypeInfo>() = clangTypeInfo;
     unsigned thrownErrorIndex = 0;
@@ -4190,6 +4196,11 @@ FunctionType::FunctionType(ArrayRef<AnyFunctionType::Param> params, Type output,
     }
     if (Type thrownError = info->getThrownError())
       getTrailingObjects<Type>()[thrownErrorIndex] = thrownError;
+
+    auto lifetimeDependenceInfo = info->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      *getTrailingObjects<LifetimeDependenceInfo>() = lifetimeDependenceInfo;
+    }
   }
 }
 

@@ -50,6 +50,7 @@ namespace swift {
   class DiagnosticEngine;
   class Expr;
   class Lexer;
+  class LifetimeDependenceSpecifier;
   class PersistentParserState;
   class RequirementRepr;
   class SILParserStateBase;
@@ -59,7 +60,6 @@ namespace swift {
   class TupleType;
   class TypeLoc;
   class UUID;
-  
   struct EnumElementInfo;
 
   /// Different contexts in which BraceItemList are parsed.
@@ -1379,12 +1379,16 @@ public:
             ParseTypeReason reason = ParseTypeReason::Unspecified,
             bool fromASTGen = false);
 
-  /// Parse a type optionally prefixed by a list of named opaque parameters. If
-  /// no params present, return 'type'. Otherwise, return 'type-named-opaque'.
+  /// Parse a type optionally prefixed by a list of named opaque parameters
+  /// and/or lifetime dependence specifiers. If no params or lifetime dependence
+  /// specifiers are present, return 'type'. Otherwise, return
+  /// 'type-named-opaque-return'/'type-lifetime-dependent-return'.
   ///
   ///   type-named-opaque:
   ///     generic-params type
-  ParserResult<TypeRepr> parseTypeWithOpaqueParams(Diag<> MessageID);
+  ///   type-lifetime-dependent-return:
+  ///     copy/borrow/mutate/consume(paramName) type
+  ParserResult<TypeRepr> parseQualifiedResultType(Diag<> MessageID);
 
   ParserResult<TypeRepr>
     parseTypeSimpleOrComposition(Diag<> MessageID, ParseTypeReason reason);
@@ -1967,6 +1971,14 @@ public:
   ParserStatus
   parseProtocolOrAssociatedTypeWhereClause(TrailingWhereClause *&trailingWhere,
                                            bool isProtocol);
+
+  //===--------------------------------------------------------------------===//
+  // Lifetime dependence specifiers parsing
+
+  ParserStatus parseLifetimeDependenceSpecifiers(
+      SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList,
+      SourceLoc &FirstEntryLoc, SourceLoc &LastEntryRParenLoc,
+      bool allowIndex = false);
 
   //===--------------------------------------------------------------------===//
   // Availability Specification Parsing

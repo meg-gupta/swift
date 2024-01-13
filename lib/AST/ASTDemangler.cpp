@@ -388,10 +388,9 @@ void ASTBuilder::endPackExpansion() {
 }
 
 Type ASTBuilder::createFunctionType(
-    ArrayRef<Demangle::FunctionParam<Type>> params,
-    Type output, FunctionTypeFlags flags,
-    FunctionMetadataDifferentiabilityKind diffKind, Type globalActor,
-    Type thrownError) {
+    ArrayRef<Demangle::FunctionParam<Type>> params, Type output,
+    FunctionTypeFlags flags, FunctionMetadataDifferentiabilityKind diffKind,
+    Type globalActor, Type thrownError) {
   // The result type must be materializable.
   if (!output->isMaterializable()) return Type();
 
@@ -455,13 +454,14 @@ Type ASTBuilder::createFunctionType(
     clangFunctionType = Ctx.getClangFunctionType(funcParams, output,
                                                  representation);
 
-  auto einfo =
-      FunctionType::ExtInfoBuilder(representation, noescape, flags.isThrowing(),
-                                   thrownError, resultDiffKind,
-                                   clangFunctionType, globalActor)
-          .withAsync(flags.isAsync())
-          .withConcurrent(flags.isSendable())
-          .build();
+  // TODO: Handle LifetimeDependenceInfo in demangling.
+  auto einfo = FunctionType::ExtInfoBuilder(
+                   representation, noescape, flags.isThrowing(), thrownError,
+                   resultDiffKind, clangFunctionType, globalActor,
+                   LifetimeDependenceInfo())
+                   .withAsync(flags.isAsync())
+                   .withConcurrent(flags.isSendable())
+                   .build();
 
   return FunctionType::get(funcParams, output, einfo);
 }

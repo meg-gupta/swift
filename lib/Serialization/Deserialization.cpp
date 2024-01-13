@@ -6629,13 +6629,13 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
     globalActor = globalActorTy.get();
   }
 
-  auto info =
-      FunctionType::ExtInfoBuilder(*representation, noescape, throws,
-                                   thrownError, *diffKind,
-                                   clangFunctionType, globalActor)
-          .withConcurrent(concurrent)
-          .withAsync(async)
-          .build();
+  // TODO: Deserialize lifetime dependence info
+  auto info = FunctionType::ExtInfoBuilder(
+                  *representation, noescape, throws, thrownError, *diffKind,
+                  clangFunctionType, globalActor, LifetimeDependenceInfo())
+                  .withConcurrent(concurrent)
+                  .withAsync(async)
+                  .build();
 
   auto resultTy = MF.getTypeChecked(resultID);
   if (!resultTy)
