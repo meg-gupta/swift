@@ -679,6 +679,19 @@ internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
   }
 
   /// Traps unless the given `index` is valid for subscripting, i.e.
+  /// `0 ≤ index < count`, but only in debug mode.
+  ///
+  /// - Precondition: The buffer must be immutable.
+  @inlinable
+  @inline(__always)
+  internal func _debugCheckValidSubscript(_ index: Int) {
+    _debugPrecondition(
+      (index >= 0) && (index < immutableCount),
+      "Index out of range"
+    )
+  }
+
+  /// Traps unless the given `index` is valid for subscripting, i.e.
   /// `0 ≤ index < count`.
   ///
   /// - Precondition: The buffer must be mutable.
@@ -686,6 +699,19 @@ internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
   @inline(__always)
   internal func _checkValidSubscriptMutating(_ index: Int) {
     _precondition(
+      (index >= 0) && (index < mutableCount),
+      "Index out of range"
+    )
+  }
+
+  /// Traps unless the given `index` is valid for subscripting, i.e.
+  /// `0 ≤ index < count`, but only in debug builds.
+  ///
+  /// - Precondition: The buffer must be mutable.
+  @_alwaysEmitIntoClient
+  @inline(__always)
+  internal func _debugCheckValidSubscriptMutating(_ index: Int) {
+    _debugPrecondition(
       (index >= 0) && (index < mutableCount),
       "Index out of range"
     )
