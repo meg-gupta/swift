@@ -110,7 +110,7 @@ public func precondition(
       _assertionFailure("Precondition failed", message(), file: file, line: line,
         flags: _fatalErrorFlags())
     }
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     let error = !condition()
     Builtin.condfail_message(error._value,
       StaticString("precondition failure").unsafeRawPointer)
@@ -130,7 +130,7 @@ public func precondition(
       _assertionFailure("Precondition failed", message(), file: file, line: line,
         flags: _fatalErrorFlags())
     }
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     let error = !condition()
     Builtin.condfail_message(error._value,
       StaticString("precondition failure").unsafeRawPointer)
@@ -229,7 +229,7 @@ public func preconditionFailure(
   if _isDebugAssertConfiguration() {
     _assertionFailure("Fatal error", message(), file: file, line: line,
       flags: _fatalErrorFlags())
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     Builtin.condfail_message(true._value,
       StaticString("precondition failure").unsafeRawPointer)
   }
@@ -246,7 +246,7 @@ public func preconditionFailure(
   if _isDebugAssertConfiguration() {
     _assertionFailure("Fatal error", message(), file: file, line: line,
       flags: _fatalErrorFlags())
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     Builtin.condfail_message(true._value,
       StaticString("precondition failure").unsafeRawPointer)
   }
@@ -306,7 +306,7 @@ internal func _precondition(
       _assertionFailure("Fatal error", message, file: file, line: line,
         flags: _fatalErrorFlags())
     }
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     let error = !condition()
     Builtin.condfail_message(error._value, message.unsafeRawPointer)
   }
@@ -450,7 +450,7 @@ internal func _precondition(
       _assertionFailure("Fatal error", message, file: file, line: line,
         flags: _fatalErrorFlags())
     }
-  } else if _isReleaseAssertConfiguration() {
+  } else if _isReleaseAssertConfiguration() || _isReleaseAssertWithBoundsSafetyConfiguration() {
     #if !$Embedded
     let error = (!condition() && _isExecutableLinkedOnOrAfter(version))
     #else
