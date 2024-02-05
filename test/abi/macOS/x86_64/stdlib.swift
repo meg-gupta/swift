@@ -556,6 +556,19 @@ Added: _$ss7UInt128V8_lowWordSuvpMV
 Added: _$ss17FixedWidthIntegerP2amoiyxx_xtFZTj
 Added: _$ss17FixedWidthIntegerP2amoiyxx_xtFZTq
 
+Added: _$sSl15uncheckedBounds11SubSequenceQzSny5IndexQzG_tcigTj
+Added: _$sSl15uncheckedBounds11SubSequenceQzSny5IndexQzG_tcigTq
+Added: _$sSl9unchecked7ElementQz5IndexQz_tcirTj
+Added: _$sSl9unchecked7ElementQz5IndexQz_tcirTq
+
+// Property descriptors for newly-added, @_alwaysEmitIntoClient properties
+Added: _$sSa15uncheckedBoundss10ArraySliceVyxGSnySiG_tcipMV
+Added: _$sSa9uncheckedxSi_tcipMV
+Added: _$ss15ContiguousArrayV15uncheckedBoundss0B5SliceVyxGSnySiG_tcipMV
+Added: _$ss15ContiguousArrayV9uncheckedxSi_tcipMV
+Added: _$sSlsE15uncheckedBounds11SubSequenceQzSny5IndexQzG_tcipMV
+Added: _$sSlsE9unchecked7ElementQz5IndexQz_tcipMV
+
 // Runtime Symbols
 Added: __swift_pod_copy
 Added: __swift_pod_destroy
