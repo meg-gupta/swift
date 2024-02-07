@@ -165,6 +165,8 @@ public:
   bool hasBorrowLifetimeParamIndices() const {
     return borrowLifetimeParamIndices != nullptr;
   }
+  llvm::Optional<LifetimeDependenceKind>
+  getLifetimeDependenceFor(unsigned paramIndex);
 
   std::string getString() const;
   void Profile(llvm::FoldingSetNodeID &ID) const;

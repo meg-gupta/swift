@@ -481,6 +481,7 @@ protected:
                                FunctionManglingKind functionMangling);
 
   void appendFunctionInputType(ArrayRef<AnyFunctionType::Param> params,
+                               LifetimeDependenceInfo lifetimeDependenceInfo,
                                GenericSignature sig,
                                const ValueDecl *forDecl = nullptr);
   void appendFunctionResultType(Type resultType,
@@ -489,11 +490,17 @@ protected:
 
   void appendTypeList(Type listTy, GenericSignature sig,
                       const ValueDecl *forDecl = nullptr);
+
   void appendTypeListElement(Identifier name, Type elementType,
-                             ParameterTypeFlags flags,
                              GenericSignature sig,
                              const ValueDecl *forDecl = nullptr);
-
+  void appendParameterTypeListElement(
+      Identifier name, Type elementType, ParameterTypeFlags flags,
+      llvm::Optional<LifetimeDependenceKind> lifetimeDependenceKind,
+      GenericSignature sig, const ValueDecl *forDecl = nullptr);
+  void appendTupleTypeListElement(Identifier name, Type elementType,
+                                  GenericSignature sig,
+                                  const ValueDecl *forDecl = nullptr);
   /// Append a generic signature to the mangling.
   ///
   /// \param sig The generic signature.

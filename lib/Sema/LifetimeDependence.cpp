@@ -323,4 +323,19 @@ LifetimeDependenceInfo::get(AbstractFunctionDecl *afd, Type resultType,
   }
   return LifetimeDependenceInfo::infer(afd, resultType);
 }
+
+llvm::Optional<LifetimeDependenceKind>
+LifetimeDependenceInfo::getLifetimeDependenceFor(unsigned paramIndex) {
+  if (borrowLifetimeParamIndices) {
+    if (borrowLifetimeParamIndices->contains(paramIndex)) {
+      return LifetimeDependenceKind::Borrow;
+    }
+  }
+  if (inheritLifetimeParamIndices) {
+    if (inheritLifetimeParamIndices->contains(paramIndex)) {
+      return LifetimeDependenceKind::Copy;
+    }
+  }
+  return llvm::None;
+}
 } // namespace swift

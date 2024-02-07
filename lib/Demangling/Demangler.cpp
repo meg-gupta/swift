@@ -951,6 +951,12 @@ NodePointer Demangler::demangleTypeAnnotation() {
   case 't':
     return createType(
         createWithChild(Node::Kind::CompileTimeConst, popTypeAndGetChild()));
+  case 's':
+    return createType(createWithChild(Node::Kind::ScopedLifetimeDependence,
+                                      popTypeAndGetChild()));
+  case 'd':
+    return createType(createWithChild(Node::Kind::InheritLifetimeDependence,
+                                      popTypeAndGetChild()));
   default:
     return nullptr;
   }

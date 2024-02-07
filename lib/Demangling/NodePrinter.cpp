@@ -638,6 +638,8 @@ private:
     case Node::Kind::SymbolicExtendedExistentialType:
     case Node::Kind::HasSymbolQuery:
     case Node::Kind::ObjectiveCProtocolSymbolicReference:
+    case Node::Kind::ScopedLifetimeDependence:
+    case Node::Kind::InheritLifetimeDependence:
       return false;
     }
     printer_unreachable("bad node kind");
@@ -1709,6 +1711,14 @@ NodePointer NodePrinter::print(NodePointer Node, unsigned depth,
     Printer << "@noDerivative ";
     print(Node->getChild(0), depth + 1);
     return nullptr;
+  case Node::Kind::ScopedLifetimeDependence:
+    Printer << "resultHasScopedLifetimeDependenceOn";
+    print(Node->getChild(0), depth + 1);
+    return nullptr;
+  case Node::Kind::InheritLifetimeDependence:
+    Printer << "resultHasInheritLifetimeDependenceOn"; 
+    print(Node->getChild(0), depth + 1);
+    return nullptr; 
   case Node::Kind::NonObjCAttribute:
     Printer << "@nonobjc ";
     return nullptr;

@@ -2801,7 +2801,8 @@ void ASTMangler::appendFunctionSignature(AnyFunctionType *fn,
                                          const ValueDecl *forDecl,
                                          FunctionManglingKind functionMangling) {
   appendFunctionResultType(fn->getResult(), sig, forDecl);
-  appendFunctionInputType(fn->getParams(), sig, forDecl);
+  appendFunctionInputType(fn->getParams(), fn->getLifetimeDependenceInfo(), sig,
+                          forDecl);
   if (fn->isAsync())
     appendOperator("Ya");
   if (fn->isSendable())
@@ -2892,7 +2893,7 @@ getParameterFlagsForMangling(ParameterTypeFlags flags,
 
 void ASTMangler::appendFunctionInputType(
     ArrayRef<AnyFunctionType::Param> params,
-    GenericSignature sig,
+    LifetimeDependenceInfo lifetimeDependenceInfo, GenericSignature sig,
     const ValueDecl *forDecl) {
   auto defaultSpecifier = getDefaultOwnership(forDecl);
   
@@ -2913,10 +2914,12 @@ void ASTMangler::appendFunctionInputType(
       // of the input is no longer directly the type of the declaration, so we
       // don't want it to pick up contextual behavior, such as default ownership,
       // from the top-level declaration type.
-      appendTypeListElement(Identifier(), type,
-                        getParameterFlagsForMangling(param.getParameterFlags(),
-                                                     defaultSpecifier),
-                        sig, nullptr);
+      appendParameterTypeListElement(
+          Identifier(), type,
+          getParameterFlagsForMangling(param.getParameterFlags(),
+                                       defaultSpecifier),
+          lifetimeDependenceInfo.getLifetimeDependenceFor(/*paramIndex*/ 1),
+          sig, nullptr);
       break;
     }
 
@@ -2927,16 +2930,20 @@ void ASTMangler::appendFunctionInputType(
 
   default:
     bool isFirstParam = true;
+    unsigned paramIndex = 1; /* 0 is reserved for self*/
     for (auto &param : params) {
       // Note that we pass `nullptr` as the `forDecl` argument, since the type
       // of the input is no longer directly the type of the declaration, so we
       // don't want it to pick up contextual behavior, such as default ownership,
       // from the top-level declaration type.
-      appendTypeListElement(Identifier(), param.getPlainType(),
-                        getParameterFlagsForMangling(param.getParameterFlags(),
-                                                     defaultSpecifier),
-                        sig, nullptr);
+      appendParameterTypeListElement(
+          Identifier(), param.getPlainType(),
+          getParameterFlagsForMangling(param.getParameterFlags(),
+                                       defaultSpecifier),
+          lifetimeDependenceInfo.getLifetimeDependenceFor(paramIndex), sig,
+          nullptr);
       appendListSeparator(isFirstParam);
+      paramIndex++;
     }
     appendOperator("t");
     break;
@@ -2956,9 +2963,8 @@ void ASTMangler::appendTypeList(Type listTy, GenericSignature sig,
       return appendOperator("y");
     bool firstField = true;
     for (auto &field : tuple->getElements()) {
-      appendTypeListElement(field.getName(), field.getType(),
-                            ParameterTypeFlags(),
-                            sig, forDecl);
+      appendTupleTypeListElement(field.getName(), field.getType(), sig,
+                                 forDecl);
       appendListSeparator(firstField);
     }
   } else {
@@ -2967,10 +2973,19 @@ void ASTMangler::appendTypeList(Type listTy, GenericSignature sig,
   }
 }
 
-void ASTMangler::appendTypeListElement(Identifier name, Type elementType,
-                                       ParameterTypeFlags flags,
-                                       GenericSignature sig,
-                                       const ValueDecl *forDecl) {
+void ASTMangler::appendTupleTypeListElement(Identifier name, Type elementType,
+                                            GenericSignature sig,
+                                            const ValueDecl *forDecl) {
+  if (auto *fnType = elementType->getAs<FunctionType>())
+    appendFunctionType(fnType, sig, /*isAutoClosure*/ false, forDecl);
+  else
+    appendType(elementType, sig, forDecl);
+}
+
+void ASTMangler::appendParameterTypeListElement(
+    Identifier name, Type elementType, ParameterTypeFlags flags,
+    llvm::Optional<LifetimeDependenceKind> lifetimeDependenceKind,
+    GenericSignature sig, const ValueDecl *forDecl) {
   if (auto *fnType = elementType->getAs<FunctionType>())
     appendFunctionType(fnType, sig, flags.isAutoClosure(), forDecl);
   else
@@ -2998,6 +3013,15 @@ void ASTMangler::appendTypeListElement(Identifier name, Type elementType,
 
   if (flags.isCompileTimeConst())
     appendOperator("Yt");
+
+  if (lifetimeDependenceKind) {
+    if (*lifetimeDependenceKind == LifetimeDependenceKind::Borrow) {
+      appendOperator("Ys");
+    } else {
+      assert(*lifetimeDependenceKind == LifetimeDependenceKind::Copy);
+      appendOperator("Yd");
+    }
+  }
 
   if (!name.empty())
     appendIdentifier(name.str());

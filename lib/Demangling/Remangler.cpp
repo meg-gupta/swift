@@ -2090,6 +2090,18 @@ ManglingError Remangler::mangleNoDerivative(Node *node, unsigned depth) {
   return ManglingError::Success;
 }
 
+ManglingError Remangler::mangleScopedLifetimeDependence(Node *node, unsigned depth) {
+  RETURN_IF_ERROR(mangleSingleChildNode(node, depth + 1));
+  Buffer << "Ys";
+  return ManglingError::Success;
+}
+
+ManglingError Remangler::mangleInheritLifetimeDependence(Node *node, unsigned depth) {
+  RETURN_IF_ERROR(mangleSingleChildNode(node, depth + 1));
+  Buffer << "Yd";
+  return ManglingError::Success;
+}
+
 ManglingError Remangler::mangleInfixOperator(Node *node, unsigned depth) {
   mangleIdentifierImpl(node, /*isOperator*/ true);
   Buffer << "oi";

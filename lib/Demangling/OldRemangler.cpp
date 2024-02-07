@@ -1892,6 +1892,16 @@ ManglingError Remangler::mangleNoDerivative(Node *node, unsigned depth) {
   return mangleSingleChildNode(node, depth + 1); // type
 }
 
+ManglingError Remangler::mangleScopedLifetimeDependence(Node *node, unsigned depth) {
+  Buffer << "Ys";
+  return mangleSingleChildNode(node, depth + 1); // type
+}
+
+ManglingError Remangler::mangleInheritLifetimeDependence(Node *node, unsigned depth) {
+  Buffer << "Yd";
+  return mangleSingleChildNode(node, depth + 1); // type
+}
+
 ManglingError Remangler::mangleTuple(Node *node, unsigned depth) {
   size_t NumElems = node->getNumChildren();
   if (NumElems > 0 &&
