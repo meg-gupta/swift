@@ -167,7 +167,7 @@ public:
   bool hasBorrowLifetimeParamIndices() const {
     return scopeLifetimeParamIndices != nullptr;
   }
-  llvm::Optional<ParseableLifetimeDependenceKind>
+  llvm::Optional<LifetimeDependenceKind>
   getLifetimeDependenceFor(unsigned paramIndex);
 
   std::string getString() const;

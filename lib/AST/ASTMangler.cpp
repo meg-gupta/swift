@@ -2984,7 +2984,7 @@ void ASTMangler::appendTupleTypeListElement(Identifier name, Type elementType,
 
 void ASTMangler::appendParameterTypeListElement(
     Identifier name, Type elementType, ParameterTypeFlags flags,
-    llvm::Optional<ParseableLifetimeDependenceKind> lifetimeDependenceKind,
+    llvm::Optional<LifetimeDependenceKind> lifetimeDependenceKind,
     GenericSignature sig, const ValueDecl *forDecl) {
   if (auto *fnType = elementType->getAs<FunctionType>())
     appendFunctionType(fnType, sig, flags.isAutoClosure(), forDecl);
@@ -3015,10 +3015,10 @@ void ASTMangler::appendParameterTypeListElement(
     appendOperator("Yt");
 
   if (lifetimeDependenceKind) {
-    if (*lifetimeDependenceKind == ParseableLifetimeDependenceKind::Borrow) {
+    if (*lifetimeDependenceKind == LifetimeDependenceKind::Scope) {
       appendOperator("Ys");
     } else {
-      assert(*lifetimeDependenceKind == ParseableLifetimeDependenceKind::Copy);
+      assert(*lifetimeDependenceKind == LifetimeDependenceKind::Inherit);
       appendOperator("Yd");
     }
   }
