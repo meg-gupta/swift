@@ -5016,19 +5016,19 @@ ParserStatus Parser::parseTypeAttribute(TypeOrCustomAttr &result,
   llvm_unreachable("bad attribute kind");
 }
 
-static llvm::Optional<LifetimeDependenceKind>
+static llvm::Optional<ParseableLifetimeDependenceKind>
 getLifetimeDependenceKind(const Token &T) {
   if (T.isContextualKeyword("_copy")) {
-    return LifetimeDependenceKind::Copy;
+    return ParseableLifetimeDependenceKind::Copy;
   }
   if (T.isContextualKeyword("_consume")) {
-    return LifetimeDependenceKind::Consume;
+    return ParseableLifetimeDependenceKind::Consume;
   }
   if (T.isContextualKeyword("_borrow")) {
-    return LifetimeDependenceKind::Borrow;
+    return ParseableLifetimeDependenceKind::Borrow;
   }
   if (T.isContextualKeyword("_mutate")) {
-    return LifetimeDependenceKind::Mutate;
+    return ParseableLifetimeDependenceKind::Mutate;
   }
   return llvm::None;
 }

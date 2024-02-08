@@ -124,19 +124,19 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
       diags.diagnose(loc, diag::lifetime_dependence_missing_ownership_modifier);
       return true;
     }
-    if (kind == LifetimeDependenceKind::Borrow &&
+    if (kind == ParseableLifetimeDependenceKind::Borrow &&
         ownership != ValueOwnership::Shared) {
       diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind, "borrow",
                      getOwnershipSpelling(ownership));
       return true;
     }
-    if (kind == LifetimeDependenceKind::Mutate &&
+    if (kind == ParseableLifetimeDependenceKind::Mutate &&
         ownership != ValueOwnership::InOut) {
       diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind, "mutate",
                      getOwnershipSpelling(ownership));
       return true;
     }
-    if (kind == LifetimeDependenceKind::Consume &&
+    if (kind == ParseableLifetimeDependenceKind::Consume &&
         ownership != ValueOwnership::Owned) {
       diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind, "consume",
                      getOwnershipSpelling(ownership));
@@ -147,12 +147,12 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
       diags.diagnose(loc, diag::lifetime_dependence_duplicate_param_id);
       return true;
     }
-    if (kind == LifetimeDependenceKind::Copy ||
-        kind == LifetimeDependenceKind::Consume) {
+    if (kind == ParseableLifetimeDependenceKind::Copy ||
+        kind == ParseableLifetimeDependenceKind::Consume) {
       inheritLifetimeParamIndices.set(paramIndexToSet);
     } else {
-      assert(kind == LifetimeDependenceKind::Borrow ||
-             kind == LifetimeDependenceKind::Mutate);
+      assert(kind == ParseableLifetimeDependenceKind::Borrow ||
+             kind == ParseableLifetimeDependenceKind::Mutate);
       scopeLifetimeParamIndices.set(paramIndexToSet);
     }
     return false;
@@ -328,12 +328,12 @@ llvm::Optional<LifetimeDependenceKind>
 LifetimeDependenceInfo::getLifetimeDependenceFor(unsigned paramIndex) {
   if (scopeLifetimeParamIndices) {
     if (scopeLifetimeParamIndices->contains(paramIndex)) {
-      return LifetimeDependenceKind::Borrow;
+      return LifetimeDependenceKind::Scope;
     }
   }
   if (inheritLifetimeParamIndices) {
     if (inheritLifetimeParamIndices->contains(paramIndex)) {
-      return LifetimeDependenceKind::Copy;
+      return LifetimeDependenceKind::Inherit;
     }
   }
   return llvm::None;

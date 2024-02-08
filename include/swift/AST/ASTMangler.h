@@ -496,7 +496,7 @@ protected:
                              const ValueDecl *forDecl = nullptr);
   void appendParameterTypeListElement(
       Identifier name, Type elementType, ParameterTypeFlags flags,
-      llvm::Optional<LifetimeDependenceKind> lifetimeDependenceKind,
+      llvm::Optional<ParseableLifetimeDependenceKind> lifetimeDependenceKind,
       GenericSignature sig, const ValueDecl *forDecl = nullptr);
   void appendTupleTypeListElement(Identifier name, Type elementType,
                                   GenericSignature sig,

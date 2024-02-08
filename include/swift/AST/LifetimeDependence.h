@@ -31,12 +31,14 @@ namespace swift {
 class AbstractFunctionDecl;
 class LifetimeDependentReturnTypeRepr;
 
-enum class LifetimeDependenceKind : uint8_t {
+enum class ParseableLifetimeDependenceKind : uint8_t {
   Copy = 0,
   Consume,
   Borrow,
   Mutate
 };
+
+enum class LifetimeDependenceKind : uint8_t { Inherit = 0, Scope };
 
 class LifetimeDependenceSpecifier {
 public:
@@ -45,7 +47,7 @@ public:
 private:
   SourceLoc loc;
   SpecifierKind specifierKind;
-  LifetimeDependenceKind lifetimeDependenceKind;
+  ParseableLifetimeDependenceKind lifetimeDependenceKind;
   union Value {
     struct {
       Identifier name;
@@ -60,26 +62,26 @@ private:
     Value() {}
   } value;
 
-  LifetimeDependenceSpecifier(SourceLoc loc, SpecifierKind specifierKind,
-                              LifetimeDependenceKind lifetimeDependenceKind,
-                              Value value)
+  LifetimeDependenceSpecifier(
+      SourceLoc loc, SpecifierKind specifierKind,
+      ParseableLifetimeDependenceKind lifetimeDependenceKind, Value value)
       : loc(loc), specifierKind(specifierKind),
         lifetimeDependenceKind(lifetimeDependenceKind), value(value) {}
 
 public:
   static LifetimeDependenceSpecifier getNamedLifetimeDependenceSpecifier(
-      SourceLoc loc, LifetimeDependenceKind kind, Identifier name) {
+      SourceLoc loc, ParseableLifetimeDependenceKind kind, Identifier name) {
     return {loc, SpecifierKind::Named, kind, name};
   }
 
   static LifetimeDependenceSpecifier getOrderedLifetimeDependenceSpecifier(
-      SourceLoc loc, LifetimeDependenceKind kind, unsigned index) {
+      SourceLoc loc, ParseableLifetimeDependenceKind kind, unsigned index) {
     return {loc, SpecifierKind::Ordered, kind, index};
   }
 
   static LifetimeDependenceSpecifier
   getSelfLifetimeDependenceSpecifier(SourceLoc loc,
-                                     LifetimeDependenceKind kind) {
+                                     ParseableLifetimeDependenceKind kind) {
     return {loc, SpecifierKind::Self, kind, {}};
   }
 
@@ -87,7 +89,7 @@ public:
 
   SpecifierKind getSpecifierKind() const { return specifierKind; }
 
-  LifetimeDependenceKind getLifetimeDependenceKind() const {
+  ParseableLifetimeDependenceKind getLifetimeDependenceKind() const {
     return lifetimeDependenceKind;
   }
 
@@ -115,17 +117,17 @@ public:
 
   StringRef getLifetimeDependenceKindString() const {
     switch (lifetimeDependenceKind) {
-    case LifetimeDependenceKind::Borrow:
+    case ParseableLifetimeDependenceKind::Borrow:
       return "_borrow";
-    case LifetimeDependenceKind::Consume:
+    case ParseableLifetimeDependenceKind::Consume:
       return "_consume";
-    case LifetimeDependenceKind::Copy:
+    case ParseableLifetimeDependenceKind::Copy:
       return "_copy";
-    case LifetimeDependenceKind::Mutate:
+    case ParseableLifetimeDependenceKind::Mutate:
       return "_mutate";
     }
     llvm_unreachable(
-        "Invalid LifetimeDependenceSpecifier::LifetimeDependenceKind");
+        "Invalid LifetimeDependenceSpecifier::ParseableLifetimeDependenceKind");
   }
 };
 
@@ -165,7 +167,7 @@ public:
   bool hasBorrowLifetimeParamIndices() const {
     return scopeLifetimeParamIndices != nullptr;
   }
-  llvm::Optional<LifetimeDependenceKind>
+  llvm::Optional<ParseableLifetimeDependenceKind>
   getLifetimeDependenceFor(unsigned paramIndex);
 
   std::string getString() const;
