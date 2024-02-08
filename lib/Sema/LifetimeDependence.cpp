@@ -324,6 +324,18 @@ LifetimeDependenceInfo::get(AbstractFunctionDecl *afd, Type resultType,
   return LifetimeDependenceInfo::infer(afd, resultType);
 }
 
+LifetimeDependenceInfo
+LifetimeDependenceInfo::get(ASTContext &ctx,
+                            const SmallBitVector &inheritLifetimeIndices,
+                            const SmallBitVector &scopeLifetimeIndices) {
+  return LifetimeDependenceInfo{
+      inheritLifetimeIndices.any()
+          ? IndexSubset::get(ctx, inheritLifetimeIndices)
+          : nullptr,
+      scopeLifetimeIndices.any() ? IndexSubset::get(ctx, scopeLifetimeIndices)
+                                 : nullptr};
+}
+
 llvm::Optional<LifetimeDependenceKind>
 LifetimeDependenceInfo::getLifetimeDependenceFor(unsigned paramIndex) {
   if (scopeLifetimeParamIndices) {

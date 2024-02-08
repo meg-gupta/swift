@@ -1242,6 +1242,7 @@ class TargetParameterTypeFlags {
     AutoClosureMask       = 0x100,
     NoDerivativeMask      = 0x200,
     IsolatedMask          = 0x400,
+    LifetimeDependenceMask = 0x1000,
   };
   int_type Data;
 
@@ -1280,6 +1281,12 @@ public:
         (Data & ~IsolatedMask) | (isIsolated ? IsolatedMask : 0));
   }
 
+  constexpr TargetParameterTypeFlags<int_type>
+  withLifetimeDependence(LifetimeDependenceKind kind) const {
+    return TargetParameterTypeFlags<int_type>((Data & ~LifetimeDependenceMask) |
+                                              (int_type)kind);
+  }
+
   bool isNone() const { return Data == 0; }
   bool isVariadic() const { return Data & VariadicMask; }
   bool isAutoClosure() const { return Data & AutoClosureMask; }
@@ -1288,6 +1295,11 @@ public:
 
   ValueOwnership getValueOwnership() const {
     return (ValueOwnership)(Data & ValueOwnershipMask);
+  }
+
+  // MGTODO: right shift
+  LifetimeDependenceKind getLifetimeDependence() const {
+    return (LifetimeDependenceKind)(Data & LifetimeDependenceMask);
   }
 
   int_type getIntValue() const { return Data; }
@@ -2719,6 +2731,8 @@ public:
   /// Whether the this is a "distributed" actor function.
   FLAGSET_DEFINE_FLAG_ACCESSORS(Distributed, isDistributed, setDistributed)
 };
+
+enum class TargetLifetimeDependenceKind : uint8_t { Inherit = 0, Scope };
 
 } // end namespace swift
 

@@ -397,7 +397,12 @@ Type ASTBuilder::createFunctionType(
 
   bool hasIsolatedParameter = false;
 
+  SmallBitVector inheritLifetimeParamIndices(params.size() + 1);
+  SmallBitVector scopeLifetimeParamIndices(params.size() + 1);
+
   llvm::SmallVector<AnyFunctionType::Param, 8> funcParams;
+  unsigned paramIndex = 0;
+
   for (const auto &param : params) {
     auto type = param.getType();
 
@@ -418,6 +423,13 @@ Type ASTBuilder::createFunctionType(
 
     hasIsolatedParameter |= flags.isIsolated();
     funcParams.push_back(AnyFunctionType::Param(type, label, parameterFlags));
+
+    auto lifetimeDependence = flags.getLifetimeDependence();
+    if (lifetimeDependence == LifetimeDependenceKind::Scope) {
+      scopeLifetimeParamIndices.set(paramIndex);
+    } else if (lifetimeDependence == LifetimeDependenceKind::Inherit) {
+      inheritLifetimeParamIndices.set(paramIndex);
+    }
   }
 
   FunctionTypeRepresentation representation;
@@ -468,12 +480,14 @@ Type ASTBuilder::createFunctionType(
     clangFunctionType = Ctx.getClangFunctionType(funcParams, output,
                                                  representation);
 
-  // TODO: Handle LifetimeDependenceInfo here.
+  auto lifetimeDependenceInfo = LifetimeDependenceInfo::get(
+      Ctx, inheritLifetimeParamIndices, scopeLifetimeParamIndices);
+
   auto einfo =
       FunctionType::ExtInfoBuilder(representation, noescape, flags.isThrowing(),
                                    thrownError, resultDiffKind,
                                    clangFunctionType, isolation,
-                                   LifetimeDependenceInfo())
+                                   lifetimeDependenceInfo)
           .withAsync(flags.isAsync())
           .withConcurrent(flags.isSendable())
           .build();

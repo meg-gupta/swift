@@ -79,6 +79,9 @@ public:
   void setNoDerivative() { Flags = Flags.withNoDerivative(true); }
   void setIsolated() { Flags = Flags.withIsolated(true); }
   void setFlags(ParameterFlags flags) { Flags = flags; };
+  void setLifetimeDependence(LifetimeDependenceKind kind) {
+    Flags = Flags.withLifetimeDependence(kind);
+  }
 
   FunctionParam withLabel(StringRef label) const {
     return FunctionParam(label, Type, Flags);
@@ -1692,6 +1695,17 @@ private:
           param.setAutoClosure();
           hasParamFlags = true;
           recurse = false;
+          break;
+
+        case NodeKind::ScopedLifetimeDependence:
+          param.setLifetimeDependence(LifetimeDependenceKind::Scope);
+          node = node->getFirstChild();
+          hasParamFlags = true;
+          break;
+        case NodeKind::InheritLifetimeDependence:
+          param.setLifetimeDependence(LifetimeDependenceKind::Inherit);
+          node = node->getFirstChild();
+          hasParamFlags = true;
           break;
 
         default:

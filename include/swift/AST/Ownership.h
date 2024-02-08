@@ -155,6 +155,13 @@ static inline llvm::StringRef getOwnershipSpelling(ValueOwnership ownership) {
   }
   llvm_unreachable("Invalid ValueOwnership");
 }
+
+enum class LifetimeDependenceKind : uint8_t {
+  None = 0,
+  Inherit,
+  Scope
+};
+
 } // end namespace swift
 
 #endif
