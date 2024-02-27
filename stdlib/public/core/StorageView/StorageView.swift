@@ -398,6 +398,64 @@ extension StorageView where Element: _BitwiseCopyable {
 }
 #endif
 
+//MARK: integer offset subscripts
+extension StorageView where Element: ~Copyable {
+
+  //FIXME: lifetime-dependent on self
+  @inlinable @inline(__always)
+  public subscript(offset offset: Int) -> Element {
+    _read {
+      precondition(0 <= offset && offset < count)
+      yield self[uncheckedOffset: offset]
+    }
+  }
+
+  //FIXME: lifetime-dependent on self
+  @inlinable @inline(__always)
+  public subscript(uncheckedOffset offset: Int) -> Element {
+    _read {
+      yield self[unchecked: index(startIndex, offsetBy: offset)]
+    }
+  }
+
+  //FIXME: lifetime-dependent on self
+  @inlinable @inline(__always)
+  public subscript(offsets: Range<Int>) -> Self {
+    _read {
+      precondition(0 <= offsets.lowerBound && offsets.upperBound <= count)
+      yield self[uncheckedOffsets: offsets]
+    }
+  }
+
+  //FIXME: lifetime-dependent on self
+  @inlinable @inline(__always)
+  public subscript(uncheckedOffsets offsets: Range<Int>) -> Self {
+    _read {
+      yield StorageView(
+        start: index(startIndex, offsetBy: offsets.lowerBound),
+        count: offsets.count,
+        owner: self
+      )
+    }
+  }
+
+  //FIXME: lifetime-dependent on self
+  @_alwaysEmitIntoClient
+  public subscript(offsets: some RangeExpression<Int>) -> Self {
+    _read {
+      yield self[offsets.relative(to: 0..<count)]
+    }
+  }
+
+  //FIXME: lifetime-dependent on self
+  @_alwaysEmitIntoClient
+  public subscript(uncheckedOffsets offsets: some RangeExpression<Int>) -> Self {
+    _read {
+      yield self[uncheckedOffsets: offsets.relative(to: 0..<count)]
+    }
+  }
+}
+
 //MARK: withUnsafeRaw...
 #if hasFeature(BitwiseCopyable)
 extension StorageView where Element: _BitwiseCopyable {
@@ -517,26 +575,6 @@ extension StorageView where Element: _BitwiseCopyable {
   }
 }
 #endif
-
-//MARK: integer offset subscripts
-
-extension StorageView where Element: ~Copyable {
-
-  @inlinable @inline(__always)
-  public subscript(offset offset: Int) -> Element {
-    _read {
-      precondition(0 <= offset && offset < count)
-      yield self[uncheckedOffset: offset]
-    }
-  }
-
-  @inlinable @inline(__always)
-  public subscript(uncheckedOffset offset: Int) -> Element {
-    _read {
-      yield self[unchecked: index(startIndex, offsetBy: offset)]
-    }
-  }
-}
 
 extension StorageView where Element: Copyable {
   @inlinable
