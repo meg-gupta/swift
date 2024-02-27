@@ -371,11 +371,11 @@ public struct UnsafeRawPointer: _Pointer {
   /// - Returns: The return value, if any, of the `body` closure parameter.
   @inlinable
   @_alwaysEmitIntoClient
-  public func withMemoryRebound<T, Result>(
+  public func withMemoryRebound<T: ~Copyable, Result: ~Copyable, E: Error>(
     to type: T.Type,
     capacity count: Int,
-    _ body: (_ pointer: UnsafePointer<T>) throws -> Result
-  ) rethrows -> Result {
+    _ body: (_ pointer: UnsafePointer<T>) throws(E) -> Result
+  ) throws(E) -> Result {
     _debugPrecondition(
       Int(bitPattern: self) & (MemoryLayout<T>.alignment-1) == 0,
       "self must be a properly aligned pointer for type T"
@@ -940,11 +940,11 @@ public struct UnsafeMutableRawPointer: _Pointer {
   /// - Returns: The return value, if any, of the `body` closure parameter.
   @inlinable
   @_alwaysEmitIntoClient
-  public func withMemoryRebound<T, Result>(
+  public func withMemoryRebound<T: ~Copyable, Result: ~Copyable, E: Error>(
     to type: T.Type,
     capacity count: Int,
-    _ body: (_ pointer: UnsafeMutablePointer<T>) throws -> Result
-  ) rethrows -> Result {
+    _ body: (_ pointer: UnsafeMutablePointer<T>) throws(E) -> Result
+  ) throws(E) -> Result {
     _debugPrecondition(
       Int(bitPattern: self) & (MemoryLayout<T>.alignment-1) == 0,
       "self must be a properly aligned pointer for type T"
