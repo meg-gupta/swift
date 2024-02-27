@@ -15,7 +15,7 @@
 // A StorageView<Element> represents a span of memory which
 // contains initialized instances of `Element`.
 @frozen
-public struct StorageView<Element: ~Copyable /*& ~Escapable*/>: Copyable, ~Escapable {
+public struct StorageView<Element: ~Copyable & ~Escapable>: Copyable, ~Escapable {
   @usableFromInline let _start: Index
   @usableFromInline let _count: Int
 
