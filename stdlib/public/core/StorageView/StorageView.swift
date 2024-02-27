@@ -220,15 +220,17 @@ extension StorageView where Element: _BitwiseCopyable {
 }
 #endif
 
-//MARK: Collection, RandomAccessCollection
-extension StorageView where Element: ~Copyable {
-//  Collection,
-//  BidirectionalCollection,
-//  RandomAccessCollection
-
+//MARK: Collection typealiases
+extension StorageView where Element: ~Copyable & ~Escapable {
   public typealias Element = Element
-//  public typealias Index = StorageView<Element>.Index
   public typealias SubSequence = Self
+}
+
+//MARK: Index Manipulation
+extension StorageView where Element: ~Copyable & ~Escapable {
+  //  Collection,
+  //  BidirectionalCollection,
+  //  RandomAccessCollection
 
   @inlinable @inline(__always)
   public var startIndex: Index { _start }
@@ -283,6 +285,13 @@ extension StorageView where Element: ~Copyable {
   public func distance(from start: Index, to end: Index) -> Int {
     start.distance(to: end)
   }
+}
+
+//MARK: Index-based Subscripts
+extension StorageView where Element: ~Copyable {
+  //  Collection,
+  //  BidirectionalCollection,
+  //  RandomAccessCollection
 
   //FIXME: lifetime-dependent on self
   @inlinable @inline(__always)

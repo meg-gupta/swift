@@ -30,7 +30,7 @@ extension StorageView where Element: ~Copyable & ~Escapable {
   }
 }
 
-extension StorageView.Index where Element: ~Copyable {
+extension StorageView.Index where Element: ~Copyable & ~Escapable {
 
   @inlinable @inline(__always)
   var isAligned: Bool {
