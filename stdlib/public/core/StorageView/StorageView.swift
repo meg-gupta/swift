@@ -119,8 +119,8 @@ extension StorageView where Element: _BitwiseCopyable {
 
 extension StorageView/*: Sequence*/ where Element: Copyable & Escapable {
 
-  borrowing public func makeIterator() -> Iterator {
-    .init(from: startIndex, to: endIndex, owner: self)
+  public var iterator: Iterator {
+    borrowing _read { yield .init(owner: self) }
   }
 }
 
