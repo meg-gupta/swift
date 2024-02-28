@@ -513,6 +513,18 @@ extension StorageView where Element: ~Copyable {
       try body(.init(start: $0, count: count))
     }
   }
+// This should work:
+//  borrowing public func withUnsafeBufferPointer<
+//    Result: ~Copyable /*& ~Escapable*/,
+//    E: Error
+//  >(
+//    _ body: (UnsafeBufferPointer<Element>) throws(E) -> /*_borrow(0)*/ Result
+//  ) throws(E) -> /*_borrow(self)*/ Result {
+//    try _start._rawValue.withMemoryRebound(to: Element.self, capacity: count) {
+//      (pointer: UnsafePointer<Element>) throws(E) -> Result in
+//      try body(.init(start: pointer, count: count))
+//    }
+//  }
 
   //FIXME: mark closure parameter as non-escaping
   public func withContiguousStorageIfAvailable<R>(
