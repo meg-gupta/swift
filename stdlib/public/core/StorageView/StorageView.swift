@@ -34,7 +34,7 @@ public struct StorageView<Element: ~Copyable & ~Escapable>: Copyable, ~Escapable
 @available(*, unavailable)
 extension StorageView: Sendable {}
 
-extension StorageView where Element: ~Copyable {
+extension StorageView where Element: ~Copyable & ~Escapable {
 
   @inlinable @inline(__always)
   internal init<Owner: ~Copyable & ~Escapable>(
