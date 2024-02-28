@@ -135,7 +135,7 @@ public struct Span<Element: ~Copyable & ~Escapable>: Copyable, ~Escapable {
 @available(*, unavailable)
 extension Span: Sendable {}
 
-extension Span where Element: ~Copyable {
+extension Span where Element: ~Copyable & ~Escapable {
 
   @inlinable @inline(__always)
   internal init<Owner: ~Copyable & ~Escapable>(
