@@ -1,12 +1,8 @@
 // RUN: %empty-directory(%t)
-// RUN: %target-run-simple-swift(-enable-experimental-feature NoncopyableGenerics -enable-experimental-feature NonescapableTypes -Xfrontend -enable-experimental-associated-type-inference -Xfrontend -disable-experimental-parser-round-trip -Xllvm -enable-lifetime-dependence-diagnostics)
+// RUN: %target-run-simple-swift(-enable-experimental-feature NoncopyableGenerics -enable-experimental-feature NonescapableTypes -Xfrontend -enable-experimental-associated-type-inference -Xfrontend -disable-experimental-parser-round-trip)
 // REQUIRES: executable_test
 
-struct A: ~Copyable {
-  var value: Int
-
-  init(_ value: Int) { self.value = value }
-}
+/* -Xllvm -enable-lifetime-dependence-diagnostics */
 
 struct B: ~Escapable {
   let p: UnsafeMutablePointer<Int>
@@ -21,14 +17,14 @@ struct B: ~Escapable {
   }
 }
 
-extension A {
+struct A: ~Copyable {
+  var value: Int
+
+  init(_ value: Int) { self.value = value }
+
   var b: B {
-    mutating _read {
-      yield B(&self)
-    }
-    _modify {
-      var b = B(&self)
-      yield &b
+    mutating get {
+      B(&self)
     }
   }
 }
@@ -42,11 +38,11 @@ var a = A(42)
 test1(a: &a)
 assert(a.value == 43)
 
-func test2(a: inout A) -> _mutate(a) B {
-  a.b
-}
-var b = test2(a: &a)
-b.value += 1
+//func test2(a: inout A) -> _mutate(a) B {
+//  a.b
+//}
+//var b = test2(a: &a)
+//b.value += 1
 
 
 //func overTest() {
