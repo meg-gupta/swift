@@ -199,7 +199,8 @@
     "ContiguousStorage.swift",
     "StorageView.swift",
     "StorageViewIndex.swift",
-    "StorageViewIterator.swift"
+    "StorageViewIterator.swift",
+    "OutputBuffer.swift"
   ],
   "Protocols": [
     "CompilerProtocols.swift",
