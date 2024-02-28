@@ -74,9 +74,14 @@ test4(a)
 test4(array)
 test4(a.storage)
 
+typealias ContiguousStorage<T> = ContiguousStorageSpan<T> & ~Copyable & ~Escapable
 
+func test5(_ a: borrowing some ContiguousStorage<Int>) {
+  let span = a.storage
+  print(mean(span))
+}
 
-
+test5(a)
 
 
 
