@@ -1,10 +1,8 @@
 // RUN: %empty-directory(%t)
-// RUN: %target-run-simple-swift(-enable-experimental-feature BuiltinModule -enable-experimental-feature NoncopyableGenerics -enable-experimental-feature NonescapableTypes -Xfrontend -enable-experimental-associated-type-inference -Xfrontend -disable-experimental-parser-round-trip -Xllvm -enable-lifetime-dependence-diagnostics)
+// RUN: %target-run-simple-swift(-enable-experimental-feature BuiltinModule -enable-experimental-feature NoncopyableGenerics -enable-experimental-feature NonescapableTypes -Xfrontend -enable-experimental-associated-type-inference -Xfrontend -disable-experimental-parser-round-trip)
 // REQUIRES: executable_test
 
 /* -Xllvm -enable-lifetime-dependence-diagnostics */
-
-import Builtin
 
 let c = 10
 
@@ -34,14 +32,47 @@ extension A: ContiguousStorageSpan {
 }
 
 
+func mean(_ ints: Span<Int>) -> Double {
+  var t = 0
+  for o in ints.indices {
+    t += ints[o]
+  }
+  return Double(t)/Double(ints.count)
+}
 
+func test1(_ a: borrowing A) {
+  let span = a.storage
+  print(mean(span))
+}
 
+let a = A()
+test1(a)
 
+func test2(_ a: borrowing [Int]) {
+  let span = a.storage
+  print(mean(span))
+}
 
+let array = Array(0..<c)
+test2(array)
 
+func test3<S: ContiguousStorageSpan & ~Copyable & ~Escapable>(_ a: borrowing S) where S.Element == Int {
+  let span = a.storage
+  print(mean(span))
+}
 
+test3(a)
+test3(array)
+test3(a.storage)
 
+func test4(_ a: borrowing some ContiguousStorageSpan<Int> & ~Copyable & ~Escapable) {
+  let span = a.storage
+  print(mean(span))
+}
 
+test4(a)
+test4(array)
+test4(a.storage)
 
 
 
@@ -64,40 +95,7 @@ extension A: ContiguousStorageSpan {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import Builtin
 
 //===--- Span.swift ------------------------------------------------===//
 //
