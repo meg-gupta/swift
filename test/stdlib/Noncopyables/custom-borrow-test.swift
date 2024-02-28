@@ -1025,15 +1025,15 @@ extension Span: ContiguousStorageSpan where Element: ~Copyable & ~Escapable {
 
 extension Array: ContiguousStorageSpan {
   public var storage: Span<Element> {
-    borrowing _read {
+    borrowing get {
       if let a = _baseAddressIfContiguous {
-        yield Span(
+        return Span(
           unsafePointer: a, count: count, owner: self
         )
       }
       else {
         let a = ContiguousArray(copy self)
-        yield a.storage
+        return a.storage
       }
     }
   }
@@ -1041,8 +1041,8 @@ extension Array: ContiguousStorageSpan {
 
 extension ContiguousArray: ContiguousStorageSpan {
   public var storage: Span<Element> {
-    borrowing _read {
-      yield Span(
+    borrowing get {
+      Span(
         unsafePointer: _baseAddressIfContiguous!, count: count, owner: self
       )
     }
