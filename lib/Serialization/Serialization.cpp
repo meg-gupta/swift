@@ -3517,6 +3517,11 @@ private:
 
   void
   writeLifetimeDependenceInfo(LifetimeDependenceInfo lifetimeDependenceInfo) {
+    // No need to serialize implicit lifetime dependence info.
+    if (!lifetimeDependenceInfo.isExplicitlySpecified()) {
+      return;
+    }
+
     using namespace decls_block;
     SmallVector<bool> paramIndices;
     lifetimeDependenceInfo.getConcatenatedData(paramIndices);
@@ -4514,7 +4519,7 @@ public:
     // Write the body parameters.
     writeParameterList(fn->getParameters());
 
-    auto fnType = ty->getAs<FunctionType>();
+    auto fnType = ty->getAs<AnyFunctionType>();
     if (fnType && fnType->hasLifetimeDependenceInfo()) {
       assert(!fnType->getLifetimeDependenceInfo().empty());
       writeLifetimeDependenceInfo(fnType->getLifetimeDependenceInfo());
@@ -4638,6 +4643,12 @@ public:
 
     // Write the body parameters.
     writeParameterList(fn->getParameters());
+
+    auto fnType = ty->getAs<AnyFunctionType>();
+    if (fnType && fnType->hasLifetimeDependenceInfo()) {
+      assert(!fnType->getLifetimeDependenceInfo().empty());
+      writeLifetimeDependenceInfo(fnType->getLifetimeDependenceInfo());
+    }
 
     if (auto errorConvention = fn->getForeignErrorConvention())
       writeForeignErrorConvention(*errorConvention);
@@ -4801,7 +4812,7 @@ public:
     writeGenericParams(ctor->getGenericParams());
     writeParameterList(ctor->getParameters());
 
-    auto fnType = ty->getAs<FunctionType>();
+    auto fnType = ty->getAs<AnyFunctionType>();
     if (fnType && fnType->hasLifetimeDependenceInfo()) {
       assert(!fnType->getLifetimeDependenceInfo().empty());
       writeLifetimeDependenceInfo(fnType->getLifetimeDependenceInfo());
@@ -5516,6 +5527,19 @@ public:
     llvm_unreachable("bad kind");
   }
 
+  void serializeLifetimeDependenceInfo(
+      LifetimeDependenceInfo lifetimeDependenceInfo) {
+    using namespace decls_block;
+    SmallVector<bool> paramIndices;
+    lifetimeDependenceInfo.getConcatenatedData(paramIndices);
+
+    auto abbrCode = S.DeclTypeAbbrCodes[LifetimeDependenceLayout::Code];
+    LifetimeDependenceLayout::emitRecord(
+        S.Out, S.ScratchRecord, abbrCode,
+        lifetimeDependenceInfo.hasInheritLifetimeParamIndices(),
+        lifetimeDependenceInfo.hasScopeLifetimeParamIndices(), paramIndices);
+  }
+
   void visitFunctionType(const FunctionType *fnTy) {
     using namespace decls_block;
 
@@ -5542,6 +5566,11 @@ public:
         fnTy->hasTransferringResult());
 
     serializeFunctionTypeParams(fnTy);
+
+    auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      serializeLifetimeDependenceInfo(lifetimeDependenceInfo);
+    }
   }
 
   void visitGenericFunctionType(const GenericFunctionType *fnTy) {
@@ -5560,6 +5589,11 @@ public:
         S.addGenericSignatureRef(genericSig));
 
     serializeFunctionTypeParams(fnTy);
+
+    auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      serializeLifetimeDependenceInfo(lifetimeDependenceInfo);
+    }
   }
 
   void visitSILBlockStorageType(const SILBlockStorageType *storageTy) {
@@ -5648,6 +5682,10 @@ public:
         fnTy->getNumYields(), fnTy->getNumResults(),
         invocationSigID, invocationSubstMapID, patternSubstMapID,
         clangTypeID, variableData);
+    
+    if (auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfoOrNull()) {
+      serializeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+    }
   }
 
   void visitArraySliceType(const ArraySliceType *sliceTy) {

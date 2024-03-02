@@ -1060,6 +1060,9 @@ public:
   /// Reads a foreign async convention from \c DeclTypeCursor, if present.
   std::optional<ForeignAsyncConvention> maybeReadForeignAsyncConvention();
 
+  // Reads lifetime dependence info if present.
+  std::optional<LifetimeDependenceInfo>
+  maybeReadLifetimeDependence(unsigned numParams);
   bool maybeReadLifetimeDependence(
       SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList,
       unsigned numParams);

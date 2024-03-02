@@ -6,13 +6,12 @@
 
 // RUN: llvm-bcanalyzer %t/def_explicit_lifetime_dependence.swiftmodule 
 
-// RUN: %target-swift-frontend -module-name lifetime-dependence -emit-silgen -I %t %s \
+// RUN: %target-swift-frontend -module-name lifetime-dependence -emit-sil -I %t %s \
 // RUN: -enable-experimental-feature NonescapableTypes \
 // RUN: -disable-experimental-parser-round-trip \
 // RUN: -enable-experimental-feature NoncopyableGenerics | %FileCheck %s
 
-
-
+// CHECK: blahhh
 import def_explicit_lifetime_dependence
 
 func testBasic() {
@@ -45,3 +44,13 @@ func testInitializers() {
 // CHECK: sil @$s32def_explicit_lifetime_dependence16deriveThisOrThatyAA10BufferViewVADYls_ADYlstF : $@convention(thin) (@guaranteed BufferView, @guaranteed BufferView) -> _scope(1, 2) @owned BufferView
 
 // CHECK: sil @$s32def_explicit_lifetime_dependence10BufferViewVyACSW_SaySiGhYlstcfC : $@convention(method) (UnsafeRawBufferPointer, @guaranteed Array<Int>, @thin BufferView.Type) -> _scope(2) @owned BufferView
+func test() {
+  let capacity = 4
+  let a = Array(0..<capacity)
+  a.withUnsafeBytes {
+    let view = BufferView($0, a)
+    let w = Wrapper(view)
+    use(w.view)
+  }
+}
+

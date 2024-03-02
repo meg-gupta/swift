@@ -6,7 +6,7 @@
 
 // RUN: llvm-bcanalyzer %t/def_implicit_lifetime_dependence.swiftmodule 
 
-// RUN: %target-swift-frontend -module-name lifetime-dependence -emit-silgen -I %t %s \
+// RUN: %target-swift-frontend -module-name lifetime-dependence -emit-sil -I %t %s \
 // RUN: -enable-experimental-feature NonescapableTypes \
 // RUN: -disable-experimental-parser-round-trip \
 // RUN: -enable-experimental-feature NoncopyableGenerics | %FileCheck %s

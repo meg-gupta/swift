@@ -87,7 +87,7 @@ void LifetimeDependenceInfo::getConcatenatedData(
     }
     assert(!paramIndices->isEmpty());
 
-    for (unsigned i = 0; i < paramIndices->getCapacity(); i++) {
+    for (unsigned i = 0; i < paramIndices->getCapacity() + 1; i++) {
       if (paramIndices->contains(i)) {
         concatenatedData.push_back(true);
         continue;
@@ -261,8 +261,9 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
         return std::nullopt;
       }
       break;
+    
     }
-    }
+  }
   }
 
   return LifetimeDependenceInfo(
@@ -271,7 +272,8 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
           : nullptr,
       scopeLifetimeParamIndices.any()
           ? IndexSubset::get(ctx, scopeLifetimeParamIndices)
-          : nullptr);
+          : nullptr,
+      /*isExplicit*/ true);
 }
 
 std::optional<LifetimeDependenceInfo>

@@ -58,7 +58,7 @@ const uint16_t SWIFTMODULE_VERSION_MAJOR = 0;
 /// describe what change you made. The content of this comment isn't important;
 /// it just ensures a conflict if two people change the module format.
 /// Don't worry about adhering to the 80-column limit for this line.
-const uint16_t SWIFTMODULE_VERSION_MINOR = 855; // ref_adhoc_requirement_witness attributes are back
+const uint16_t SWIFTMODULE_VERSION_MINOR = 857; // serialize lifetime dependence in accessors
 
 /// A standard hash seed used for all string hashes in a serialized module.
 ///
@@ -1321,48 +1321,49 @@ namespace decls_block {
     BCArray<TypeIDField> // generic arguments
   );
 
-  TYPE_LAYOUT(GenericFunctionTypeLayout,
-    GENERIC_FUNCTION_TYPE,
-    TypeIDField,                     // output
-    FunctionTypeRepresentationField, // representation
-    BCFixed<1>,                      // concurrent?
-    BCFixed<1>,                      // async?
-    BCFixed<1>,                      // throws?
-    TypeIDField,                     // thrown error
-    DifferentiabilityKindField,      // differentiability kind
-    FunctionTypeIsolationField,      // isolation
-    BCFixed<1>,                      // has transferring result
-    GenericSignatureIDField          // generic signature
+  TYPE_LAYOUT(GenericFunctionTypeLayout, GENERIC_FUNCTION_TYPE,
+              TypeIDField,                     // output
+              FunctionTypeRepresentationField, // representation
+              BCFixed<1>,                      // concurrent?
+              BCFixed<1>,                      // async?
+              BCFixed<1>,                      // throws?
+              TypeIDField,                     // thrown error
+              DifferentiabilityKindField,      // differentiability kind
+              FunctionTypeIsolationField,      // isolation
+              BCFixed<1>,                      // has transferring result
+              GenericSignatureIDField          // generic signature
 
-    // trailed by parameters
+              // trailed by parameters
+              // Optionally lifetime dependence info
   );
 
-  TYPE_LAYOUT(SILFunctionTypeLayout,
-    SIL_FUNCTION_TYPE,
-    BCFixed<1>,                         // concurrent?
-    BCFixed<1>,                         // async?
-    SILCoroutineKindField,              // coroutine kind
-    ParameterConventionField,           // callee convention
-    SILFunctionTypeRepresentationField, // representation
-    BCFixed<1>,                         // pseudogeneric?
-    BCFixed<1>,                         // noescape?
-    BCFixed<1>,                         // unimplementable?
-    BCFixed<1>,                         // erased isolation?
-    DifferentiabilityKindField,         // differentiability kind
-    BCFixed<1>,                         // error result?
-    BCFixed<1>,                         // transferring result
-    BCVBR<6>,                           // number of parameters
-    BCVBR<5>,                           // number of yields
-    BCVBR<5>,                           // number of results
-    GenericSignatureIDField,            // invocation generic signature
-    SubstitutionMapIDField,             // invocation substitutions
-    SubstitutionMapIDField,             // pattern substitutions
-    ClangTypeIDField,    // clang function type, for foreign conventions
-    BCArray<TypeIDField> // parameter types/conventions, alternating
-                          // followed by result types/conventions, alternating
-                          // followed by error result type/convention
-    // Optionally a protocol conformance (for witness_methods)
-    // Optionally a substitution map (for substituted function types)
+  TYPE_LAYOUT(
+      SILFunctionTypeLayout, SIL_FUNCTION_TYPE,
+      BCFixed<1>,                         // concurrent?
+      BCFixed<1>,                         // async?
+      SILCoroutineKindField,              // coroutine kind
+      ParameterConventionField,           // callee convention
+      SILFunctionTypeRepresentationField, // representation
+      BCFixed<1>,                         // pseudogeneric?
+      BCFixed<1>,                         // noescape?
+      BCFixed<1>,                         // unimplementable?
+      BCFixed<1>,                         // erased isolation?
+      DifferentiabilityKindField,         // differentiability kind
+      BCFixed<1>,                         // error result?
+      BCFixed<1>,                         // transferring result
+      BCVBR<6>,                           // number of parameters
+      BCVBR<5>,                           // number of yields
+      BCVBR<5>,                           // number of results
+      GenericSignatureIDField,            // invocation generic signature
+      SubstitutionMapIDField,             // invocation substitutions
+      SubstitutionMapIDField,             // pattern substitutions
+      ClangTypeIDField,    // clang function type, for foreign conventions
+      BCArray<TypeIDField> // parameter types/conventions, alternating
+                           // followed by result types/conventions, alternating
+                           // followed by error result type/convention
+      // Optionally a protocol conformance (for witness_methods)
+      // Optionally a substitution map (for substituted function types)
+      // Optionally lifetime dependence info
   );
 
   TYPE_LAYOUT(SILBlockStorageTypeLayout,

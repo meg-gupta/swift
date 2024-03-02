@@ -593,6 +593,14 @@ SILDeserializer::readSILFunctionChecked(DeclID FID, SILFunction *existingFn,
   auto ty = getSILType(astType.get(), SILValueCategory::Object, nullptr);
   if (!ty.is<SILFunctionType>())
     return MF->diagnoseFatal("not a function type for SILFunction");
+  else {
+    auto *astfnty = astType.get()->getAs<AnyFunctionType>();
+    if (astfnty)
+    astfnty->dump();
+    SILFunctionType *fnty = ty.getAs<SILFunctionType>();
+    if (fnty)
+    fnty->dump(); 
+  }
 
   SILFunction *replacedFunction = nullptr;
   Identifier replacedObjectiveCFunc;

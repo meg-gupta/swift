@@ -55,3 +55,17 @@ public func deriveThisOrThat(_ this: borrowing BufferView, _ that: borrowing Buf
   return BufferView(that.ptr)
 }
 
+public struct Wrapper : ~Escapable {
+  var _view: BufferView
+  public init(_ view: consuming BufferView) {
+    self._view = view
+  }
+  public var view: BufferView {
+  borrowing  _read {
+      yield _view
+    }
+    _modify {
+      yield &_view
+    }
+  }
+}
