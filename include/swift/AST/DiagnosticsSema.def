@@ -7646,8 +7646,6 @@ NOTE(note_non_bitwise_copyable_type_indirect_enum_element,none,
      "indirect case is here", ())
 ERROR(non_bitwise_copyable_type_noncopyable,none,
       "noncopyable type cannot conform to 'BitwiseCopyable'", ())
-ERROR(non_bitwise_copyable_type_nonescapable,none,
-      "nonescapable type cannot conform to 'BitwiseCopyable'", ())
 ERROR(non_bitwise_copyable_type_cxx_nontrivial,none,
       "non-trivial C++ type cannot conform to 'BitwiseCopyable'", ())
 ERROR(non_bitwise_copyable_type_member,none,
