@@ -134,8 +134,7 @@ bool swift::canTriviallyDeleteOSSAEndScopeInst(SILInstruction *i) {
     return false;
 
   auto opValue = i->getOperand(0);
-  // We can delete destroy_value with operands of none ownership unless
-  // they are move-only values, which can have custom deinit
+  // TODO: Once rdar://124236086 is fixed, moveonly check can be removed.
   return opValue->getOwnershipKind() == OwnershipKind::None &&
          !opValue->getType().isMoveOnly();
 }

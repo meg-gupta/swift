@@ -14,7 +14,8 @@ import SIL
 
 extension DestroyValueInst : OnoneSimplifyable, SILCombineSimplifyable {
   func simplify(_ context: SimplifyContext) {
-    if destroyedValue.ownership == .none {
+    // TODO: Once rdar://124236086 is fixed, moveonly check can be removed.
+    if destroyedValue.ownership == .none && !destroyedValue.type.isMoveOnly {
       context.erase(instruction: self)
     }
   }
