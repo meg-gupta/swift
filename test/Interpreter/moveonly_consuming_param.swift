@@ -3,6 +3,7 @@
 
 // RUN: %target-run-simple-swift -enable-experimental-feature NoncopyableGenerics  | %FileCheck %s
 // RUN: %target-run-simple-swift(-enable-experimental-feature NoncopyableGenerics -O -Xfrontend -sil-verify-all) | %FileCheck %s
+// RUN: %target-run-simple-swift(-enable-experimental-feature NoncopyableGenerics -O -Xfrontend -sil-verify-all -Xfrontend -enable-ossa-modules) | %FileCheck %s
 
 // REQUIRES: executable_test
 
