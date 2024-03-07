@@ -547,7 +547,10 @@ static SILBasicBlock::iterator
 eliminateUnneededForwardingUnarySingleValueInst(SingleValueInstruction *inst,
                                                 CanonicalizeInstruction &pass) {
   auto next = std::next(inst->getIterator());
-
+  // TODO: Once rdar://124236086 is fixed, moveonly check can be removed.
+  if (inst->getType().isMoveOnly()) {
+    return next;
+  }
   for (auto *use : getNonDebugUses(inst))
     if (!isa<DestroyValueInst>(use->getUser()))
       return next;
