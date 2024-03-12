@@ -390,12 +390,16 @@ static bool tryToUnrollLoop(SILLoop *Loop) {
 
   LLVM_DEBUG(llvm::dbgs() << "Trying to unroll loop : \n" << *Loop);
   auto *Preheader = Loop->getLoopPreheader();
-  if (!Preheader)
+  if (!Preheader) {
+    LLVM_DEBUG(llvm::dbgs() << "No preheader\n");
     return false;
+  }
 
   auto *Latch = Loop->getLoopLatch();
-  if (!Latch)
+  if (!Latch) {
+    LLVM_DEBUG(llvm::dbgs() << "No latch\n");
     return false;
+  }
 
   auto *Header = Loop->getHeader();
 
