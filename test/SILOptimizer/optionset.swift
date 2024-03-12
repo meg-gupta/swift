@@ -35,8 +35,8 @@ public func returnTestOptions() -> TestOptions {
 // CHECK:      bb0:
 // CHECK-NEXT:   integer_literal {{.*}}, 0
 // CHECK-NEXT:   struct $Int
-// CHECK:        builtin "onFastPath"() : $()
-// CHECK-NEXT:   struct $TestOptions
+// CHECK:        struct $TestOptions
+// CHECK-NEXT:   builtin "onFastPath"() : $()
 // CHECK-NEXT:   return
 // CHECK:      } // end sil function '$s4test22returnEmptyTestOptionsAA0dE0VyF'
 public func returnEmptyTestOptions() -> TestOptions {

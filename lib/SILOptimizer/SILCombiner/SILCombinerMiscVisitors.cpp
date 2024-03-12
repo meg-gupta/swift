@@ -166,21 +166,13 @@ SILInstruction *SILCombiner::visitSwitchEnumAddrInst(SwitchEnumAddrInst *SEAI) {
   SILValue Addr = SEAI->getOperand();
 
   // Convert switch_enum_addr -> br
-  //
-  // If the only thing which writes to the address is an inject_enum_addr. We
-  // only perform these optimizations when we are not in OSSA since this
-  // eliminates an edge from the CFG and we want SILCombine in OSSA to never do
-  // that, so in the future we can invalidate less.
-  if (!SEAI->getFunction()->hasOwnership()) {
-    if (EnumElementDecl *EnumCase = getInjectEnumCaseTo(Addr)) {
-      SILBasicBlock *Dest = SEAI->getCaseDestination(EnumCase);
-      // If the only instruction which writes to Addr is an inject_enum_addr we
-      // know that there cannot be an enum payload.
-      assert(Dest->getNumArguments() == 0 &&
-             "didn't expect a payload argument");
-      Builder.createBranch(SEAI->getLoc(), Dest);
-      return eraseInstFromFunction(*SEAI);
-    }
+  if (EnumElementDecl *EnumCase = getInjectEnumCaseTo(Addr)) {
+    SILBasicBlock *Dest = SEAI->getCaseDestination(EnumCase);
+    // If the only instruction which writes to Addr is an inject_enum_addr we
+    // know that there cannot be an enum payload.
+    assert(Dest->getNumArguments() == 0 && "didn't expect a payload argument");
+    Builder.createBranch(SEAI->getLoc(), Dest);
+    return eraseInstFromFunction(*SEAI);
   }
 
   SILType Ty = Addr->getType();
@@ -945,8 +937,7 @@ static SILValue createValueFromAddr(SILValue addr, SILBuilder *builder,
 /// We leave the cleaning up to mem2reg.
 SILInstruction *
 SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
-  if (IEAI->getFunction()->hasOwnership())
-    return nullptr;
+  auto *func = IEAI->getFunction();
 
   // Given an inject_enum_addr of a concrete type without payload, promote it to
   // a store of an enum. Mem2reg/load forwarding will clean things up for us. We
@@ -1077,7 +1068,11 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
       Builder.createEnum(IEAI->getLoc(), SILValue(), IEAI->getElement(),
                           IEAI->getOperand()->getType().getObjectType());
     Builder.createStore(IEAI->getLoc(), E, IEAI->getOperand(),
-                        StoreOwnershipQualifier::Unqualified);
+                        !func->hasOwnership()
+                            ? StoreOwnershipQualifier::Unqualified
+                        : IEAI->getOperand()->getType().isTrivial(*func)
+                            ? StoreOwnershipQualifier::Trivial
+                            : StoreOwnershipQualifier::Init);
     return eraseInstFromFunction(*IEAI);
   }
 
@@ -1195,7 +1190,11 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
         DataAddrInst->getLoc(), en, DataAddrInst->getElement(),
         DataAddrInst->getOperand()->getType().getObjectType());
     Builder.createStore(DataAddrInst->getLoc(), E, DataAddrInst->getOperand(),
-                        StoreOwnershipQualifier::Unqualified);
+                        !func->hasOwnership()
+                            ? StoreOwnershipQualifier::Unqualified
+                        : DataAddrInst->getOperand()->getType().isTrivial(*func)
+                            ? StoreOwnershipQualifier::Trivial
+                            : StoreOwnershipQualifier::Init);
     // Cleanup.
     getInstModCallbacks().notifyWillBeDeleted(DataAddrInst);
     deleter.forceDeleteWithUsers(DataAddrInst);
@@ -1246,7 +1245,6 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
                                               EnumInitOperand->get()->getType());
   EnumInitOperand->set(AllocStack);
   Builder.setInsertionPoint(std::next(SILBasicBlock::iterator(AI)));
-  SILValue enumValue;
 
   // If it is an empty type, apply may not initialize it.
   // Create an empty value of the empty type and store it to a new local.
@@ -1257,14 +1255,20 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
         elemType.getObjectType(), &*Builder.getInsertionPoint(),
         Builder.getBuilderContext(), /*noUndef*/ true);
   } else {
-    enumValue = Builder.createLoad(DataAddrInst->getLoc(), AllocStack,
-                                   LoadOwnershipQualifier::Unqualified);
+  SILValue Load(Builder.createLoad(DataAddrInst->getLoc(), AllocStack,
+      !func->hasOwnership() ? LoadOwnershipQualifier::Unqualified
+      : AllocStack->getType().isTrivial(*func) ? LoadOwnershipQualifier::Trivial
+                                   LoadOwnershipQualifier::Unqualified));
   }
   EnumInst *E = Builder.createEnum(
       DataAddrInst->getLoc(), enumValue, DataAddrInst->getElement(),
       DataAddrInst->getOperand()->getType().getObjectType());
   Builder.createStore(DataAddrInst->getLoc(), E, DataAddrInst->getOperand(),
-                      StoreOwnershipQualifier::Unqualified);
+                      !func->hasOwnership()
+                          ? StoreOwnershipQualifier::Unqualified
+                      : DataAddrInst->getOperand()->getType().isTrivial(*func)
+                          ? StoreOwnershipQualifier::Trivial
+                          : StoreOwnershipQualifier::Init);
   Builder.createDeallocStack(DataAddrInst->getLoc(), AllocStack);
   eraseInstFromFunction(*DataAddrInst);
   return eraseInstFromFunction(*IEAI);
