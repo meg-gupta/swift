@@ -1245,6 +1245,7 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
                                               EnumInitOperand->get()->getType());
   EnumInitOperand->set(AllocStack);
   Builder.setInsertionPoint(std::next(SILBasicBlock::iterator(AI)));
+  SILValue enumValue;
 
   // If it is an empty type, apply may not initialize it.
   // Create an empty value of the empty type and store it to a new local.
@@ -1255,10 +1256,10 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
         elemType.getObjectType(), &*Builder.getInsertionPoint(),
         Builder.getBuilderContext(), /*noUndef*/ true);
   } else {
-  SILValue Load(Builder.createLoad(DataAddrInst->getLoc(), AllocStack,
+    enumValue = Load(Builder.createLoad(DataAddrInst->getLoc(), AllocStack,
       !func->hasOwnership() ? LoadOwnershipQualifier::Unqualified
-      : AllocStack->getType().isTrivial(*func) ? LoadOwnershipQualifier::Trivial
-                                   LoadOwnershipQualifier::Unqualified));
+      : AllocStack->getType().isTrivial(*func) ? LoadOwnershipQualifier::Trivial :
+                                   LoadOwnershipQualifier::Take));
   }
   EnumInst *E = Builder.createEnum(
       DataAddrInst->getLoc(), enumValue, DataAddrInst->getElement(),
