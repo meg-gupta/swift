@@ -4027,10 +4027,14 @@ NeverNullType TypeResolver::resolveASTFunctionType(
   // TODO: maybe make this the place that claims @escaping.
   bool noescape = isDefaultNoEscapeContext(parentOptions);
 
+  auto lifetimeDependenceInfo = LifetimeDependenceInfo::fromTypeRepr(AFD, resultTy);
+
   FunctionType::ExtInfoBuilder extInfoBuilder(
       FunctionTypeRepresentation::Swift, noescape, repr->isThrowing(), thrownTy,
       diffKind, /*clangFunctionType*/ nullptr, isolation,
-      LifetimeDependenceInfo(), hasTransferringResult);
+      lifetimeDependenceInfo.has_value() ? *lifetimeDependenceInfo
+                                         : LifetimeDependenceInfo(),
+      hasTransferringResult);
 
   const clang::Type *clangFnType = parsedClangFunctionType;
   if (shouldStoreClangType(representation) && !clangFnType)

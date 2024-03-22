@@ -40,7 +40,7 @@ enum class ParsedLifetimeDependenceKind : uint8_t {
 
 enum class LifetimeDependenceKind : uint8_t { Inherit = 0, Scope };
 
-class LifetimeDependenceSpecifier {
+class LifetimeDependenceSpecifier final {
 public:
   enum class SpecifierKind { Named, Ordered, Self };
 

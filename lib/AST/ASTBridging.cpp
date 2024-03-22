@@ -1422,9 +1422,9 @@ BridgedArrowExpr BridgedArrowExpr_createParsed(BridgedASTContext cContext,
                                                BridgedSourceLoc cThrowsLoc,
                                                BridgedNullableExpr cThrownType,
                                                BridgedSourceLoc cArrowLoc) {
-  return new (cContext.unbridged())
-      ArrowExpr(cAsyncLoc.unbridged(), cThrowsLoc.unbridged(),
-                cThrownType.unbridged(), cArrowLoc.unbridged());
+  return ArrowExpr::create(cContext.unbridged(), cAsyncLoc.unbridged(),
+                           cThrowsLoc.unbridged(), cThrownType.unbridged(),
+                           cArrowLoc.unbridged(), {});
 }
 
 BridgedAssignExpr BridgedAssignExpr_createParsed(BridgedASTContext cContext,

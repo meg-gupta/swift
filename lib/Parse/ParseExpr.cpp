@@ -163,7 +163,14 @@ ParserResult<Expr> Parser::parseExprArrow() {
     thrownTy = new (Context) TypeExpr(thrownTyRepr);
   }
 
-  auto arrow = new (Context) ArrowExpr(asyncLoc, throwsLoc, thrownTy, arrowLoc);
+  SmallVector<LifetimeDependenceSpecifier> lifetimeDependenceSpecifiers;
+  if (isLifetimeDependenceToken()) {
+    status |= parseLifetimeDependenceSpecifiers(lifetimeDependenceSpecifiers);
+  }
+
+  auto *arrow =
+      ArrowExpr::create(Context, asyncLoc, throwsLoc, thrownTy, arrowLoc,
+                        std::move(lifetimeDependenceSpecifiers));
   return makeParserResult(arrow);
 }
 

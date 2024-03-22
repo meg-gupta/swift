@@ -4755,6 +4755,11 @@ void PrintAST::visitArrowExpr(ArrowExpr *expr) {
     Printer << " throws";
   }
   Printer << " -> ";
+
+  for (auto &dep : expr->getLifetimeDependenceSpecifiers()) {
+    Printer << " " << dep.getLifetimeDependenceSpecifierString() << " ";
+  }
+
   visit(expr->getResultExpr());
 }
 

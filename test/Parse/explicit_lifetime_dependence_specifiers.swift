@@ -154,3 +154,12 @@ struct Wrapper : ~Escapable {
     return view
   }
 }
+
+enum MyError: Error {
+   case epicFail
+}
+
+func testTypeExprs() {
+  _ = [(BufferView) -> dependsOn(1) BufferView]()
+  let _ = [(Int, Int) throws(MyError) -> Int]()
+}

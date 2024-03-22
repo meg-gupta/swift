@@ -5073,6 +5073,12 @@ static ParsedLifetimeDependenceKind getSILLifetimeDependenceKind(const Token &T)
 ParserStatus Parser::parseLifetimeDependenceSpecifiers(
     SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList) {
   ParserStatus status;
+  assert(isLifetimeDependenceToken());
+  if (!Context.LangOpts.hasFeature(Feature::NonescapableTypes)) {
+    diagnose(Tok, diag::requires_experimental_feature,
+             "lifetime dependence specifier", false,
+             getFeatureName(Feature::NonescapableTypes));
+  }
   // TODO: Add fixits for diagnostics in this function.
   do {
     if (!isLifetimeDependenceToken()) {
@@ -5480,11 +5486,6 @@ ParserStatus Parser::ParsedTypeAttributeList::slowParse(Parser &P) {
     }
 
     if (P.isLifetimeDependenceToken()) {
-      if (!P.Context.LangOpts.hasFeature(Feature::NonescapableTypes)) {
-        P.diagnose(Tok, diag::requires_experimental_feature,
-                   "lifetime dependence specifier", false,
-                   getFeatureName(Feature::NonescapableTypes));
-      }
       status |=
           P.parseLifetimeDependenceSpecifiers(lifetimeDependenceSpecifiers);
       continue;

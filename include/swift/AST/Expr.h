@@ -259,6 +259,11 @@ protected:
     : 16 - NumExprBits, // Align and leave room for subclasses
     Discriminator : 16
   );
+  
+  SWIFT_INLINE_BITFIELD_FULL(ArrowExpr, Expr, 16,
+    : NumPadBits,
+    NumElements : 16
+  );
 
   SWIFT_INLINE_BITFIELD(AutoClosureExpr, AbstractClosureExpr, 2,
     /// If the autoclosure was built for a curry thunk, the thunk kind is
@@ -5289,7 +5294,11 @@ public:
 /// Represents two expressions joined by the arrow operator '->', which
 /// may be preceded by the 'throws' keyword. Currently this only exists to be
 /// transformed into a FunctionTypeRepr by simplifyTypeExpr() in Sema.
-class ArrowExpr : public Expr {
+class ArrowExpr final
+    : public Expr,
+      private llvm::TrailingObjects<ArrowExpr, LifetimeDependenceSpecifier> {
+  friend TrailingObjects;
+
   SourceLoc AsyncLoc;
   SourceLoc ThrowsLoc;
   SourceLoc ArrowLoc;
@@ -5297,7 +5306,10 @@ class ArrowExpr : public Expr {
   Expr *Result;
   Expr *ThrownType;
 
-public:
+  size_t numTrailingObjects(OverloadToken<LifetimeDependenceSpecifier>) const {
+    return getNumElements();
+  }
+
   ArrowExpr(Expr *Args, SourceLoc AsyncLoc, SourceLoc ThrowsLoc,
             Expr *ThrownType, SourceLoc ArrowLoc, Expr *Result)
     : Expr(ExprKind::Arrow, /*implicit=*/false, Type()),
@@ -5306,11 +5318,24 @@ public:
   { }
 
   ArrowExpr(SourceLoc AsyncLoc, SourceLoc ThrowsLoc, Expr *ThrownType,
-            SourceLoc ArrowLoc)
-    : Expr(ExprKind::Arrow, /*implicit=*/false, Type()),
-      AsyncLoc(AsyncLoc), ThrowsLoc(ThrowsLoc), ArrowLoc(ArrowLoc),
-      Args(nullptr), Result(nullptr), ThrownType(ThrownType)
-  { }
+            SourceLoc ArrowLoc,
+            ArrayRef<LifetimeDependenceSpecifier> lifetimeDependenceSpecifiers)
+      : Expr(ExprKind::Arrow, /*implicit=*/false, Type()), AsyncLoc(AsyncLoc),
+        ThrowsLoc(ThrowsLoc), ArrowLoc(ArrowLoc), Args(nullptr),
+        Result(nullptr), ThrownType(ThrownType) {
+    Bits.ArrowExpr.NumElements = lifetimeDependenceSpecifiers.size();
+    std::uninitialized_copy(lifetimeDependenceSpecifiers.begin(),
+                            lifetimeDependenceSpecifiers.end(),
+                            getTrailingObjects<LifetimeDependenceSpecifier>());
+  }
+
+public:
+  static ArrowExpr *
+  create(ASTContext &C, SourceLoc AsyncLoc, SourceLoc ThrowsLoc,
+         Expr *ThrownType, SourceLoc ArrowLoc,
+         ArrayRef<LifetimeDependenceSpecifier> lifetimeDependenceSpecifiers);
+
+  unsigned getNumElements() const { return Bits.ArrowExpr.NumElements; }
 
   Expr *getArgsExpr() const { return Args; }
   void setArgsExpr(Expr *E) { Args = E; }
@@ -5322,6 +5347,12 @@ public:
   SourceLoc getAsyncLoc() const { return AsyncLoc; }
   SourceLoc getThrowsLoc() const { return ThrowsLoc; }
   SourceLoc getArrowLoc() const { return ArrowLoc; }
+  ArrayRef<LifetimeDependenceSpecifier>
+  getLifetimeDependenceSpecifiers() const {
+    return {getTrailingObjects<LifetimeDependenceSpecifier>(),
+            getNumElements()};
+  }
+
   bool isFolded() const { return Args != nullptr && Result != nullptr; }
 
   SourceLoc getSourceLoc() const { return ArrowLoc; }

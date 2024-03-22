@@ -1529,6 +1529,17 @@ Type ArrayExpr::getElementType() {
       .subst(init.getSubstitutions());
 }
 
+ArrowExpr *ArrowExpr::create(
+    ASTContext &C, SourceLoc AsyncLoc, SourceLoc ThrowsLoc, Expr *ThrownType,
+    SourceLoc ArrowLoc,
+    ArrayRef<LifetimeDependenceSpecifier> lifetimeDependenceSpecifiers) {
+  auto Size = totalSizeToAlloc<LifetimeDependenceSpecifier>(
+      lifetimeDependenceSpecifiers.size());
+  auto Mem = C.Allocate(Size, alignof(ArrowExpr));
+  return new (Mem) ArrowExpr(AsyncLoc, ThrowsLoc, ThrownType, ArrowLoc,
+                             lifetimeDependenceSpecifiers);
+}
+
 Type DictionaryExpr::getElementType() {
   auto init = getInitializer();
   if (!init)

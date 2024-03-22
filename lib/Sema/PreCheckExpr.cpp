@@ -2101,6 +2101,12 @@ TypeExpr *PreCheckExpression::simplifyTypeExpr(Expr *E) {
           ErrorTypeRepr::create(Ctx, AE->getResultExpr()->getSourceRange());
     }
 
+    auto lifetimeDependenceSpecifiers = AE->getLifetimeDependenceSpecifiers();
+    if (!lifetimeDependenceSpecifiers.empty()) {
+      ResultTypeRepr = LifetimeDependentReturnTypeRepr::create(
+          Ctx, ResultTypeRepr, lifetimeDependenceSpecifiers);
+    }
+
     auto NewTypeRepr = new (Ctx)
         FunctionTypeRepr(nullptr, ArgsTypeRepr, AE->getAsyncLoc(),
                          AE->getThrowsLoc(), ThrownTypeRepr, AE->getArrowLoc(),
