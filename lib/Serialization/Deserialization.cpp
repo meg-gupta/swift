@@ -3646,7 +3646,8 @@ public:
 
     SmallVector<LifetimeDependenceSpecifier> specifierList;
     if (MF.maybeReadLifetimeDependenceSpecifier(specifierList,
-                                                bodyParams->size())) {
+                                                bodyParams->size(),
+                                                /*hasSelf*/ true)) {
       auto SelfType = ctor->getDeclaredInterfaceType();
       auto typeRepr = new (ctx) FixedTypeRepr(SelfType, SourceLoc());
       auto lifetimeTypeRepr =
@@ -4223,8 +4224,8 @@ public:
     ParameterList *paramList = MF.readParameterList();
     fn->setParameters(paramList);
     SmallVector<LifetimeDependenceSpecifier> specifierList;
-    if (MF.maybeReadLifetimeDependenceSpecifier(specifierList,
-                                                paramList->size())) {
+    if (MF.maybeReadLifetimeDependenceSpecifier(
+            specifierList, paramList->size(), fn->hasImplicitSelfDecl())) {
       auto typeRepr = new (ctx) FixedTypeRepr(resultType, SourceLoc());
       auto lifetimeTypeRepr =
           LifetimeDependentReturnTypeRepr::create(ctx, typeRepr, specifierList);
@@ -7592,8 +7593,7 @@ Expected<Type> DESERIALIZE_TYPE(SIL_FUNCTION_TYPE)(
   if (!patternSubsOrErr)
     return patternSubsOrErr.takeError();
 
-  auto lifetimeDependenceInfo = MF.maybeReadLifetimeDependenceInfo(
-      extInfo.hasSelfParam() ? numParams : numParams + 1);
+  auto lifetimeDependenceInfo = MF.maybeReadLifetimeDependenceInfo(numParams);
 
   if (lifetimeDependenceInfo.has_value()) {
     extInfo = extInfo.withLifetimeDependenceInfo(*lifetimeDependenceInfo);
@@ -8832,7 +8832,7 @@ ModuleFile::maybeReadLifetimeDependenceInfo(unsigned numParams) {
 
 bool ModuleFile::maybeReadLifetimeDependenceSpecifier(
     SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList,
-    unsigned numDeclParams) {
+    unsigned numDeclParams, bool hasSelf) {
   using namespace decls_block;
 
   SmallVector<uint64_t, 8> scratch;
@@ -8848,15 +8848,16 @@ bool ModuleFile::maybeReadLifetimeDependenceSpecifier(
                                        lifetimeDependenceData);
 
   unsigned startIndex = 0;
+  auto capacity = hasSelf ? (numDeclParams + 1) : numDeclParams;
   auto pushData = [&](ParsedLifetimeDependenceKind kind) {
-    for (unsigned i = 0; i < numDeclParams + 1; i++) {
+    for (unsigned i = 0; i < capacity; i++) {
       if (lifetimeDependenceData[startIndex + i]) {
         specifierList.push_back(
             LifetimeDependenceSpecifier::getOrderedLifetimeDependenceSpecifier(
                 SourceLoc(), kind, i));
       }
     }
-    startIndex += numDeclParams + 1;
+    startIndex += capacity;
   };
 
   if (hasInheritLifetimeParamIndices) {
