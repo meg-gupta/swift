@@ -11,7 +11,7 @@ struct BufferView : ~Escapable, ~Copyable {
   }
 }
 
-struct ImplicitInit1 : ~Escapable { // expected-error{{cannot infer lifetime dependence on implicit initializer, no parameters found that are ~Escapable or Escapable with a borrowing ownership}}
+struct ImplicitInit1 : ~Escapable { // expected-error{{cannot infer lifetime dependence on implicit initializer, no parameters found that are either ~Escapable or Escapable with a borrowing ownership}}
   let ptr: UnsafeRawBufferPointer
 }
 
