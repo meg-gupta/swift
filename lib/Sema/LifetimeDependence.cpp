@@ -420,6 +420,10 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
 
   auto &diags = ctx.Diags;
   auto returnTypeRepr = afd->getResultTypeRepr();
+  // Calling AbstractFunctionDecl::getLoc() during
+  // InterfaceTypeRequest::evaluate() can cause circular reference errors. Using
+  // getLoc(/* SerializedOK*/ false) is a workaround for this. Filed
+  // rdar://125597747 for underlying issue.
   auto returnLoc = returnTypeRepr ? returnTypeRepr->getLoc()
                                   : afd->getLoc(/* SerializedOK */ false);
 
@@ -430,6 +434,7 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
     }
   }
 
+  // For methods, infer lifetime dependence based on self ownership and type.
   if (afd->getKind() != DeclKind::Constructor && afd->hasImplicitSelfDecl()) {
     Type selfTypeInContext = dc->getSelfTypeInContext();
     if (selfTypeInContext->isEscapable()) {
@@ -460,6 +465,9 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
   ParamDecl *candidateParam = nullptr;
   unsigned paramIndex = 0;
   bool hasParamError = false;
+
+  // For non-methods, we infer lifetime dependence if we can find a single param
+  // that is: ~Escapable or ~Copyable or has ownership modifier.
   for (auto *param : *afd->getParameters()) {
     SWIFT_DEFER {
       paramIndex++;
@@ -471,7 +479,9 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
       continue;
     }
     auto paramOwnership = param->getValueOwnership();
-    if (paramTypeInContext->isEscapable() && paramOwnership == ValueOwnership::Default) {
+    if (paramTypeInContext->isEscapable() &&
+        !paramTypeInContext->isNoncopyable() &&
+        paramOwnership == ValueOwnership::Default) {
       continue;
     }
 
@@ -481,16 +491,11 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
       continue;
     }
     if (candidateParam) {
-      if (afd->getKind() == DeclKind::Constructor && afd->isImplicit()) {
-        diags.diagnose(
-            returnLoc,
-            diag::lifetime_dependence_cannot_infer_ambiguous_candidate,
-            "on implicit initializer");
-        return std::nullopt;
-      }
-      diags.diagnose(returnLoc,
-                     diag::lifetime_dependence_cannot_infer_ambiguous_candidate,
-                     "");
+      diags.diagnose(
+          returnLoc, diag::lifetime_dependence_cannot_infer_ambiguous_candidate,
+          afd->getKind() == DeclKind::Constructor && afd->isImplicit()
+              ? "on implicit initializer"
+              : "");
       return std::nullopt;
     }
     candidateParam = param;
@@ -499,15 +504,11 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
   }
 
   if (!candidateParam && !hasParamError) {
-    if (afd->getKind() == DeclKind::Constructor && afd->isImplicit()) {
-      diags.diagnose(returnLoc,
-                     diag::lifetime_dependence_cannot_infer_no_candidates,
-                     "on implicit initializer");
-      return std::nullopt;
-    }
     diags.diagnose(returnLoc,
                    diag::lifetime_dependence_cannot_infer_no_candidates,
-                   "");
+                   afd->getKind() == DeclKind::Constructor && afd->isImplicit()
+                       ? "on implicit initializer"
+                       : "");
     return std::nullopt;
   }
   return lifetimeDependenceInfo;
