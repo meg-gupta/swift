@@ -4027,7 +4027,12 @@ NeverNullType TypeResolver::resolveASTFunctionType(
   // TODO: maybe make this the place that claims @escaping.
   bool noescape = isDefaultNoEscapeContext(parentOptions);
 
-  auto lifetimeDependenceInfo = LifetimeDependenceInfo::fromTypeRepr(AFD, resultTy);
+  std::optional<LifetimeDependenceInfo> lifetimeDependenceInfo;
+  if (auto *lifetimeRepr = dyn_cast_or_null<LifetimeDependentReturnTypeRepr>(
+          repr->getResultTypeRepr())) {
+    lifetimeDependenceInfo = LifetimeDependenceInfo::fromTypeRepr(
+        lifetimeRepr, params, outputTy, /*hasSelfParam*/ false, getDeclContext());
+  }
 
   FunctionType::ExtInfoBuilder extInfoBuilder(
       FunctionTypeRepresentation::Swift, noescape, repr->isThrowing(), thrownTy,

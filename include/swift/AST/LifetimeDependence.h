@@ -203,6 +203,11 @@ public:
   static std::optional<LifetimeDependenceInfo>
   fromTypeRepr(AbstractFunctionDecl *afd, Type resultType, bool allowIndex);
 
+  static std::optional<LifetimeDependenceInfo>
+  fromTypeRepr(LifetimeDependentReturnTypeRepr *repr,
+               ArrayRef<AnyFunctionType::Param> params, Type resultType,
+               bool hasSelf, DeclContext *dc);
+
   /// Builds LifetimeDependenceInfo from SIL
   static std::optional<LifetimeDependenceInfo>
   fromTypeRepr(LifetimeDependentReturnTypeRepr *lifetimeDependentRepr,

@@ -60,7 +60,7 @@ void LifetimeDependenceInfo::Profile(llvm::FoldingSetNodeID &ID) const {
 }
 
 static LifetimeDependenceKind
-getLifetimeDependenceKindFromType(Type sourceType) {
+getLifetimeDependenceKindFromSpecifier(Type sourceType) {
   if (sourceType->isEscapable()) {
     return LifetimeDependenceKind::Scope;
   }
@@ -80,24 +80,21 @@ static ValueOwnership getLoweredOwnership(AbstractFunctionDecl *afd) {
   return ValueOwnership::Shared;
 }
 
-static bool
-isLifetimeDependenceCompatibleWithOwnership(LifetimeDependenceKind kind,
-                                            ValueOwnership ownership,
-                                            AbstractFunctionDecl *afd) {
-  if (kind == LifetimeDependenceKind::Inherit) {
-    return true;
-  }
-  assert(kind == LifetimeDependenceKind::Scope);
-  auto loweredOwnership = ownership != ValueOwnership::Default
-                              ? ownership
-                              : getLoweredOwnership(afd);
+static bool isLifetimeDependenceCompatibleWithOwnership(
+    LifetimeDependenceKind lifetimeDependenceKind,
+    ValueOwnership loweredOwnership) {
+  assert(loweredOwnership != ValueOwnership::Default);
 
-  if (loweredOwnership == ValueOwnership::InOut ||
-      loweredOwnership == ValueOwnership::Shared) {
+  switch (lifetimeDependenceKind) {
+  case LifetimeDependenceKind::Inherit:
     return true;
+
+  case LifetimeDependenceKind::Scope:
+    return (loweredOwnership == ValueOwnership::InOut ||
+            loweredOwnership == ValueOwnership::Shared)
+               ? true
+               : false;
   }
-  assert(loweredOwnership == ValueOwnership::Owned);
-  return false;
 }
 
 LifetimeDependenceInfo LifetimeDependenceInfo::getForParamIndex(
@@ -157,105 +154,94 @@ static bool hasEscapableResultOrYield(AbstractFunctionDecl *afd,
   return false;
 }
 
-static LifetimeDependenceKind getLifetimeDependenceKindFromDecl(
-    ParsedLifetimeDependenceKind parsedLifetimeDependenceKind, Type paramType) {
-  if (parsedLifetimeDependenceKind == ParsedLifetimeDependenceKind::Scope) {
+static LifetimeDependenceKind getLifetimeDependenceKindFromSpecifier(
+    LifetimeDependenceSpecifier specifier, Type sourceType) {
+  switch (specifier.getParsedLifetimeDependenceKind()) {
+  case ParsedLifetimeDependenceKind::Scope:
     return LifetimeDependenceKind::Scope;
-  }
-  if (parsedLifetimeDependenceKind == ParsedLifetimeDependenceKind::Inherit) {
+
+  case ParsedLifetimeDependenceKind::Inherit:
     // TODO: assert that this can happen only on deserialized decls
     return LifetimeDependenceKind::Inherit;
+
+  case ParsedLifetimeDependenceKind::Default:
+    return sourceType->isEscapable() ? LifetimeDependenceKind::Scope
+                                     : LifetimeDependenceKind::Inherit;
   }
-  return paramType->isEscapable() ? LifetimeDependenceKind::Scope
-                                  : LifetimeDependenceKind::Inherit;
+}
+
+static std::optional<LifetimeDependenceKind> tryGetLifetimeDependenceKind(
+    LifetimeDependenceSpecifier specifier, unsigned sourceIndex,
+    ValueOwnership sourceOwnership, Type sourceType, DeclContext *dc) {
+  auto loc = specifier.getLoc();
+  auto &ctx = dc->getASTContext();
+  auto &diags = ctx.Diags;
+  auto *mod = dc->getParentModule();
+
+  // Diagnose when we have lifetime dependence on a type that is
+  // BitwiseCopyable & Escapable.
+  // ~Escapable types are non-trivial in SIL and we should not raise this
+  // error.
+  // TODO: Diagnose ~Escapable types are always non-trivial in SIL.
+  if (sourceType->isEscapable()) {
+    if (ctx.LangOpts.hasFeature(Feature::BitwiseCopyable)) {
+      auto *bitwiseCopyableProtocol =
+          ctx.getProtocol(KnownProtocolKind::BitwiseCopyable);
+      if (bitwiseCopyableProtocol &&
+          mod->checkConformance(sourceType, bitwiseCopyableProtocol)) {
+        diags.diagnose(loc, diag::lifetime_dependence_on_bitwise_copyable);
+        return std::nullopt;
+      }
+    }
+  }
+
+  auto lifetimeDependenceKind =
+      getLifetimeDependenceKindFromSpecifier(specifier, sourceType);
+  bool isCompatible = isLifetimeDependenceCompatibleWithOwnership(
+      lifetimeDependenceKind, sourceOwnership);
+
+  if (!isCompatible) {
+    assert(lifetimeDependenceKind == LifetimeDependenceKind::Scope);
+
+    if (specifier.getParsedLifetimeDependenceKind() ==
+        ParsedLifetimeDependenceKind::Scope) {
+      diags.diagnose(
+          loc, diag::lifetime_dependence_cannot_use_parsed_scoped_consuming);
+      return std::nullopt;;
+    }
+    diags.diagnose(
+        loc, diag::lifetime_dependence_cannot_use_inferred_scoped_consuming);
+    return std::nullopt;;
+  }
+
+  return lifetimeDependenceKind;
 }
 
 std::optional<LifetimeDependenceInfo>
-LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
-                                     bool allowIndex) {
-  auto *dc = afd->getDeclContext();
+LifetimeDependenceInfo::fromTypeRepr(LifetimeDependentReturnTypeRepr *lifetimeRepr,
+                                     ArrayRef<AnyFunctionType::Param> params,
+                                     Type outputType, bool hasSelf, DeclContext *dc) {
   auto &ctx = dc->getASTContext();
-  auto *mod = afd->getModuleContext();
+  auto *mod = dc->getParentModule();
   auto &diags = ctx.Diags;
-  auto capacity = afd->hasImplicitSelfDecl()
-                      ? (afd->getParameters()->size() + 1)
-                      : afd->getParameters()->size();
-  auto lifetimeDependentRepr =
-      cast<LifetimeDependentReturnTypeRepr>(afd->getResultTypeRepr());
+  auto capacity = hasSelf ? (params.size() + 1) : params.size();
 
-  if (hasEscapableResultOrYield(afd, resultType)) {
-    diags.diagnose(lifetimeDependentRepr->getLoc(),
+  if (outputType->isEscapable()) {
+    diags.diagnose(lifetimeRepr->getLoc(),
                    diag::lifetime_dependence_invalid_return_type);
     return std::nullopt;
   }
-
   SmallBitVector inheritLifetimeParamIndices(capacity);
   SmallBitVector scopeLifetimeParamIndices(capacity);
 
-  auto updateLifetimeDependenceInfo = [&](LifetimeDependenceSpecifier specifier,
-                                          unsigned paramIndex) {                                            
-    auto loc = specifier.getLoc();
-    auto param = afd->getParameters()->get(paramIndex);
-    auto paramOwnership = param->getValueOwnership();
-    auto paramType =
-        afd->mapTypeIntoContext(param->toFunctionParam().getParameterType());
-    // Diagnose when we have lifetime dependence on a type that is
-    // BitwiseCopyable & Escapable.
-    // ~Escapable types are non-trivial in SIL and we should not raise this
-    // error.
-    // TODO: Diagnose ~Escapable types are always non-trivial in SIL.
-    if (paramType->isEscapable()) {
-      if (ctx.LangOpts.hasFeature(Feature::BitwiseCopyable)) {
-        auto *bitwiseCopyableProtocol =
-            ctx.getProtocol(KnownProtocolKind::BitwiseCopyable);
-        if (bitwiseCopyableProtocol &&
-            mod->checkConformance(paramType, bitwiseCopyableProtocol)) {
-          diags.diagnose(loc, diag::lifetime_dependence_on_bitwise_copyable);
-          return true;
-        }
-      }
-    }
-
-    auto parsedLifetimeKind = specifier.getParsedLifetimeDependenceKind();
-    auto lifetimeKind =
-        getLifetimeDependenceKindFromDecl(parsedLifetimeKind, paramType);
-    bool isCompatible = isLifetimeDependenceCompatibleWithOwnership(
-        lifetimeKind, paramOwnership, afd);
-    if (parsedLifetimeKind == ParsedLifetimeDependenceKind::Scope &&
-        !isCompatible) {
-      diags.diagnose(
-          loc, diag::lifetime_dependence_cannot_use_parsed_scoped_consuming);
-      return true;
-    }
-    if (!isCompatible) {
-      assert(lifetimeKind == LifetimeDependenceKind::Scope);
-      diags.diagnose(
-          loc, diag::lifetime_dependence_cannot_use_inferred_scoped_consuming);
-      return true;
-    }
-
-    if (inheritLifetimeParamIndices.test(paramIndex) ||
-        scopeLifetimeParamIndices.test(paramIndex)) {
-      diags.diagnose(loc, diag::lifetime_dependence_duplicate_param_id);
-      return true;
-    }
-    if (lifetimeKind == LifetimeDependenceKind::Inherit) {
-      inheritLifetimeParamIndices.set(paramIndex);
-    } else {
-      assert(lifetimeKind == LifetimeDependenceKind::Scope);
-      scopeLifetimeParamIndices.set(paramIndex);
-    }
-    return false;
-  };
-
-  for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
+  for (auto specifier : lifetimeRepr->getLifetimeDependencies()) {
     switch (specifier.getSpecifierKind()) {
     case LifetimeDependenceSpecifier::SpecifierKind::Named: {
       bool foundParamName = false;
       unsigned paramIndex = 0;
-      for (auto *param : *afd->getParameters()) {
-        if (param->getParameterName() == specifier.getName()) {
-          if (updateLifetimeDependenceInfo(
+      for (auto param : *params) {
+        if (param.getParameterName() == specifier.getName()) {
+          if (tryGetLifetimeDependenceKind(
                   specifier, paramIndex)) {
             return std::nullopt;
           }
@@ -279,7 +265,7 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
                        diag::lifetime_dependence_invalid_param_index, index);
         return std::nullopt;
       }
-      if (updateLifetimeDependenceInfo(specifier, index)) {
+      if (tryGetLifetimeDependenceKind(specifier, index)) {
         return std::nullopt;
       }
       break;
@@ -295,7 +281,7 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
                        diag::lifetime_dependence_invalid_self_in_init);
         return std::nullopt;
       }
-      if (updateLifetimeDependenceInfo(
+      if (tryGetLifetimeDependenceKind(
               specifier, /* selfIndex */ afd->getParameters()->size(),
               afd->getImplicitSelfDecl()->getTypeInContext(),
               afd->getImplicitSelfDecl()->getValueOwnership())) {
@@ -316,60 +302,97 @@ LifetimeDependenceInfo::fromTypeRepr(AbstractFunctionDecl *afd, Type resultType,
       /*isExplicit*/ true);
 }
 
-// This utility is similar to its overloaded version that builds the
-// LifetimeDependenceInfo from the swift decl. Reason for duplicated code is the
-// apis on type and ownership is different in SIL compared to Sema.
 std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromTypeRepr(
     LifetimeDependentReturnTypeRepr *lifetimeDependentRepr,
-    SmallVectorImpl<SILParameterInfo> &params, DeclContext *dc) {
+    ArrayRef<AnyFunctionType::Param> params, Type resultType,
+    ParamDecl *selfDecl, DeclContext *dc) {
   auto &ctx = dc->getASTContext();
+  auto *mod = dc->getParentModule();
   auto &diags = ctx.Diags;
-  auto capacity = params.size(); // SIL parameters include self
+  auto capacity = selfDecl ? (params.size() + 1) : params.size();
+
+  if (resultType->isEscapable()) {
+    diags.diagnose(lifetimeDependentRepr->getLoc(),
+                   diag::lifetime_dependence_invalid_return_type);
+    return std::nullopt;
+  }
 
   SmallBitVector inheritLifetimeParamIndices(capacity);
   SmallBitVector scopeLifetimeParamIndices(capacity);
 
-  auto updateLifetimeDependenceInfo = [&](LifetimeDependenceSpecifier specifier,
-                                          unsigned paramIndexToSet,
-                                          ParameterConvention paramConvention) {
-    auto loc = specifier.getLoc();
-    auto kind = specifier.getParsedLifetimeDependenceKind();
-
-    if (kind == ParsedLifetimeDependenceKind::Scope &&
-        (!isGuaranteedParameter(paramConvention) &&
-         !isMutatingParameter(paramConvention))) {
-      diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind, "_scope",
-                     getStringForParameterConvention(paramConvention));
-      return true;
-    }
-
-    if (inheritLifetimeParamIndices.test(paramIndexToSet) ||
-        scopeLifetimeParamIndices.test(paramIndexToSet)) {
-      diags.diagnose(loc, diag::lifetime_dependence_duplicate_param_id);
-      return true;
-    }
-    if (kind == ParsedLifetimeDependenceKind::Inherit) {
-      inheritLifetimeParamIndices.set(paramIndexToSet);
-    } else {
-      assert(kind == ParsedLifetimeDependenceKind::Scope);
-      scopeLifetimeParamIndices.set(paramIndexToSet);
-    }
-    return false;
-  };
+  std::optional<LifetimeDependenceKind> lifetimeDependenceKind;
+  unsigned paramOrSelfIndex;
 
   for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
-    assert(specifier.getSpecifierKind() ==
-           LifetimeDependenceSpecifier::SpecifierKind::Ordered);
-    auto index = specifier.getIndex();
-    if (index > capacity) {
-      diags.diagnose(specifier.getLoc(),
-                     diag::lifetime_dependence_invalid_param_index, index);
-      return std::nullopt;
+    switch (specifier.getSpecifierKind()) {
+    case LifetimeDependenceSpecifier::SpecifierKind::Named: {
+      auto index =
+          getParamIndex(params, specifier.getName());
+      if (!index.has_value()) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_param_name,
+                       specifier.getName());
+        return std::nullopt;
+      }
+      paramOrSelfIndex = *index;
+      auto param = params[paramOrSelfIndex];
+      lifetimeDependenceKind = tryGetLifetimeDependenceKind(
+          specifier, paramOrSelfIndex, param.getValueOwnership(),
+          param.getParameterType(), dc);
+      break;
     }
-    auto param = params[index];
-    auto paramConvention = param.getConvention();
-    if (updateLifetimeDependenceInfo(specifier, index, paramConvention)) {
-      return std::nullopt;
+    case LifetimeDependenceSpecifier::SpecifierKind::Ordered: {
+      paramOrSelfIndex = specifier.getIndex();
+      if (paramOrSelfIndex >= capacity) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_param_index,
+                       paramOrSelfIndex);
+        return std::nullopt;
+      }
+      auto isSelfDependence = paramOrSelfIndex == params.size();
+      lifetimeDependenceKind = tryGetLifetimeDependenceKind(
+          specifier, paramOrSelfIndex,
+          isSelfDependence ? selfDecl->getValueOwnership()
+                           : params[paramOrSelfIndex].getValueOwnership(),
+          isSelfDependence ? selfDecl->getTypeInContext()
+                           : params[paramOrSelfIndex].getParameterType(),
+          dc);
+      break;
+    }
+    case LifetimeDependenceSpecifier::SpecifierKind::Self: {
+      if (!selfDecl) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_self_in_static);
+        return std::nullopt;
+      }
+      paramOrSelfIndex = /* selfIndex */ params.size();
+      lifetimeDependenceKind = tryGetLifetimeDependenceKind(
+          specifier, paramOrSelfIndex,
+          selfDecl->getValueOwnership(),
+          selfDecl->getTypeInContext(), dc);
+
+      if (!lifetimeDependenceKind.has_value()) {
+        return std::nullopt;
+      }
+      break;
+    }
+    }
+
+    if (*lifetimeDependenceKind == LifetimeDependenceKind::Inherit) {
+      if (inheritLifetimeParamIndices.test(paramOrSelfIndex)) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_duplicate_param_id);
+        return std::nullopt;
+      }
+      inheritLifetimeParamIndices.set(paramOrSelfIndex);
+    }
+    if (*lifetimeDependenceKind == LifetimeDependenceKind::Scope) {
+      if (scopeLifetimeParamIndices.test(paramOrSelfIndex)) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_duplicate_param_id);
+        return std::nullopt;
+      }
+      scopeLifetimeParamIndices.set(paramOrSelfIndex);
     }
   }
 
@@ -383,161 +406,213 @@ std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromTypeRepr(
       /*isExplicit*/ true);
 }
 
-std::optional<LifetimeDependenceInfo>
-LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd, Type resultType) {
-  auto *dc = afd->getDeclContext();
-  auto &ctx = dc->getASTContext();
-  auto *mod = afd->getModuleContext();
+  // This utility is similar to its overloaded version that builds the
+  // LifetimeDependenceInfo from the swift decl. Reason for duplicated code is
+  // the apis on type and ownership is different in SIL compared to Sema.
+  std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromTypeRepr(
+      LifetimeDependentReturnTypeRepr * lifetimeDependentRepr,
+      SmallVectorImpl<SILParameterInfo> & params, DeclContext * dc) {
+    auto &ctx = dc->getASTContext();
+    auto &diags = ctx.Diags;
+    auto capacity = params.size(); // SIL parameters include self
 
-  if (!ctx.LangOpts.hasFeature(Feature::NonescapableTypes)) {
-    return std::nullopt;
-  }
+    SmallBitVector inheritLifetimeParamIndices(capacity);
+    SmallBitVector scopeLifetimeParamIndices(capacity);
 
-  // Disable inference if requested.
-  if (!ctx.LangOpts.EnableExperimentalLifetimeDependenceInference) {
-    return std::nullopt;
-  }
+    auto tryGetLifetimeDependenceKind =
+        [&](LifetimeDependenceSpecifier specifier, unsigned paramIndexToSet,
+            ParameterConvention paramConvention) {
+          auto loc = specifier.getLoc();
+          auto kind = specifier.getParsedLifetimeDependenceKind();
 
-  if (hasEscapableResultOrYield(afd, resultType)) {
-    return std::nullopt;
-  }
+          if (kind == ParsedLifetimeDependenceKind::Scope &&
+              (!isGuaranteedParameter(paramConvention) &&
+               !isMutatingParameter(paramConvention))) {
+            diags.diagnose(loc, diag::lifetime_dependence_cannot_use_kind,
+                           "_scope",
+                           getStringForParameterConvention(paramConvention));
+            return true;
+          }
 
-  if (afd->getAttrs().hasAttribute<UnsafeNonEscapableResultAttr>()) {
-    return std::nullopt;
-  }
+          if (inheritLifetimeParamIndices.test(paramIndexToSet) ||
+              scopeLifetimeParamIndices.test(paramIndexToSet)) {
+            diags.diagnose(loc, diag::lifetime_dependence_duplicate_param_id);
+            return true;
+          }
+          if (kind == ParsedLifetimeDependenceKind::Inherit) {
+            inheritLifetimeParamIndices.set(paramIndexToSet);
+          } else {
+            assert(kind == ParsedLifetimeDependenceKind::Scope);
+            scopeLifetimeParamIndices.set(paramIndexToSet);
+          }
+          return false;
+        };
 
-  auto &diags = ctx.Diags;
-  auto returnTypeRepr = afd->getResultTypeRepr();
-  // Calling AbstractFunctionDecl::getLoc() during
-  // InterfaceTypeRequest::evaluate() can cause circular reference errors. Using
-  // getLoc(/* SerializedOK*/ false) is a workaround for this. Filed
-  // rdar://125597747 for underlying issue.
-  auto returnLoc = returnTypeRepr ? returnTypeRepr->getLoc()
-                                  : afd->getLoc(/* SerializedOK */ false);
-
-  auto *cd = dyn_cast<ConstructorDecl>(afd);
-  if (cd && cd->isImplicit()) {
-    if (cd->getParameters()->size() == 0) {
-      return std::nullopt;
-    }
-  }
-
-  // For methods, infer lifetime dependence based on self ownership and type.
-  if (afd->getKind() != DeclKind::Constructor && afd->hasImplicitSelfDecl()) {
-    Type selfTypeInContext = dc->getSelfTypeInContext();
-    if (selfTypeInContext->isEscapable()) {
-      if (ctx.LangOpts.hasFeature(Feature::BitwiseCopyable)) {
-        auto *bitwiseCopyableProtocol =
-            ctx.getProtocol(KnownProtocolKind::BitwiseCopyable);
-        if (bitwiseCopyableProtocol &&
-            mod->checkConformance(selfTypeInContext, bitwiseCopyableProtocol)) {
-          diags.diagnose(
-              returnLoc,
-              diag::lifetime_dependence_method_escapable_bitwisecopyable_self);
-          return std::nullopt;
-        }
+    for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
+      assert(specifier.getSpecifierKind() ==
+             LifetimeDependenceSpecifier::SpecifierKind::Ordered);
+      auto index = specifier.getIndex();
+      if (index > capacity) {
+        diags.diagnose(specifier.getLoc(),
+                       diag::lifetime_dependence_invalid_param_index, index);
+        return std::nullopt;
+      }
+      auto param = params[index];
+      auto paramConvention = param.getConvention();
+      if (tryGetLifetimeDependenceKind(specifier, index, paramConvention)) {
+        return std::nullopt;
       }
     }
-    auto kind = getLifetimeDependenceKindFromType(selfTypeInContext);
-    auto selfOwnership = afd->getImplicitSelfDecl()->getValueOwnership();
-    if (!isLifetimeDependenceCompatibleWithOwnership(kind, selfOwnership,
-                                                     afd)) {
-      diags.diagnose(returnLoc,
-                     diag::lifetime_dependence_invalid_self_ownership);
-      return std::nullopt;
-    }
-    return LifetimeDependenceInfo::getForParamIndex(
-        afd, /*selfIndex*/ afd->getParameters()->size(), kind);
+
+    return LifetimeDependenceInfo(
+        inheritLifetimeParamIndices.any()
+            ? IndexSubset::get(ctx, inheritLifetimeParamIndices)
+            : nullptr,
+        scopeLifetimeParamIndices.any()
+            ? IndexSubset::get(ctx, scopeLifetimeParamIndices)
+            : nullptr,
+        /*isExplicit*/ true);
   }
 
-  LifetimeDependenceInfo lifetimeDependenceInfo;
-  ParamDecl *candidateParam = nullptr;
-  unsigned paramIndex = 0;
-  bool hasParamError = false;
+  std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::infer(
+      AbstractFunctionDecl * afd, Type resultType) {
+    auto *dc = afd->getDeclContext();
+    auto &ctx = dc->getASTContext();
 
-  // For non-methods, we infer lifetime dependence if we can find a single param
-  // that is: ~Escapable or ~Copyable or has ownership modifier.
-  for (auto *param : *afd->getParameters()) {
-    SWIFT_DEFER {
-      paramIndex++;
-    };
-    Type paramTypeInContext =
-        afd->mapTypeIntoContext(param->getInterfaceType());
-    if (paramTypeInContext->hasError()) {
-      hasParamError = true;
-      continue;
-    }
-    auto paramOwnership = param->getValueOwnership();
-    if (paramTypeInContext->isEscapable() &&
-        !paramTypeInContext->isNoncopyable() &&
-        paramOwnership == ValueOwnership::Default) {
-      continue;
+    if (!ctx.LangOpts.hasFeature(Feature::NonescapableTypes)) {
+      return std::nullopt;
     }
 
-    auto lifetimeKind = getLifetimeDependenceKindFromType(paramTypeInContext);
-    if (!isLifetimeDependenceCompatibleWithOwnership(lifetimeKind, paramOwnership,
-                                                     afd)) {
-      continue;
+    // Disable inference if requested.
+    if (!ctx.LangOpts.EnableExperimentalLifetimeDependenceInference) {
+      return std::nullopt;
     }
-    if (candidateParam) {
+
+    if (hasEscapableResultOrYield(afd, resultType)) {
+      return std::nullopt;
+    }
+
+    if (afd->getAttrs().hasAttribute<UnsafeNonEscapableResultAttr>()) {
+      return std::nullopt;
+    }
+
+    auto &diags = ctx.Diags;
+    auto returnTypeRepr = afd->getResultTypeRepr();
+    // Calling AbstractFunctionDecl::getLoc() during
+    // InterfaceTypeRequest::evaluate() can cause circular reference errors.
+    // Using getLoc(/* SerializedOK*/ false) is a workaround for this. Filed
+    // rdar://125597747 for underlying issue.
+    auto returnLoc = returnTypeRepr ? returnTypeRepr->getLoc()
+                                    : afd->getLoc(/* SerializedOK */ false);
+
+    auto *cd = dyn_cast<ConstructorDecl>(afd);
+    if (cd && cd->isImplicit()) {
+      if (cd->getParameters()->size() == 0) {
+        return std::nullopt;
+      }
+    }
+
+    // For methods, infer lifetime dependence based on self ownership and type.
+    if (afd->getKind() != DeclKind::Constructor && afd->hasImplicitSelfDecl()) {
+      Type selfTypeInContext = dc->getSelfTypeInContext();
+      auto kind = getLifetimeDependenceKindFromSpecifier(selfTypeInContext);
+      auto selfOwnership = afd->getImplicitSelfDecl()->getValueOwnership();
+      if (!isLifetimeDependenceCompatibleWithOwnership(kind, selfOwnership,
+                                                       afd)) {
+        diags.diagnose(returnLoc,
+                       diag::lifetime_dependence_invalid_self_ownership);
+        return std::nullopt;
+      }
+      return LifetimeDependenceInfo::getForParamIndex(
+          afd, /*selfIndex*/ afd->getParameters()->size(), kind);
+    }
+
+    LifetimeDependenceInfo lifetimeDependenceInfo;
+    ParamDecl *candidateParam = nullptr;
+    unsigned paramIndex = 0;
+    bool hasParamError = false;
+
+    // For non-methods, we infer lifetime dependence if we can find a single
+    // param that is: ~Escapable or ~Copyable or has ownership modifier.
+    for (auto *param : *afd->getParameters()) {
+      SWIFT_DEFER { paramIndex++; };
+      Type paramTypeInContext =
+          afd->mapTypeIntoContext(param->getInterfaceType());
+      if (paramTypeInContext->hasError()) {
+        hasParamError = true;
+        continue;
+      }
+      auto paramOwnership = param->getValueOwnership();
+      if (paramTypeInContext->isEscapable() &&
+          !paramTypeInContext->isNoncopyable() &&
+          paramOwnership == ValueOwnership::Default) {
+        continue;
+      }
+
+      auto lifetimeDependenceKind =
+          getLifetimeDependenceKindFromSpecifier(paramTypeInContext);
+      if (!isLifetimeDependenceCompatibleWithOwnership(lifetimeDependenceKind,
+                                                       paramOwnership, afd)) {
+        continue;
+      }
+      if (candidateParam) {
+        diags.diagnose(
+            returnLoc,
+            diag::lifetime_dependence_cannot_infer_ambiguous_candidate,
+            afd->getKind() == DeclKind::Constructor && afd->isImplicit()
+                ? "on implicit initializer"
+                : "");
+        return std::nullopt;
+      }
+      candidateParam = param;
+      lifetimeDependenceInfo = LifetimeDependenceInfo::getForParamIndex(
+          afd, paramIndex, lifetimeDependenceKind);
+    }
+
+    if (!candidateParam && !hasParamError) {
       diags.diagnose(
-          returnLoc, diag::lifetime_dependence_cannot_infer_ambiguous_candidate,
+          returnLoc, diag::lifetime_dependence_cannot_infer_no_candidates,
           afd->getKind() == DeclKind::Constructor && afd->isImplicit()
               ? "on implicit initializer"
               : "");
       return std::nullopt;
     }
-    candidateParam = param;
-    lifetimeDependenceInfo =
-        LifetimeDependenceInfo::getForParamIndex(afd, paramIndex, lifetimeKind);
+    return lifetimeDependenceInfo;
   }
 
-  if (!candidateParam && !hasParamError) {
-    diags.diagnose(returnLoc,
-                   diag::lifetime_dependence_cannot_infer_no_candidates,
-                   afd->getKind() == DeclKind::Constructor && afd->isImplicit()
-                       ? "on implicit initializer"
-                       : "");
-    return std::nullopt;
-  }
-  return lifetimeDependenceInfo;
-}
-
-std::optional<LifetimeDependenceInfo>
-LifetimeDependenceInfo::get(AbstractFunctionDecl *afd, Type resultType,
-                            bool allowIndex) {
-  auto *returnTypeRepr = afd->getResultTypeRepr();
-  if (isa_and_nonnull<LifetimeDependentReturnTypeRepr>(returnTypeRepr)) {
-    return LifetimeDependenceInfo::fromTypeRepr(afd, resultType, allowIndex);
-  }
-  return LifetimeDependenceInfo::infer(afd, resultType);
-}
-
-LifetimeDependenceInfo
-LifetimeDependenceInfo::get(ASTContext &ctx,
-                            const SmallBitVector &inheritLifetimeIndices,
-                            const SmallBitVector &scopeLifetimeIndices) {
-  return LifetimeDependenceInfo{
-      inheritLifetimeIndices.any()
-          ? IndexSubset::get(ctx, inheritLifetimeIndices)
-          : nullptr,
-      scopeLifetimeIndices.any() ? IndexSubset::get(ctx, scopeLifetimeIndices)
-                                 : nullptr};
-}
-
-std::optional<LifetimeDependenceKind>
-LifetimeDependenceInfo::getLifetimeDependenceOnParam(unsigned paramIndex) {
-  if (inheritLifetimeParamIndices) {
-    if (inheritLifetimeParamIndices->contains(paramIndex)) {
-      return LifetimeDependenceKind::Inherit;
+  std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::get(
+      AbstractFunctionDecl * afd, Type resultType, bool allowIndex) {
+    auto *returnTypeRepr = afd->getResultTypeRepr();
+    if (isa_and_nonnull<LifetimeDependentReturnTypeRepr>(returnTypeRepr)) {
+      return LifetimeDependenceInfo::fromTypeRepr(afd, resultType, allowIndex);
     }
+    return LifetimeDependenceInfo::infer(afd, resultType);
   }
-  if (scopeLifetimeParamIndices) {
-    if (scopeLifetimeParamIndices->contains(paramIndex)) {
-      return LifetimeDependenceKind::Scope;
+
+  LifetimeDependenceInfo LifetimeDependenceInfo::get(
+      ASTContext & ctx, const SmallBitVector &inheritLifetimeIndices,
+      const SmallBitVector &scopeLifetimeIndices) {
+    return LifetimeDependenceInfo{
+        inheritLifetimeIndices.any()
+            ? IndexSubset::get(ctx, inheritLifetimeIndices)
+            : nullptr,
+        scopeLifetimeIndices.any() ? IndexSubset::get(ctx, scopeLifetimeIndices)
+                                   : nullptr};
+  }
+
+  std::optional<LifetimeDependenceKind>
+  LifetimeDependenceInfo::getLifetimeDependenceOnParam(unsigned paramIndex) {
+    if (inheritLifetimeParamIndices) {
+      if (inheritLifetimeParamIndices->contains(paramIndex)) {
+        return LifetimeDependenceKind::Inherit;
+      }
     }
+    if (scopeLifetimeParamIndices) {
+      if (scopeLifetimeParamIndices->contains(paramIndex)) {
+        return LifetimeDependenceKind::Scope;
+      }
+    }
+    return {};
   }
-  return {};
-}
 
 } // namespace swift
