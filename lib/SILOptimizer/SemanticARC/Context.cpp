@@ -129,14 +129,11 @@ bool Context::constructCacheValue(
         continue;
       }
 
-      // Otherwise, be conservative and return that we had a write that we did
-      // not understand.
-      LLVM_DEBUG(llvm::dbgs()
-                 << "Function: " << user->getFunction()->getName() << "\n");
-      LLVM_DEBUG(llvm::dbgs() << "Value: " << op->get());
-      LLVM_DEBUG(llvm::dbgs() << "Unhandled apply site!: " << *user);
+      // Ask alias analysis if user has side effects
 
-      return false;
+      // Otherwise, be conservative and add to mayWrite list
+      mayWriteAccumulator.push_back(op);
+      continue;
     }
 
     // Copy addr that read are just loads.
@@ -158,13 +155,8 @@ bool Context::constructCacheValue(
       continue;
     }
 
-    // If we did not recognize the user, just return conservatively that it was
-    // written to in a way we did not understand.
-    LLVM_DEBUG(llvm::dbgs()
-               << "Function: " << user->getFunction()->getName() << "\n");
-    LLVM_DEBUG(llvm::dbgs() << "Value: " << op->get());
-    LLVM_DEBUG(llvm::dbgs() << "Unknown instruction!: " << *user);
-    return false;
+    mayWriteAccumulator.push_back(op);
+    continue;
   }
 
   // Ok, we finished our worklist and this address is not being written to.
