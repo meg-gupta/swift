@@ -34,7 +34,7 @@ struct LLVM_LIBRARY_VISIBILITY Context {
   ARCTransformKind transformKind = ARCTransformKind::All;
   DeadEndBlocks &deadEndBlocks;
   ValueLifetimeAnalysis::Frontier lifetimeFrontier;
-  SmallMultiMapCache<SILValue, Operand *> addressToExhaustiveWriteListCache;
+  SmallMultiMapCache<SILValue, Operand *> addressToMayWriteListCache;
 
   /// Are we assuming that we reached a fix point and are re-processing to
   /// prepare to use the phiToIncomingValueMultiMap.
@@ -122,7 +122,7 @@ struct LLVM_LIBRARY_VISIBILITY Context {
   Context(SILFunction &fn, DeadEndBlocks &deBlocks, bool onlyMandatoryOpts,
           InstModCallbacks callbacks)
       : fn(fn), deadEndBlocks(deBlocks), lifetimeFrontier(),
-        addressToExhaustiveWriteListCache(constructCacheValue),
+        addressToMayWriteListCache(constructCacheValue),
         onlyMandatoryOpts(onlyMandatoryOpts), instModCallbacks(callbacks) {}
 
   void verify() const;
@@ -142,7 +142,7 @@ struct LLVM_LIBRARY_VISIBILITY Context {
 
   void reset() {
     lifetimeFrontier.clear();
-    addressToExhaustiveWriteListCache.clear();
+    addressToMayWriteListCache.clear();
     joinedOwnedIntroducerToConsumedOperands.reset();
   }
 

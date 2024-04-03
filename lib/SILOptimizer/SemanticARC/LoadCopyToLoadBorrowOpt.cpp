@@ -102,7 +102,7 @@ public:
 
     // If we have a modify, check if our value is /ever/ written to. If it is
     // never actually written to, then we convert to a load_borrow.
-    auto result = ctx.addressToExhaustiveWriteListCache.get(access);
+    auto result = ctx.addressToMayWriteListCache.get(access);
     if (!result.has_value()) {
       return answer(true);
     }
@@ -125,13 +125,13 @@ public:
     // false.
     if (!arg->isIndirectResult() &&
         arg->getArgumentConvention().isExclusiveIndirectParameter()) {
-      auto wellBehavedWrites = ctx.addressToExhaustiveWriteListCache.get(arg);
-      if (!wellBehavedWrites.has_value()) {
+      auto mayWrites = ctx.addressToMayWriteListCache.get(arg);
+      if (!mayWrites.has_value()) {
         return answer(true);
       }
 
       // No writes.
-      if (wellBehavedWrites->empty()) {
+      if (mayWrites->empty()) {
         return answer(false);
       }
 
@@ -148,14 +148,14 @@ public:
         consumingUses.push_back(op);
       }
       if (!checker.usesNotContainedWithinLifetime(
-              introducerValue, consumingUses, *wellBehavedWrites)) {
+              introducerValue, consumingUses, *mayWrites)) {
         return answer(true);
       }
 
       // Finally, check if our live range is strictly contained within any of
       // our scoped writes.
       SmallVector<Operand *, 16> endAccessList;
-      for (Operand *use : *wellBehavedWrites) {
+      for (Operand *use : *mayWrites) {
         auto *bai = dyn_cast<BeginAccessInst>(use->getUser());
         if (!bai) {
           continue;

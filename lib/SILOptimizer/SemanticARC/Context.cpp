@@ -37,7 +37,7 @@ void Context::verify() const {
 /// no write uses or all of the write uses were writes that we could understand.
 bool Context::constructCacheValue(
     SILValue initialValue,
-    SmallVectorImpl<Operand *> &wellBehavedWriteAccumulator) {
+    SmallVectorImpl<Operand *> &mayWriteAccumulator) {
   SmallVector<Operand *, 8> worklist(initialValue->getNonTypeDependentUses());
 
   while (!worklist.empty()) {
@@ -59,7 +59,7 @@ bool Context::constructCacheValue(
     if (auto *oeai = dyn_cast<OpenExistentialAddrInst>(user)) {
       // Mutable access!
       if (oeai->getAccessKind() != OpenedExistentialAccess::Immutable) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
       }
 
       //  Otherwise, look through it and continue.
@@ -71,13 +71,13 @@ bool Context::constructCacheValue(
     if (auto *si = dyn_cast<StoreInst>(user)) {
       // We must be the dest since addresses can not be stored.
       assert(si->getDest() == op->get());
-      wellBehavedWriteAccumulator.push_back(op);
+      mayWriteAccumulator.push_back(op);
       continue;
     }
 
     // Add any destroy_addrs to the resultAccumulator.
     if (isa<DestroyAddrInst>(user)) {
-      wellBehavedWriteAccumulator.push_back(op);
+      mayWriteAccumulator.push_back(op);
       continue;
     }
 
@@ -91,9 +91,9 @@ bool Context::constructCacheValue(
       // If we do not have a read, mark this as a write. Also, insert our
       // end_access as well.
       if (bai->getAccessKind() != SILAccessKind::Read) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
         transform(bai->getUsersOfType<EndAccessInst>(),
-                  std::back_inserter(wellBehavedWriteAccumulator),
+                  std::back_inserter(mayWriteAccumulator),
                   [](EndAccessInst *eai) { return &eai->getAllOperands()[0]; });
       }
 
@@ -106,7 +106,7 @@ bool Context::constructCacheValue(
     // If we have a load, we just need to mark the load [take] as a write.
     if (auto *li = dyn_cast<LoadInst>(user)) {
       if (li->getOwnershipQualifier() == LoadOwnershipQualifier::Take) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
       }
       continue;
     }
@@ -125,7 +125,7 @@ bool Context::constructCacheValue(
       // [copy].
       if (!fas.beginsCoroutineEvaluation() &&
           fas.getArgumentConvention(*op).isInoutConvention()) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
         continue;
       }
 
@@ -143,14 +143,14 @@ bool Context::constructCacheValue(
     if (auto *cai = dyn_cast<CopyAddrInst>(user)) {
       // If our value is the destination, this is a write.
       if (cai->getDest() == op->get()) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
         continue;
       }
 
       // Ok, so we are Src by process of elimination. Make sure we are not being
       // taken.
       if (cai->isTakeOfSrc()) {
-        wellBehavedWriteAccumulator.push_back(op);
+        mayWriteAccumulator.push_back(op);
         continue;
       }
 
