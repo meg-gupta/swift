@@ -9,6 +9,8 @@
 
 // REQUIRES: concurrency
 // REQUIRES: asserts
+// rdar://126060540
+// UNSUPPORTED: asan
 
 ////////////////////////
 // MARK: Declarations //

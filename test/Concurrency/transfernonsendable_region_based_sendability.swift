@@ -3,6 +3,8 @@
 
 // REQUIRES: concurrency
 // REQUIRES: asserts
+// rdar://126060540
+// UNSUPPORTED: asan
 
 /*
  This file tests the early features of the flow-sensitive Sendable checking implemented by the TransferNonSendable SIL pass.

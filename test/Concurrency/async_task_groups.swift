@@ -6,7 +6,8 @@
 // REQUIRES: concurrency
 // REQUIRES: asserts
 // REQUIRES: libdispatch
-
+// rdar://126060540
+// UNSUPPORTED: asan
 @available(SwiftStdlib 5.1, *)
 func asyncFunc() async -> Int { 42 }
 @available(SwiftStdlib 5.1, *)

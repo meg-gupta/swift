@@ -5,6 +5,8 @@
 
 // REQUIRES: concurrency
 // REQUIRES: asserts
+// rdar://126060540
+// UNSUPPORTED: asan
 
 class C1 { } // expected-note{{class 'C1' does not conform to the 'Sendable' protocol}}
 class C2 { }
