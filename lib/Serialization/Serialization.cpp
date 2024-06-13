@@ -2572,16 +2572,19 @@ void Serializer::writeASTBlockEntity(const DeclContext *DC) {
 }
 
 void Serializer::writeLifetimeDependenceInfo(
-    LifetimeDependenceInfo lifetimeDependenceInfo) {
+    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo) {
   using namespace decls_block;
   SmallVector<bool> paramIndices;
-  lifetimeDependenceInfo.getConcatenatedData(paramIndices);
+  for (auto info : lifetimeDependenceInfo) {
+    info.getConcatenatedData(paramIndices);
 
-  auto abbrCode = DeclTypeAbbrCodes[LifetimeDependenceLayout::Code];
-  LifetimeDependenceLayout::emitRecord(
-      Out, ScratchRecord, abbrCode, lifetimeDependenceInfo.isImmortal(),
-      lifetimeDependenceInfo.hasInheritLifetimeParamIndices(),
-      lifetimeDependenceInfo.hasScopeLifetimeParamIndices(), paramIndices);
+    auto abbrCode = DeclTypeAbbrCodes[LifetimeDependenceLayout::Code];
+    LifetimeDependenceLayout::emitRecord(
+        Out, ScratchRecord, abbrCode, info.getTargetIndex(), info.isImmortal(),
+        info.hasInheritLifetimeParamIndices(),
+        info.hasScopeLifetimeParamIndices(), paramIndices);
+    paramIndices.clear();
+  }
 }
 
 #define SIMPLE_CASE(TYPENAME, VALUE) \
@@ -4586,9 +4589,9 @@ public:
 
     auto fnType = ty->getAs<AnyFunctionType>();
     if (fnType) {
-      if (auto *lifetimeDependenceInfo =
-              fnType->getLifetimeDependenceInfoOrNull()) {
-        S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+      auto lifetimeDependenceInfo = fnType->getLifetimeDependenceInfo();
+      if (!lifetimeDependenceInfo.empty()) {
+        S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
       }
     }
 
@@ -4713,9 +4716,9 @@ public:
 
     auto fnType = ty->getAs<AnyFunctionType>();
     if (fnType) {
-      if (auto *lifetimeDependenceInfo =
-              fnType->getLifetimeDependenceInfoOrNull()) {
-        S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+      auto lifetimeDependenceInfo = fnType->getLifetimeDependenceInfo();
+      if (!lifetimeDependenceInfo.empty()) {
+        S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
       }
     }
 
@@ -4883,9 +4886,9 @@ public:
 
     auto fnType = ty->getAs<AnyFunctionType>();
     if (fnType) {
-      if (auto *lifetimeDependenceInfo =
-              fnType->getLifetimeDependenceInfoOrNull()) {
-        S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+      auto lifetimeDependenceInfo = fnType->getLifetimeDependenceInfo();
+      if (!lifetimeDependenceInfo.empty()) {
+        S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
       }
     }
 
@@ -5629,9 +5632,9 @@ public:
 
     serializeFunctionTypeParams(fnTy);
 
-    if (auto *lifetimeDependenceInfo =
-            fnTy->getLifetimeDependenceInfoOrNull()) {
-      S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+    auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
     }
   }
 
@@ -5652,9 +5655,9 @@ public:
 
     serializeFunctionTypeParams(fnTy);
 
-    if (auto *lifetimeDependenceInfo =
-            fnTy->getLifetimeDependenceInfoOrNull()) {
-      S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+    auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
     }
   }
 
@@ -5745,9 +5748,9 @@ public:
         invocationSigID, invocationSubstMapID, patternSubstMapID,
         clangTypeID, variableData);
 
-    if (auto *lifetimeDependenceInfo =
-            fnTy->getLifetimeDependenceInfoOrNull()) {
-      S.writeLifetimeDependenceInfo(*lifetimeDependenceInfo);
+    auto lifetimeDependenceInfo = fnTy->getLifetimeDependenceInfo();
+    if (!lifetimeDependenceInfo.empty()) {
+      S.writeLifetimeDependenceInfo(lifetimeDependenceInfo);
     }
   }
 

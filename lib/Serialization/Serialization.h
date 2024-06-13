@@ -386,8 +386,8 @@ private:
   void writeASTBlockEntity(PackConformance *conformance);
 
   /// Writes lifetime dependence info
-  void
-  writeLifetimeDependenceInfo(LifetimeDependenceInfo lifetimeDependenceInfo);
+  void writeLifetimeDependenceInfo(
+      ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo);
 
   /// Registers the abbreviation for the given decl or type layout.
   template <typename Layout>

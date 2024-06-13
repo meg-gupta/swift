@@ -3908,13 +3908,13 @@ Type AnyFunctionType::getGlobalActor() const {
   }
 }
 
-const LifetimeDependenceInfo *
-AnyFunctionType::getLifetimeDependenceInfoOrNull() const {
+llvm::ArrayRef<LifetimeDependenceInfo>
+AnyFunctionType::getLifetimeDependenceInfo() const {
   switch (getKind()) {
   case TypeKind::Function:
-    return cast<FunctionType>(this)->getLifetimeDependenceInfoOrNull();
+    return cast<FunctionType>(this)->getLifetimeDependenceInfo();
   case TypeKind::GenericFunction:
-    return cast<GenericFunctionType>(this)->getLifetimeDependenceInfoOrNull();
+    return cast<GenericFunctionType>(this)->getLifetimeDependenceInfo();
 
   default:
     llvm_unreachable("Illegal type kind for AnyFunctionType.");
@@ -3992,17 +3992,6 @@ ClangTypeInfo SILFunctionType::getClangTypeInfo() const {
   assert(!info->empty() &&
          "If the ClangTypeInfo was empty, we shouldn't have stored it.");
   return *info;
-}
-
-const LifetimeDependenceInfo *SILFunctionType::
-getLifetimeDependenceInfoOrNull() const {
-  if (!Bits.SILFunctionType.HasLifetimeDependenceInfo)
-    return nullptr;
-  auto *info = getTrailingObjects<LifetimeDependenceInfo>();
-  assert(
-      !info->empty() &&
-      "If the LifetimeDependenceInfo was empty, we shouldn't have stored it.");
-  return info;
 }
 
 bool SILFunctionType::hasNonDerivableClangType() {

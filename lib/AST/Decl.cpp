@@ -10257,7 +10257,7 @@ void AbstractFunctionDecl::addDerivativeFunctionConfiguration(
   DerivativeFunctionConfigs->insert(config);
 }
 
-std::optional<LifetimeDependenceInfo>
+std::optional<llvm::ArrayRef<LifetimeDependenceInfo>>
 AbstractFunctionDecl::getLifetimeDependenceInfo() const {
   if (!isa<FuncDecl>(this) && !isa<ConstructorDecl>(this)) {
     return std::nullopt;

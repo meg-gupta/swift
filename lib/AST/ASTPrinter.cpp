@@ -6658,7 +6658,9 @@ public:
     if (T->hasLifetimeDependenceInfo()) {
       auto lifetimeDependenceInfo = T->getExtInfo().getLifetimeDependenceInfo();
       assert(!lifetimeDependenceInfo.empty());
-      Printer << lifetimeDependenceInfo.getString() << " ";
+      for (auto info : lifetimeDependenceInfo) {
+        Printer << info.getString() << " ";
+      }
     }
 
     Printer.callPrintStructurePre(PrintStructureKind::FunctionReturnType);
@@ -6717,7 +6719,9 @@ public:
     if (T->hasLifetimeDependenceInfo()) {
       auto lifetimeDependenceInfo = T->getExtInfo().getLifetimeDependenceInfo();
       assert(!lifetimeDependenceInfo.empty());
-      Printer << lifetimeDependenceInfo.getString() << " ";
+      for (auto info : lifetimeDependenceInfo) {
+        Printer << info.getString() << " ";
+      }
     }
 
     Printer.callPrintStructurePre(PrintStructureKind::FunctionReturnType);
@@ -6819,9 +6823,11 @@ public:
       }
       sub->Printer << ") -> ";
 
-      auto lifetimeDependenceInfo = T->getLifetimeDependenceInfo();
-      if (!lifetimeDependenceInfo.empty()) {
-        sub->Printer << lifetimeDependenceInfo.getString() << " ";
+      if (T->hasLifetimeDependenceInfo()) {
+        auto lifetimeDependenceInfo = T->getLifetimeDependenceInfo();
+        for (auto info : lifetimeDependenceInfo) {
+          sub->Printer << info.getString() << " ";
+        }
       }
 
       bool parenthesizeResults = mustParenthesizeResults(T);

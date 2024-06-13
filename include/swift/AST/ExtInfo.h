@@ -464,13 +464,13 @@ class ASTExtInfoBuilder {
   Type globalActor;
   Type thrownError;
 
-  LifetimeDependenceInfo lifetimeDependenceInfo;
+  ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo;
 
   using Representation = FunctionTypeRepresentation;
 
   ASTExtInfoBuilder(unsigned bits, ClangTypeInfo clangTypeInfo,
                     Type globalActor, Type thrownError,
-                    LifetimeDependenceInfo lifetimeDependenceInfo)
+                    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : bits(bits), clangTypeInfo(clangTypeInfo), globalActor(globalActor),
         thrownError(thrownError),
         lifetimeDependenceInfo(lifetimeDependenceInfo) {
@@ -485,7 +485,7 @@ public:
       : ASTExtInfoBuilder(Representation::Swift, false, false, Type(),
                           DifferentiabilityKind::NonDifferentiable, nullptr,
                           FunctionTypeIsolation::forNonIsolated(),
-                          LifetimeDependenceInfo(),
+                          std::nullopt /* LifetimeDependenceInfo */,
                           false /*transferringResult*/) {}
 
   // Constructor for polymorphic type.
@@ -493,14 +493,14 @@ public:
       : ASTExtInfoBuilder(rep, false, throws, thrownError,
                           DifferentiabilityKind::NonDifferentiable, nullptr,
                           FunctionTypeIsolation::forNonIsolated(),
-                          LifetimeDependenceInfo(),
+                          std::nullopt /* LifetimeDependenceInfo */,
                           false /*transferringResult*/) {}
 
   // Constructor with no defaults.
   ASTExtInfoBuilder(Representation rep, bool isNoEscape, bool throws,
                     Type thrownError, DifferentiabilityKind diffKind,
                     const clang::Type *type, FunctionTypeIsolation isolation,
-                    LifetimeDependenceInfo lifetimeDependenceInfo,
+                    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo,
                     bool sendingResult)
       : ASTExtInfoBuilder(
             ((unsigned)rep) | (isNoEscape ? NoEscapeMask : 0) |
@@ -552,7 +552,7 @@ public:
   Type getGlobalActor() const { return globalActor; }
   Type getThrownError() const { return thrownError; }
 
-  LifetimeDependenceInfo getLifetimeDependenceInfo() const {
+  ArrayRef<LifetimeDependenceInfo> getLifetimeDependenceInfo() const {
     return lifetimeDependenceInfo;
   }
 
@@ -676,9 +676,8 @@ public:
                              globalActor, thrownError, lifetimeDependenceInfo);
   }
 
-  [[nodiscard]]
-  ASTExtInfoBuilder withLifetimeDependenceInfo(
-      LifetimeDependenceInfo lifetimeDependenceInfo) const {
+  [[nodiscard]] ASTExtInfoBuilder withLifetimeDependenceInfo(
+      llvm::ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo) const {
     return ASTExtInfoBuilder(bits, clangTypeInfo, globalActor, thrownError,
                              lifetimeDependenceInfo);
   }
@@ -697,7 +696,9 @@ public:
     ID.AddPointer(clangTypeInfo.getType());
     ID.AddPointer(globalActor.getPointer());
     ID.AddPointer(thrownError.getPointer());
-    lifetimeDependenceInfo.Profile(ID);
+    for (auto info : lifetimeDependenceInfo) {
+      info.Profile(ID);
+    }
   }
 
   bool isEqualTo(ASTExtInfoBuilder other, bool useClangTypes) const {
@@ -727,7 +728,8 @@ class ASTExtInfo {
   ASTExtInfo(ASTExtInfoBuilder builder) : builder(builder) {}
 
   ASTExtInfo(unsigned bits, ClangTypeInfo clangTypeInfo, Type globalActor,
-             Type thrownError, LifetimeDependenceInfo lifetimeDependenceInfo)
+             Type thrownError,
+             llvm::ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : builder(bits, clangTypeInfo, globalActor, thrownError,
                 lifetimeDependenceInfo) {
     builder.checkInvariants();
@@ -778,7 +780,7 @@ public:
   Type getGlobalActor() const { return builder.getGlobalActor(); }
   Type getThrownError() const { return builder.getThrownError(); }
 
-  LifetimeDependenceInfo getLifetimeDependenceInfo() const {
+  ArrayRef<LifetimeDependenceInfo> getLifetimeDependenceInfo() const {
     return builder.getLifetimeDependenceInfo();
   }
 
@@ -935,13 +937,13 @@ class SILExtInfoBuilder {
 
   ClangTypeInfo clangTypeInfo;
 
-  LifetimeDependenceInfo lifetimeDependenceInfo;
+  ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo;
 
   using Language = SILFunctionLanguage;
   using Representation = SILFunctionTypeRepresentation;
 
   SILExtInfoBuilder(unsigned bits, ClangTypeInfo clangTypeInfo,
-                    LifetimeDependenceInfo lifetimeDependenceInfo)
+                    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : bits(bits), clangTypeInfo(clangTypeInfo.getCanonical()),
         lifetimeDependenceInfo(lifetimeDependenceInfo) {}
 
@@ -964,17 +966,17 @@ public:
   /// An ExtInfoBuilder for a typical Swift function: thick, @escaping,
   /// non-pseudogeneric, non-differentiable.
   SILExtInfoBuilder()
-      : SILExtInfoBuilder(makeBits(SILFunctionTypeRepresentation::Thick, false,
-                                   false, false, false, false,
-                                   SILFunctionTypeIsolation::Unknown,
-                                   DifferentiabilityKind::NonDifferentiable),
-                          ClangTypeInfo(nullptr), LifetimeDependenceInfo()) {}
+      : SILExtInfoBuilder(
+            makeBits(SILFunctionTypeRepresentation::Thick, false, false, false,
+                     false, false, SILFunctionTypeIsolation::Unknown,
+                     DifferentiabilityKind::NonDifferentiable),
+            ClangTypeInfo(nullptr), /*LifetimeDependenceInfo*/ std::nullopt) {}
 
   SILExtInfoBuilder(Representation rep, bool isPseudogeneric, bool isNoEscape,
                     bool isSendable, bool isAsync, bool isUnimplementable,
                     SILFunctionTypeIsolation isolation,
                     DifferentiabilityKind diffKind, const clang::Type *type,
-                    LifetimeDependenceInfo lifetimeDependenceInfo)
+                    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : SILExtInfoBuilder(makeBits(rep, isPseudogeneric, isNoEscape, isSendable,
                                    isAsync, isUnimplementable, isolation,
                                    diffKind),
@@ -1046,7 +1048,7 @@ public:
   /// Get the underlying ClangTypeInfo value.
   ClangTypeInfo getClangTypeInfo() const { return clangTypeInfo; }
 
-  LifetimeDependenceInfo getLifetimeDependenceInfo() const {
+  ArrayRef<LifetimeDependenceInfo> getLifetimeDependenceInfo() const {
     return lifetimeDependenceInfo;
   }
 
@@ -1164,14 +1166,16 @@ public:
                              lifetimeDependenceInfo);
   }
   [[nodiscard]] SILExtInfoBuilder withLifetimeDependenceInfo(
-      LifetimeDependenceInfo lifetimeDependenceInfo) const {
+      ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo) const {
     return SILExtInfoBuilder(bits, clangTypeInfo, lifetimeDependenceInfo);
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddInteger(bits);
     ID.AddPointer(clangTypeInfo.getType());
-    lifetimeDependenceInfo.Profile(ID);
+    for (auto info : lifetimeDependenceInfo) {
+      info.Profile(ID);
+    }
   }
 
   bool isEqualTo(SILExtInfoBuilder other, bool useClangTypes) const {
@@ -1198,7 +1202,7 @@ class SILExtInfo {
   SILExtInfo(SILExtInfoBuilder builder) : builder(builder) {}
 
   SILExtInfo(unsigned bits, ClangTypeInfo clangTypeInfo,
-             LifetimeDependenceInfo lifetimeDependenceInfo)
+             llvm::ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : builder(bits, clangTypeInfo, lifetimeDependenceInfo) {
     builder.checkInvariants();
   };
@@ -1215,11 +1219,10 @@ public:
 
   /// A default ExtInfo but with a Thin convention.
   static SILExtInfo getThin() {
-    return SILExtInfoBuilder(SILExtInfoBuilder::Representation::Thin, false,
-                             false, false, false, false,
-                             SILFunctionTypeIsolation::Unknown,
-                             DifferentiabilityKind::NonDifferentiable, nullptr,
-                             LifetimeDependenceInfo())
+    return SILExtInfoBuilder(
+               SILExtInfoBuilder::Representation::Thin, false, false, false,
+               false, false, SILFunctionTypeIsolation::Unknown,
+               DifferentiabilityKind::NonDifferentiable, nullptr, {})
         .build();
   }
 
@@ -1265,7 +1268,7 @@ public:
 
   ClangTypeInfo getClangTypeInfo() const { return builder.getClangTypeInfo(); }
 
-  LifetimeDependenceInfo getLifetimeDependenceInfo() const {
+  ArrayRef<LifetimeDependenceInfo> getLifetimeDependenceInfo() const {
     return builder.getLifetimeDependenceInfo();
   }
 
@@ -1303,7 +1306,8 @@ public:
     return builder.withUnimplementable(isUnimplementable).build();
   }
 
-  SILExtInfo withLifetimeDependenceInfo(LifetimeDependenceInfo info) const {
+  SILExtInfo
+  withLifetimeDependenceInfo(ArrayRef<LifetimeDependenceInfo> info) const {
     return builder.withLifetimeDependenceInfo(info);
   }
 

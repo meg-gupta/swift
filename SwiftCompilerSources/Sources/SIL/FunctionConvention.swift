@@ -77,13 +77,7 @@ public struct FunctionConvention : CustomStringConvertible {
   /// Collection of LifetimeDependenceConvention indexed on the
   /// function parameter.
   public var resultDependencies: ResultDependencies? {
-    let deps = bridgedFunctionType.SILFunctionType_getLifetimeDependenceInfo()
-    if deps.empty() {
-      return nil
-    }
-    return ResultDependencies(bridged: deps,
-                                         parameterCount: parameters.count,
-                                         hasSelfParameter: hasSelfParameter)
+    return nil
   }
 
   public var description: String {

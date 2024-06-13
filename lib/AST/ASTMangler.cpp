@@ -3105,13 +3105,15 @@ void ASTMangler::appendFunctionSignature(AnyFunctionType *fn,
 
   if (auto *afd = dyn_cast_or_null<AbstractFunctionDecl>(forDecl)) {
     if (afd->hasImplicitSelfDecl()) {
+      /*
       auto lifetimeDependenceKind =
           fn->getLifetimeDependenceInfo().getLifetimeDependenceOnParam(
-              /*selfIndex*/ afd->getParameters()->size());
+               afd->getParameters()->size());
       if (lifetimeDependenceKind) {
         appendLifetimeDependenceKind(*lifetimeDependenceKind,
-                                     /*isSelfDependence*/ true);
+                                    true);
       }
+      */
     }
   }
 }
@@ -3187,8 +3189,8 @@ getParameterFlagsForMangling(ParameterTypeFlags flags,
 
 void ASTMangler::appendFunctionInputType(
     ArrayRef<AnyFunctionType::Param> params,
-    LifetimeDependenceInfo lifetimeDependenceInfo, GenericSignature sig,
-    const ValueDecl *forDecl, bool isRecursedInto) {
+    ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo,
+    GenericSignature sig, const ValueDecl *forDecl, bool isRecursedInto) {
   auto defaultSpecifier = getDefaultOwnership(forDecl);
   
   switch (params.size()) {
@@ -3212,7 +3214,8 @@ void ASTMangler::appendFunctionInputType(
           Identifier(), type,
           getParameterFlagsForMangling(param.getParameterFlags(),
                                        defaultSpecifier, isRecursedInto),
-          lifetimeDependenceInfo.getLifetimeDependenceOnParam(/*paramIndex*/ 0),
+          std::nullopt,
+          /* lifetimeDependenceInfo.getLifetimeDependenceOnParam(0),*/
           sig, nullptr);
       break;
     }
@@ -3234,8 +3237,9 @@ void ASTMangler::appendFunctionInputType(
           Identifier(), param.getPlainType(),
           getParameterFlagsForMangling(param.getParameterFlags(),
                                        defaultSpecifier, isRecursedInto),
-          lifetimeDependenceInfo.getLifetimeDependenceOnParam(paramIndex), sig,
-          nullptr);
+          std::nullopt,
+          /*lifetimeDependenceInfo.getLifetimeDependenceOnParam(paramIndex),*/
+          sig, nullptr);
       appendListSeparator(isFirstParam);
       paramIndex++;
     }

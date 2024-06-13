@@ -2257,6 +2257,10 @@ ParamSpecifierRequest::evaluate(Evaluator &evaluator,
   if (auto isolated = dyn_cast<IsolatedTypeRepr>(nestedRepr))
     nestedRepr = isolated->getBase();
 
+  if (auto *lifetime = dyn_cast<LifetimeDependentTypeRepr>(nestedRepr)) {
+    nestedRepr = lifetime->getBase();
+  }
+
   if (auto transferring = dyn_cast<TransferringTypeRepr>(nestedRepr)) {
     // If we do not have an Ownership Repr, return implicit copyable consuming.
     auto *base = transferring->getBase();
@@ -3119,7 +3123,7 @@ ImplicitKnownProtocolConformanceRequest::evaluate(Evaluator &evaluator,
   }
 }
 
-std::optional<LifetimeDependenceInfo>
+std::optional<llvm::ArrayRef<LifetimeDependenceInfo>>
 LifetimeDependenceInfoRequest::evaluate(Evaluator &evaluator,
                                         AbstractFunctionDecl *decl) const {
   return LifetimeDependenceInfo::get(decl);

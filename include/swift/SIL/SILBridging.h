@@ -246,6 +246,26 @@ struct BridgedYieldInfoArray {
   BridgedParameterInfo at(SwiftInt resultIndex) const;
 };
 
+struct BridgedLifetimeDependenceInfoArray {
+  BridgedArrayRef lifetimeDependenceInfoArray;
+
+#ifdef USED_IN_CPP_SOURCE
+  BridgedLifetimeDependenceInfoArray(
+      llvm::ArrayRef<swift::LifetimeDependenceInfo> lifetimeDependenceInfo)
+      : lifetimeDependenceInfoArray(lifetimeDependenceInfo) {}
+
+  llvm::ArrayRef<swift::LifetimeDependenceInfo> unbridged() const {
+    return lifetimeDependenceInfoArray
+        .unbridged<swift::LifetimeDependenceInfo>();
+  }
+#endif
+
+  BRIDGED_INLINE SwiftInt count() const;
+
+  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE BridgedLifetimeDependenceInfoArray
+  at(SwiftInt parameterIndex) const;
+};
+
 struct BridgedLifetimeDependenceInfo {
   const swift::LifetimeDependenceInfo * _Nullable info = nullptr;
 
@@ -302,7 +322,8 @@ struct BridgedASTType {
   SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
   BridgedYieldInfoArray SILFunctionType_getYields() const;
 
-  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE BridgedLifetimeDependenceInfo SILFunctionType_getLifetimeDependenceInfo() const;
+  SWIFT_IMPORT_UNSAFE BRIDGED_INLINE BridgedLifetimeDependenceInfoArray
+  SILFunctionType_getLifetimeDependenceInfo() const;
 };
 
 struct BridgedType {

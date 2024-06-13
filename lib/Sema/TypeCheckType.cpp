@@ -4039,7 +4039,7 @@ NeverNullType TypeResolver::resolveASTFunctionType(
   FunctionType::ExtInfoBuilder extInfoBuilder(
       FunctionTypeRepresentation::Swift, noescape, repr->isThrowing(), thrownTy,
       diffKind, /*clangFunctionType*/ nullptr, isolation,
-      LifetimeDependenceInfo(), hasSendingResult);
+      /*LifetimeDependenceInfo*/ std::nullopt, hasSendingResult);
 
   const clang::Type *clangFnType = parsedClangFunctionType;
   if (shouldStoreClangType(representation) && !clangFnType)
@@ -4248,7 +4248,8 @@ NeverNullType TypeResolver::resolveSILFunctionType(FunctionTypeRepr *repr,
 
   auto extInfoBuilder = SILFunctionType::ExtInfoBuilder(
       representation, pseudogeneric, noescape, sendable, async, unimplementable,
-      isolation, diffKind, clangFnType, LifetimeDependenceInfo());
+      isolation, diffKind, clangFnType,
+      /*LifetimeDependenceInfo*/ std::nullopt);
 
   // Resolve parameter and result types using the function's generic
   // environment.
@@ -5053,7 +5054,8 @@ TypeResolver::resolveLifetimeDependentTypeRepr(LifetimeDependentTypeRepr *repr,
                     diag::lifetime_dependence_cannot_be_applied_to_tuple_elt);
     return ErrorType::get(getASTContext());
   }
-  if (!options.is(TypeResolverContext::FunctionResult)) {
+  if (!options.is(TypeResolverContext::FunctionResult) &&
+      !options.is(TypeResolverContext::FunctionInput)) {
     diagnoseInvalid(
         repr, repr->getSpecifierLoc(),
         diag::lifetime_dependence_only_on_function_method_init_result);

@@ -141,29 +141,29 @@ public:
 class LifetimeDependenceInfo {
   IndexSubset *inheritLifetimeParamIndices;
   IndexSubset *scopeLifetimeParamIndices;
+  unsigned targetIndex;
   bool immortal;
 
-  static LifetimeDependenceInfo getForParamIndex(AbstractFunctionDecl *afd,
-                                                 unsigned index,
-                                                 LifetimeDependenceKind kind);
+  static LifetimeDependenceInfo getForIndex(AbstractFunctionDecl *afd,
+                                            unsigned targetIndex,
+                                            unsigned sourceIndex,
+                                            LifetimeDependenceKind kind);
 
-  /// Builds LifetimeDependenceInfo from a swift decl
+  /// Builds LifetimeDependenceInfo on a result or parameter from a swift decl
   static std::optional<LifetimeDependenceInfo>
-  fromTypeRepr(AbstractFunctionDecl *afd);
+  fromTypeRepr(AbstractFunctionDecl *afd, LifetimeDependentTypeRepr *typeRepr,
+               unsigned targetIndex);
 
-  /// Infer LifetimeDependenceInfo
+  /// Infer LifetimeDependenceInfo on result
   static std::optional<LifetimeDependenceInfo> infer(AbstractFunctionDecl *afd);
 
 public:
-  LifetimeDependenceInfo()
-      : inheritLifetimeParamIndices(nullptr),
-        scopeLifetimeParamIndices(nullptr), immortal(false) {}
   LifetimeDependenceInfo(IndexSubset *inheritLifetimeParamIndices,
                          IndexSubset *scopeLifetimeParamIndices,
-                         bool isImmortal)
+                         unsigned targetIndex, bool isImmortal)
       : inheritLifetimeParamIndices(inheritLifetimeParamIndices),
         scopeLifetimeParamIndices(scopeLifetimeParamIndices),
-        immortal(isImmortal) {
+        targetIndex(targetIndex), immortal(isImmortal) {
     assert(isImmortal || inheritLifetimeParamIndices ||
            scopeLifetimeParamIndices);
     assert(!inheritLifetimeParamIndices ||
@@ -179,6 +179,8 @@ public:
   }
 
   bool isImmortal() const { return immortal; }
+
+  unsigned getTargetIndex() const { return targetIndex; }
 
   bool hasInheritLifetimeParamIndices() const {
     return inheritLifetimeParamIndices != nullptr;
@@ -207,7 +209,8 @@ public:
   /// Builds LifetimeDependenceInfo from a swift decl, either from the explicit
   /// lifetime dependence specifiers or by inference based on types and
   /// ownership modifiers.
-  static std::optional<LifetimeDependenceInfo> get(AbstractFunctionDecl *decl);
+  static std::optional<ArrayRef<LifetimeDependenceInfo>>
+  get(AbstractFunctionDecl *decl);
 
   /// Builds LifetimeDependenceInfo from the bitvectors passes as parameters.
   static LifetimeDependenceInfo

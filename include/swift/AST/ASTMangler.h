@@ -540,11 +540,11 @@ protected:
                                FunctionManglingKind functionMangling,
                                bool isRecursedInto = true);
 
-  void appendFunctionInputType(ArrayRef<AnyFunctionType::Param> params,
-                               LifetimeDependenceInfo lifetimeDependenceInfo,
-                               GenericSignature sig,
-                               const ValueDecl *forDecl = nullptr,
-                               bool isRecursedInto = true);
+  void appendFunctionInputType(
+      ArrayRef<AnyFunctionType::Param> params,
+      ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo,
+      GenericSignature sig, const ValueDecl *forDecl = nullptr,
+      bool isRecursedInto = true);
   void appendFunctionResultType(Type resultType,
                                 GenericSignature sig,
                                 const ValueDecl *forDecl = nullptr);

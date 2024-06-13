@@ -6978,8 +6978,8 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
 
   auto info = FunctionType::ExtInfoBuilder(
                   *representation, noescape, throws, thrownError, *diffKind,
-                  clangFunctionType, isolation, LifetimeDependenceInfo(),
-                  hasSendingResult)
+                  clangFunctionType, isolation,
+                  /*LifetimeDependenceInfo */ std::nullopt, hasSendingResult)
                   .withSendable(sendable)
                   .withAsync(async)
                   .build();
@@ -7516,12 +7516,11 @@ Expected<Type> DESERIALIZE_TYPE(SIL_FUNCTION_TYPE)(
   if (erasedIsolation)
     isolation = SILFunctionTypeIsolation::Erased;
 
-  auto extInfo =
-      SILFunctionType::ExtInfoBuilder(
-          *representation, pseudogeneric, noescape, sendable, async,
-          unimplementable, isolation, *diffKind, clangFunctionType,
-          LifetimeDependenceInfo())
-          .build();
+  auto extInfo = SILFunctionType::ExtInfoBuilder(
+                     *representation, pseudogeneric, noescape, sendable, async,
+                     unimplementable, isolation, *diffKind, clangFunctionType,
+                     /*LifetimeDependenceInfo*/ std::nullopt)
+                     .build();
 
   // Process the coroutine kind.
   auto coroutineKind = getActualSILCoroutineKind(rawCoroutineKind);
@@ -8857,12 +8856,13 @@ ModuleFile::maybeReadLifetimeDependenceInfo(unsigned numParams) {
     return std::nullopt;
   }
 
+  unsigned targetIndex;
   bool isImmortal;
   bool hasInheritLifetimeParamIndices;
   bool hasScopeLifetimeParamIndices;
   ArrayRef<uint64_t> lifetimeDependenceData;
   LifetimeDependenceLayout::readRecord(
-      scratch, isImmortal, hasInheritLifetimeParamIndices,
+      scratch, targetIndex, isImmortal, hasInheritLifetimeParamIndices,
       hasScopeLifetimeParamIndices, lifetimeDependenceData);
 
   SmallBitVector inheritLifetimeParamIndices(numParams, false);
@@ -8893,5 +8893,5 @@ ModuleFile::maybeReadLifetimeDependenceInfo(unsigned numParams) {
       hasScopeLifetimeParamIndices
           ? IndexSubset::get(ctx, scopeLifetimeParamIndices)
           : nullptr,
-      isImmortal);
+      targetIndex, isImmortal);
 }

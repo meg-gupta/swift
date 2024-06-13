@@ -4952,23 +4952,23 @@ public:
 };
 
 class LifetimeDependenceInfoRequest
-    : public SimpleRequest<LifetimeDependenceInfoRequest,
-                           std::optional<LifetimeDependenceInfo>(
-                               AbstractFunctionDecl *),
-                           RequestFlags::Cached> {
+    : public SimpleRequest<
+          LifetimeDependenceInfoRequest,
+          std::optional<llvm::ArrayRef<LifetimeDependenceInfo>>(
+              AbstractFunctionDecl *),
+          RequestFlags::Cached> {
 public:
   using SimpleRequest::SimpleRequest;
 
 private:
   friend SimpleRequest;
 
-  std::optional<LifetimeDependenceInfo>
+  std::optional<llvm::ArrayRef<LifetimeDependenceInfo>>
   evaluate(Evaluator &evaluator, AbstractFunctionDecl *AFD) const;
 
 public:
   // Caching.
   bool isCached() const { return true; }
-
 };
 
 class CaptureInfoRequest :

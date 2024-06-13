@@ -162,9 +162,10 @@ BridgedYieldInfoArray BridgedASTType::SILFunctionType_getYields() const {
   return unbridged()->castTo<swift::SILFunctionType>()->getYields();
 }
 
-BridgedLifetimeDependenceInfo BridgedASTType::SILFunctionType_getLifetimeDependenceInfo() const {
+BridgedLifetimeDependenceInfoArray
+BridgedASTType::SILFunctionType_getLifetimeDependenceInfo() const {
   auto fnTy = unbridged()->castTo<swift::SILFunctionType>();
-  return {fnTy->getLifetimeDependenceInfoOrNull()};
+  return fnTy->getLifetimeDependenceInfo();
 }
 
 //===----------------------------------------------------------------------===//
