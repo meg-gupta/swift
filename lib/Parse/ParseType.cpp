@@ -62,8 +62,8 @@ Parser::ParsedTypeAttributeList::applyAttributesToType(Parser &p,
   }
 
   if (!lifetimeDependenceSpecifiers.empty()) {
-    ty = LifetimeDependentReturnTypeRepr::create(p.Context, ty,
-                                                 lifetimeDependenceSpecifiers);
+    ty = LifetimeDependentTypeRepr::create(p.Context, ty,
+                                           lifetimeDependenceSpecifiers);
   }
   return ty;
 }

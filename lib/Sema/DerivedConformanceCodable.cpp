@@ -1894,7 +1894,7 @@ static ValueDecl *deriveDecodable_init(DerivedConformance &derived) {
                               /*Throws=*/true, SourceLoc(),
                               /*ThrownType=*/TypeLoc(), paramList,
                               /*GenericParams=*/nullptr, conformanceDC,
-                              /*LifetimeDependentReturnTypeRepr*/ nullptr);
+                              /*LifetimeDependentTypeRepr*/ nullptr);
   initDecl->setImplicit();
   initDecl->setSynthesized();
 
