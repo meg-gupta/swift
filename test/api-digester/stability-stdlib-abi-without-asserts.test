@@ -812,5 +812,7 @@ Var UnsafeMutableBufferPointer.debugDescription has mangled name changing from '
 Var UnsafeMutableBufferPointer.debugDescription is now with @_preInverseGenerics
 
 Func FixedWidthInteger.&*(_:_:) has been added as a protocol requirement
+Subscript Collection.subscript(unchecked:) has been added as a protocol requirement
+Subscript Collection.subscript(uncheckedBounds:) has been added as a protocol requirement
 
 // *** DO NOT DISABLE OR XFAIL THIS TEST. *** (See comment above.)
