@@ -2430,9 +2430,7 @@ static bool ParseSILArgs(SILOptions &Opts, ArgList &Args,
     // has not been set by the -Ounchecked flag.
     Opts.AssertConfig =
         IRGenOpts.shouldOptimize()
-         ? (LangOpts.hasFeature(Feature::UnsafePointerBoundsSafety)
-              ? SILOptions::ReleaseWithBoundsSafety
-              : SILOptions::Release)
+         ? SILOptions::ReleaseWithBoundsSafety
          : SILOptions::Debug;
   }
 
