@@ -366,6 +366,7 @@ public:
   void visitWeakLinkedAttr(WeakLinkedAttr *attr);
   void visitSILGenNameAttr(SILGenNameAttr *attr);
   void visitUnsafeAttr(UnsafeAttr *attr);
+  void visitLifetimeAttr(LifetimeAttr *attr);
 };
 
 } // end anonymous namespace
@@ -7654,6 +7655,8 @@ void AttributeChecker::visitUnsafeAttr(UnsafeAttr *attr) {
 
   diagnoseAndRemoveAttr(attr, diag::unsafe_attr_disabled);
 }
+
+void AttributeChecker::visitLifetimeAttr(LifetimeAttr *attr) {}
 
 namespace {
 

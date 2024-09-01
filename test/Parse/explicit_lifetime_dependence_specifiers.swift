@@ -61,7 +61,8 @@ func testBasic() {
   }
 }
 
-func derive(_ x: borrowing BufferView) -> dependsOn(x) BufferView {
+@lifetime(x)
+func derive(_ x: borrowing BufferView) -> BufferView {
   return BufferView(x.ptr)
 }
 

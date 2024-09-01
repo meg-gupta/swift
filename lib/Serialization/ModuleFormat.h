@@ -2468,6 +2468,15 @@ namespace decls_block {
                                // trialed by introduced conformances
   >;
 
+  using LifetimeDeclAttrLayout =
+      BCRecordLayout<Lifetime_DECL_ATTR,
+                     BCVBR<4>,           // targetIndex
+                     BCFixed<1>,         // isImmortal
+                     BCFixed<1>,         // hasInheritLifetimeParamIndices
+                     BCFixed<1>,         // hasScopeLifetimeParamIndices
+                     BCArray<BCFixed<1>> // concatenated param indices
+                     >;
+
 #undef SYNTAX_SUGAR_TYPE_LAYOUT
 #undef TYPE_LAYOUT
 #undef TYPE_LAYOUT_IMPL
