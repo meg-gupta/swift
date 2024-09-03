@@ -2802,7 +2802,7 @@ static std::optional<Identifier> parseSingleAttrOptionImpl(
 ParserResult<LifetimeAttr> Parser::parseLifetimeAttribute(SourceLoc atLoc,
                                                           SourceLoc loc) {
   ParserStatus status;
-  SmallVector<LifetimeDependenceSpecifier> lifetimeEntries;
+  SmallVector<LifetimeEntry> lifetimeEntries;
 
   if (!Context.LangOpts.hasFeature(Feature::NonescapableTypes)) {
     diagnose(Tok, diag::requires_experimental_feature, "lifetime attribute",
@@ -2833,12 +2833,10 @@ ParserResult<LifetimeAttr> Parser::parseLifetimeAttribute(SourceLoc atLoc,
               consumeIdentifier(paramName, /*diagnoseDollarPrefix=*/false);
           if (paramName.is("immortal")) {
             lifetimeEntries.push_back(
-                LifetimeDependenceSpecifier::
-                    getImmortalLifetimeDependenceSpecifier(paramLoc));
+                LifetimeEntry::getImmortalLifetimeEntry(paramLoc));
           } else {
             lifetimeEntries.push_back(
-                LifetimeDependenceSpecifier::
-                    getNamedLifetimeDependenceSpecifier(paramLoc, paramName));
+                LifetimeEntry::getNamedLifetimeEntry(paramLoc, paramName));
           }
           break;
         }
@@ -2852,15 +2850,13 @@ ParserResult<LifetimeAttr> Parser::parseLifetimeAttribute(SourceLoc atLoc,
             return listStatus;
           }
           lifetimeEntries.push_back(
-              LifetimeDependenceSpecifier::
-                  getOrderedLifetimeDependenceSpecifier(paramLoc, paramNum));
+              LifetimeEntry::getOrderedLifetimeEntry(paramLoc, paramNum));
           break;
         }
         case tok::kw_self: {
           auto paramLoc = consumeToken(tok::kw_self);
           lifetimeEntries.push_back(
-              LifetimeDependenceSpecifier::getSelfLifetimeDependenceSpecifier(
-                  paramLoc));
+              LifetimeEntry::getSelfLifetimeEntry(paramLoc));
           break;
         }
         default:
@@ -5183,8 +5179,8 @@ static ParsedLifetimeDependenceKind getSILLifetimeDependenceKind(const Token &T)
   return ParsedLifetimeDependenceKind::Scope;
 }
 
-ParserStatus Parser::parseLifetimeDependenceSpecifiers(
-    SmallVectorImpl<LifetimeDependenceSpecifier> &specifierList) {
+ParserStatus
+Parser::parseLifetimeEntries(SmallVectorImpl<LifetimeEntry> &specifierList) {
   ParserStatus status;
   // TODO: Add fixits for diagnostics in this function.
   do {
@@ -5234,13 +5230,10 @@ ParserStatus Parser::parseLifetimeDependenceSpecifiers(
                 consumeIdentifier(paramName, /*diagnoseDollarPrefix=*/false);
             if (paramName.is("immortal")) {
               specifierList.push_back(
-                  LifetimeDependenceSpecifier::
-                      getImmortalLifetimeDependenceSpecifier(paramLoc));
+                  LifetimeEntry::getImmortalLifetimeEntry(paramLoc));
             } else {
-              specifierList.push_back(
-                  LifetimeDependenceSpecifier::
-                      getNamedLifetimeDependenceSpecifier(
-                          paramLoc, paramName, lifetimeDependenceKind));
+              specifierList.push_back(LifetimeEntry::getNamedLifetimeEntry(
+                  paramLoc, paramName, lifetimeDependenceKind));
             }
             break;
           }
@@ -5253,17 +5246,14 @@ ParserStatus Parser::parseLifetimeDependenceSpecifiers(
               listStatus.setIsParseError();
               return listStatus;
             }
-            specifierList.push_back(
-                LifetimeDependenceSpecifier::
-                    getOrderedLifetimeDependenceSpecifier(
-                        paramLoc, paramNum, lifetimeDependenceKind));
+            specifierList.push_back(LifetimeEntry::getOrderedLifetimeEntry(
+                paramLoc, paramNum, lifetimeDependenceKind));
             break;
           }
           case tok::kw_self: {
             auto paramLoc = consumeToken(tok::kw_self);
-            specifierList.push_back(
-                LifetimeDependenceSpecifier::getSelfLifetimeDependenceSpecifier(
-                    paramLoc, lifetimeDependenceKind));
+            specifierList.push_back(LifetimeEntry::getSelfLifetimeEntry(
+                paramLoc, lifetimeDependenceKind));
             break;
           }
           default:
@@ -5592,8 +5582,7 @@ ParserStatus Parser::ParsedTypeAttributeList::slowParse(Parser &P) {
                    "lifetime dependence specifier", false,
                    getFeatureName(Feature::NonescapableTypes));
       }
-      status |=
-          P.parseLifetimeDependenceSpecifiers(lifetimeDependenceSpecifiers);
+      status |= P.parseLifetimeEntries(lifetimeEntries);
       continue;
     }
 

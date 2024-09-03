@@ -209,8 +209,8 @@ static bool hasEscapableResultOrYield(AbstractFunctionDecl *afd) {
 }
 
 static std::optional<LifetimeDependenceKind>
-getLifetimeDependenceKind(LifetimeDependenceSpecifier specifier,
-                          AbstractFunctionDecl *afd, ParamDecl *decl) {
+getLifetimeDependenceKind(LifetimeEntry specifier, AbstractFunctionDecl *afd,
+                          ParamDecl *decl) {
   auto &ctx = afd->getASTContext();
   auto &diags = ctx.Diags;
   auto loc = specifier.getLoc();
@@ -271,7 +271,7 @@ LifetimeDependenceInfo::fromDependsOn(AbstractFunctionDecl *afd,
   SmallBitVector scopeLifetimeParamIndices(capacity);
 
   auto updateLifetimeDependenceInfo =
-      [&](LifetimeDependenceSpecifier specifier, unsigned paramIndexToSet,
+      [&](LifetimeEntry specifier, unsigned paramIndexToSet,
           std::optional<LifetimeDependenceKind> lifetimeKind) {
         auto loc = specifier.getLoc();
         if (!lifetimeKind.has_value()) {
@@ -292,8 +292,8 @@ LifetimeDependenceInfo::fromDependsOn(AbstractFunctionDecl *afd,
       };
 
   for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
-    switch (specifier.getSpecifierKind()) {
-    case LifetimeSpecifierKind::Immortal: {
+    switch (specifier.getLifetimeEntryKind()) {
+    case LifetimeEntryKind::Immortal: {
       auto immortalParam =
           std::find_if(afd->getParameters()->begin(),
                        afd->getParameters()->end(), [](ParamDecl *param) {
@@ -307,7 +307,7 @@ LifetimeDependenceInfo::fromDependsOn(AbstractFunctionDecl *afd,
       return LifetimeDependenceInfo(nullptr, nullptr, targetIndex,
                                     /*isImmortal*/ true);
     }
-    case LifetimeSpecifierKind::Named: {
+    case LifetimeEntryKind::Named: {
       unsigned paramIndex = 0;
       ParamDecl *candidateParam = nullptr;
       for (auto *param : *afd->getParameters()) {
@@ -331,7 +331,7 @@ LifetimeDependenceInfo::fromDependsOn(AbstractFunctionDecl *afd,
 
       break;
     }
-    case LifetimeSpecifierKind::Ordered: {
+    case LifetimeEntryKind::Ordered: {
       auto index = specifier.getIndex();
       if (index >= afd->getParameters()->size()) {
         diags.diagnose(specifier.getLoc(),
@@ -346,7 +346,7 @@ LifetimeDependenceInfo::fromDependsOn(AbstractFunctionDecl *afd,
       }
       break;
     }
-    case LifetimeSpecifierKind::Self: {
+    case LifetimeEntryKind::Self: {
       if (!afd->hasImplicitSelfDecl()) {
         diags.diagnose(specifier.getLoc(),
                        diag::lifetime_dependence_invalid_self_in_static);
@@ -393,7 +393,7 @@ std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromDependsOn(
   SmallBitVector inheritLifetimeParamIndices(capacity);
   SmallBitVector scopeLifetimeParamIndices(capacity);
 
-  auto updateLifetimeDependenceInfo = [&](LifetimeDependenceSpecifier specifier,
+  auto updateLifetimeDependenceInfo = [&](LifetimeEntry specifier,
                                           unsigned paramIndexToSet,
                                           ParameterConvention paramConvention) {
     auto loc = specifier.getLoc();
@@ -422,8 +422,8 @@ std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromDependsOn(
   };
 
   for (auto specifier : lifetimeDependentRepr->getLifetimeDependencies()) {
-    switch (specifier.getSpecifierKind()) {
-    case LifetimeSpecifierKind::Ordered: {
+    switch (specifier.getLifetimeEntryKind()) {
+    case LifetimeEntryKind::Ordered: {
       auto index = specifier.getIndex();
       if (index > capacity) {
         diags.diagnose(specifier.getLoc(),
@@ -437,7 +437,7 @@ std::optional<LifetimeDependenceInfo> LifetimeDependenceInfo::fromDependsOn(
       }
       break;
     }
-    case LifetimeSpecifierKind::Immortal: {
+    case LifetimeEntryKind::Immortal: {
       return LifetimeDependenceInfo(/*inheritLifetimeParamIndices*/ nullptr,
                                     /*scopeLifetimeParamIndices*/ nullptr,
                                     targetIndex,

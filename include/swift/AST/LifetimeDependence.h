@@ -1,4 +1,4 @@
-//===--- LifetimeDependenceSpecifiers.h ------------------------*- C++ -*-===//
+//===--- LifetimeDependence.h ---------------------------------*- C++ -*-===//
 //
 // This source file is part of the Swift.org open source project
 //
@@ -43,12 +43,12 @@ enum class ParsedLifetimeDependenceKind : uint8_t {
 
 enum class LifetimeDependenceKind : uint8_t { Inherit = 0, Scope };
 
-enum class LifetimeSpecifierKind { Named, Ordered, Self, Immortal };
+enum class LifetimeEntryKind { Named, Ordered, Self, Immortal };
 
-class LifetimeDependenceSpecifier {
+class LifetimeEntry {
 private:
   SourceLoc loc;
-  LifetimeSpecifierKind specifierKind;
+  LifetimeEntryKind lifetimeEntryKind;
   ParsedLifetimeDependenceKind parsedLifetimeDependenceKind;
   union Value {
     struct {
@@ -64,72 +64,72 @@ private:
     Value() {}
   } value;
 
-  LifetimeDependenceSpecifier(
-      SourceLoc loc, LifetimeSpecifierKind specifierKind,
-      ParsedLifetimeDependenceKind parsedLifetimeDependenceKind, Value value)
-      : loc(loc), specifierKind(specifierKind),
+  LifetimeEntry(SourceLoc loc, LifetimeEntryKind lifetimeEntryKind,
+                ParsedLifetimeDependenceKind parsedLifetimeDependenceKind,
+                Value value)
+      : loc(loc), lifetimeEntryKind(lifetimeEntryKind),
         parsedLifetimeDependenceKind(parsedLifetimeDependenceKind),
         value(value) {}
 
 public:
-  static LifetimeDependenceSpecifier getNamedLifetimeDependenceSpecifier(
-      SourceLoc loc, Identifier name,
-      ParsedLifetimeDependenceKind kind =
-          ParsedLifetimeDependenceKind::Default) {
-    return {loc, SpecifierKind::Named, kind, name};
+  static LifetimeEntry
+  getNamedLifetimeEntry(SourceLoc loc, Identifier name,
+                        ParsedLifetimeDependenceKind kind =
+                            ParsedLifetimeDependenceKind::Default) {
+    return {loc, LifetimeEntryKind::Named, kind, name};
   }
 
-  static LifetimeDependenceSpecifier
-  getImmortalLifetimeDependenceSpecifier(SourceLoc loc) {
-    return {loc, LifetimeSpecifierKind::Immortal, {}, {}};
+  static LifetimeEntry getImmortalLifetimeEntry(SourceLoc loc) {
+    return {loc, LifetimeEntryKind::Immortal, {}, {}};
   }
 
-  static LifetimeDependenceSpecifier getOrderedLifetimeDependenceSpecifier(
-      SourceLoc loc, unsigned index,
-      ParsedLifetimeDependenceKind kind =
-          ParsedLifetimeDependenceKind::Default) {
-    return {loc, SpecifierKind::Ordered, kind, index};
+  static LifetimeEntry
+  getOrderedLifetimeEntry(SourceLoc loc, unsigned index,
+                          ParsedLifetimeDependenceKind kind =
+                              ParsedLifetimeDependenceKind::Default) {
+    return {loc, LifetimeEntryKind::Ordered, kind, index};
   }
 
-  static LifetimeDependenceSpecifier getSelfLifetimeDependenceSpecifier(
-      SourceLoc loc, ParsedLifetimeDependenceKind kind =
-                         ParsedLifetimeDependenceKind::Default) {
-    return {loc, SpecifierKind::Self, kind, {}};
+  static LifetimeEntry
+  getSelfLifetimeEntry(SourceLoc loc,
+                       ParsedLifetimeDependenceKind kind =
+                           ParsedLifetimeDependenceKind::Default) {
+    return {loc, LifetimeEntryKind::Self, kind, {}};
   }
 
   SourceLoc getLoc() const { return loc; }
 
-  LifetimeSpecifierKind getSpecifierKind() const { return specifierKind; }
+  LifetimeEntryKind getLifetimeEntryKind() const { return lifetimeEntryKind; }
 
   ParsedLifetimeDependenceKind getParsedLifetimeDependenceKind() const {
     return parsedLifetimeDependenceKind;
   }
 
   Identifier getName() const {
-    assert(specifierKind == LifetimeSpecifierKind::Named);
+    assert(lifetimeEntryKind == LifetimeEntryKind::Named);
     return value.Named.name;
   }
 
   unsigned getIndex() const {
-    assert(specifierKind == LifetimeSpecifierKind::Ordered);
+    assert(lifetimeEntryKind == LifetimeEntryKind::Ordered);
     return value.Ordered.index;
   }
 
   std::string getParamString() const {
-    switch (specifierKind) {
-    case LifetimeSpecifierKind::Named:
+    switch (lifetimeEntryKind) {
+    case LifetimeEntryKind::Named:
       return value.Named.name.str().str();
-    case LifetimeSpecifierKind::Self:
+    case LifetimeEntryKind::Self:
       return "self";
-    case LifetimeSpecifierKind::Ordered:
+    case LifetimeEntryKind::Ordered:
       return std::to_string(value.Ordered.index);
-    case LifetimeSpecifierKind::Immortal:
+    case LifetimeEntryKind::Immortal:
       return "immortal";
     }
-    llvm_unreachable("Invalid LifetimeSpecifierKind");
+    llvm_unreachable("Invalid LifetimeEntryKind");
   }
 
-  std::string getLifetimeDependenceSpecifierString() const {
+  std::string getLifetimeEntryString() const {
     switch (parsedLifetimeDependenceKind) {
     case ParsedLifetimeDependenceKind::Default:
       return "dependsOn(" + getParamString() + ")";
@@ -138,8 +138,7 @@ public:
     case ParsedLifetimeDependenceKind::Inherit:
       return "dependsOn(inherited " + getParamString() + ")";
     }
-    llvm_unreachable(
-        "Invalid LifetimeDependenceSpecifier::ParsedLifetimeDependenceKind");
+    llvm_unreachable("Invalid LifetimeEntry::ParsedLifetimeDependenceKind");
   }
 };
 
