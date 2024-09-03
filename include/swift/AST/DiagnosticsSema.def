@@ -7943,6 +7943,9 @@ ERROR(lifetime_dependence_function_type, none,
       "lifetime dependencies on function types are not supported",
       ())
 
+ERROR(lifetime_dependence_immortal_alone, none,
+      "cannot specify any other dependence source along with immortal", ())
+
 //===----------------------------------------------------------------------===//
 //                             MARK: Sending
 //===----------------------------------------------------------------------===//
