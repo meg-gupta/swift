@@ -2807,7 +2807,7 @@ ParserResult<LifetimeAttr> Parser::parseLifetimeAttribute(SourceLoc atLoc,
   SmallVector<LifetimeEntry> lifetimeEntries;
 
   if (!Context.LangOpts.hasFeature(Feature::NonescapableTypes)) {
-    diagnose(loc, diag::requires_experimental_feature, "lifetime attribute",
+    diagnose(loc, diag::requires_experimental_feature, "@lifetime",
              false, getFeatureName(Feature::NonescapableTypes));
     status.setIsParseError();
     return status;
