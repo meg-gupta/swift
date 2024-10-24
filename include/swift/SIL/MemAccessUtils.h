@@ -1646,6 +1646,7 @@ inline bool isAccessStorageIdentityCast(SingleValueInstruction *svi) {
   case SILInstructionKind::CopyValueInst:
   case SILInstructionKind::BeginBorrowInst:
   case SILInstructionKind::MoveOnlyWrapperToCopyableBoxInst:
+  case SILInstructionKind::EndInitLetRefInst:
     return true;
   }
 }

@@ -185,7 +185,6 @@ public:
   void reenterUseDef(SILValue sourceAddr) {
     SILValue nextAddr = this->visit(sourceAddr);
     while (nextAddr) {
-      checkNextAddressType(nextAddr, sourceAddr);
       nextAddr = this->visit(nextAddr);
     }
   }
@@ -238,33 +237,6 @@ public:
       this->asImpl().addUnknownOffset();
     }
     return sourceAddr->get();
-  }
-
-protected:
-  // Helper for reenterUseDef
-  void checkNextAddressType(SILValue nextAddr, SILValue sourceAddr) {
-#ifdef NDEBUG
-    return;
-#endif
-    SILType type = nextAddr->getType();
-    // FIXME: This relatively expensive pointer getAnyPointerElementType check
-    // is only needed because keypath generation incorrectly produces
-    // pointer_to_address directly from stdlib Pointer types without a
-    // struct_extract (as is correctly done in emitAddressorAccessor), and
-    // the PointerToAddressInst operand type is never verified.
-    if (type.getASTType()->getAnyPointerElementType())
-      return;
-
-    if (type.isAddress() || isa<SILBoxType>(type.getASTType())
-        || isa<BuiltinRawPointerType>(type.getASTType())) {
-      return;
-    }
-    llvm::errs() << "Visiting ";
-    sourceAddr->print(llvm::errs());
-    llvm::errs() << "  not an address ";
-    nextAddr->print(llvm::errs());
-    nextAddr->getFunction()->print(llvm::errs());
-    assert(false);
   }
 };
 
@@ -795,7 +767,7 @@ bool swift::isIdentityPreservingRefCast(SingleValueInstruction *svi) {
   // Ignore both copies and other identity and ownership preserving casts
   return isa<CopyValueInst>(svi) || isa<BeginBorrowInst>(svi) ||
          isa<EndInitLetRefInst>(svi) || isa<BeginDeallocRefInst>(svi) ||
-         isa<EndCOWMutationInst>(svi) ||
+         isa<EndCOWMutationInst>(svi) || isa<EndInitLetRefInst>(svi) ||
          isIdentityAndOwnershipPreservingRefCast(svi);
 }
 
@@ -2461,7 +2433,8 @@ bool swift::isUnsafePointerExtraction(StructExtractInst *SEI) {
 void swift::checkSwitchEnumBlockArg(SILPhiArgument *arg) {
   assert(!arg->getType().isAddress());
   SILBasicBlock *Pred = arg->getParent()->getSinglePredecessorBlock();
-  if (!Pred || !isa<SwitchEnumInst>(Pred->getTerminator())) {
+  if (!Pred || (!isa<SwitchEnumInst>(Pred->getTerminator()) &&
+                !isa<TryApplyInst>(Pred->getTerminator()))) {
     arg->dump();
     llvm_unreachable("unexpected box source.");
   }

@@ -17,6 +17,7 @@
 #include "swift/Basic/STLExtras.h"
 #include "swift/SIL/Dominance.h"
 #include "swift/SIL/InstructionUtils.h"
+#include "swift/SIL/MemAccessUtils.h"
 #include "swift/SIL/PatternMatch.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBuilder.h"
@@ -177,6 +178,14 @@ static bool isIdentifiedUnderlyingArrayObject(SILValue V) {
   if (isa<SILFunctionArgument>(V))
     return true;
 
+  // 'let' arrays are safe.
+  if (auto *bbi = dyn_cast<BeginBorrowInst>(V)) {
+    if (isLetAddress(bbi))
+      return true;
+  }
+  if (isLetAddress(V))
+    return true;
+
   auto rootVal = lookThroughAddressAndValueProjections(V);
   if (rootVal != V) {
     return isIdentifiedUnderlyingArrayObject(rootVal);
@@ -251,15 +260,12 @@ public:
 
   /// Returns true if the Array is unsafe.
   bool isUnsafe(SILValue Array) const {
+    // If it is a 'let' array, the language guarantees no modifications can
+    // happen.
+    if (isLetAddress(Array)) {
+      return false;
+    }
     return allArraysInMemoryAreUnsafe || UnsafeArrays.count(Array) != 0;
-  }
-
-  /// Returns true if all arrays in memory are considered to be unsafe and
-  /// clears this flag.
-  bool clearArraysUnsafeFlag() {
-    bool arraysUnsafe = allArraysInMemoryAreUnsafe;
-    allArraysInMemoryAreUnsafe = false;
-    return arraysUnsafe;
   }
 
 private:
@@ -1063,13 +1069,6 @@ bool ABCOpt::removeRedundantChecksInBlock(SILBasicBlock &BB) {
 
     ABC.analyze(Inst);
 
-    if (ABC.clearArraysUnsafeFlag()) {
-      // Any array may be modified -> forget everything. This is just a
-      // shortcut to the isUnsafe test for a specific array below.
-      RedundantChecks.clear();
-      continue;
-    }
-
     // Is this a check_bounds.
     ArraySemanticsCall ArrayCall(Inst);
     auto Kind = ArrayCall.getKind();
@@ -1106,6 +1105,8 @@ bool ABCOpt::removeRedundantChecksInBlock(SILBasicBlock &BB) {
       continue;
     }
 
+    LLVM_DEBUG(llvm::dbgs() << "Removing bounds check: ");
+    LLVM_DEBUG(ArrayCall.getInstruction()->dump());
     // Remove the bounds check.
     ArrayCall.removeCall();
     Changed = true;
@@ -1172,6 +1173,9 @@ bool ABCOpt::removeRedundantChecksInLoop(DominanceInfoNode *CurBB,
     }
 
     // Remove the bounds check.
+    LLVM_DEBUG(llvm::dbgs() << "Removing bounds check: ");
+    LLVM_DEBUG(ArrayCall.getInstruction()->dump());
+
     ArrayCall.removeCall();
     Changed = true;
   }

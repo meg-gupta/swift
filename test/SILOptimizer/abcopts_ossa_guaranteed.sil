@@ -247,7 +247,10 @@ bb0(%0 : $Int32, %24 : $*ArrayInt, %25 : $*ArrayInt):
   %1 = struct_extract %0 : $Int32, #Int32._value
   %2 = integer_literal $Builtin.Int32, 0
   // CHECK: [[LD1:%[0-9]+]] = load [copy] {{.*}} : $*ArrayInt
-  %3 = load [copy] %24 : $*ArrayInt
+  %3a = load [copy] %24 : $*ArrayInt
+  %3b = begin_borrow %3a : $ArrayInt
+  %3c = begin_borrow %3b : $ArrayInt
+  %3 = copy_value %3c : $ArrayInt
   br bb1(%1 : $Builtin.Int32, %2 : $Builtin.Int32)
 
 bb1(%4 : $Builtin.Int32, %5 : $Builtin.Int32):
@@ -295,6 +298,9 @@ bb2:
 
 bb3:
   destroy_value %3 : $ArrayInt
+  end_borrow %3c : $ArrayInt
+  end_borrow %3b : $ArrayInt
+  destroy_value %3a : $ArrayInt
   %23 = struct $Int32 (%4 : $Builtin.Int32)
   return %23 : $Int32
 }
