@@ -2185,8 +2185,7 @@ namespace {
                                    MoveOnlyAttr(/*Implicit=*/true));
       }
 
-      if (Impl.SwiftContext.LangOpts.hasFeature(Feature::NonescapableTypes) &&
-          importer::hasNonEscapableAttr(decl)) {
+      if (importer::hasNonEscapableAttr(decl)) {
         result->getAttrs().add(new (Impl.SwiftContext)
                                    NonEscapableAttr(/*Implicit=*/true));
       }
