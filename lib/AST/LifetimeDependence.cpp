@@ -508,6 +508,10 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd) {
     return std::nullopt;
   }
 
+  if (afd->getAttrs().hasAttribute<UnsafeNonEscapableResultAttr>()) {
+    return std::nullopt;
+  }
+
   // Setters infer 'self' dependence on 'newValue'.
   if (auto accessor = dyn_cast<AccessorDecl>(afd)) {
     if (accessor->getAccessorKind() == AccessorKind::Set) {
@@ -529,10 +533,6 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd) {
     return std::nullopt;
   }
 
-  if (afd->getAttrs().hasAttribute<UnsafeNonEscapableResultAttr>()) {
-    return std::nullopt;
-  }
-
   auto &diags = ctx.Diags;
   auto returnTypeRepr = afd->getResultTypeRepr();
   auto returnLoc = returnTypeRepr ? returnTypeRepr->getLoc() : afd->getLoc();
@@ -545,6 +545,11 @@ LifetimeDependenceInfo::infer(AbstractFunctionDecl *afd) {
     if (cd->getParameters()->size() == 0) {
       return std::nullopt;
     }
+  }
+
+  if (!ctx.LangOpts.hasFeature(Feature::LifetimeDependence)) {
+    diags.diagnose(returnLoc, diag::lifetime_dependence_feature_required);
+    return std::nullopt;
   }
 
   if (!cd && afd->hasImplicitSelfDecl()) {
