@@ -772,6 +772,10 @@ void SILPassManager::runPassOnFunction(unsigned TransIdx, SILFunction *F) {
       runSwiftFunctionVerification(F);
     }
   }
+  if (getOptions().VerifyOwnershipAll &&
+      (CurrentPassHasInvalidated || SILVerifyWithoutInvalidation)) {
+    F->verifyOwnership();
+  }
 
   ++NumPassesRun;
 }
