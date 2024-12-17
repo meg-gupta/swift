@@ -38,10 +38,32 @@ class SILLoopInfo;
 /// Compute the set of reachable blocks.
 class ReachableBlocks {
   BasicBlockSet visited;
+  bool isComputed;
 
 public:
-  ReachableBlocks(SILFunction *function) : visited(function) {}
+  ReachableBlocks(SILFunction *function)
+      : visited(function), isComputed(false) {}
 
+  /// Populate `visited` with the blocks reachable in the function.
+  void compute();
+
+  /// Whether `block` is reachable from the entry block.
+  bool isReachable(SILBasicBlock *block) const {
+    assert(isComputed);
+    return isVisited(block);
+  }
+
+  bool hasUnreachableBlocks() const {
+    assert(isComputed);
+    for (auto &block : *visited.getFunction()) {
+      if (!isReachable(&block)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+private:
   /// Invoke \p visitor for each reachable block in \p f in worklist order (at
   /// least one predecessor has been visited--defs are always visited before
   /// uses except for phi-type block args). The \p visitor takes a block

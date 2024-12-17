@@ -141,3 +141,87 @@ exit:
 die:
   unreachable
 }
+
+// CHECK-LABEL: sil [ossa] @unreachable_def : {{.*}} {
+// CHECK:       bb2:
+// CHECK-NEXT:    [[DEF:%[^,]+]] = apply
+// CHECK-NEXT:    br bb3
+// CHECK:       bb3:
+// CHECK-NEXT:    destroy_value [dead_end] [[DEF]]
+// CHECK:         unreachable
+// CHECK-LABEL: } // end sil function 'unreachable_def'
+sil [ossa] @unreachable_def : $@convention(thin) () -> () {
+entry:
+  br exit
+
+exit:
+  %retval = tuple ()
+  return %retval : $()
+
+nowhere:
+  %def = apply undef() : $@convention(thin) () -> (@owned C)
+  br die
+
+die:
+  unreachable
+}
+
+// CHECK-LABEL: sil [ossa] @unreachable_def_2 : {{.*}} {
+// CHECK:       {{bb[0-9]+}}([[C:%[^,]+]] :
+// CHECK:         cond_br undef, [[LEFT:bb[0-9]+]], [[RIGHT:bb[0-9]+]]
+// CHECK:       [[LEFT]]:
+// CHECK-NEXT:    destroy_value [dead_end] [[C]]
+// CHECK-NEXT:    unreachable
+// CHECK:       [[RIGHT]]:
+// CHECK-NEXT:    destroy_value [dead_end] [[C]]
+// CHECK:         unreachable
+// CHECK-LABEL: } // end sil function 'unreachable_def_2'
+sil [ossa] @unreachable_def_2 : $@convention(thin) () -> () {
+entry:
+  %t = tuple ()
+  return %t : $()
+
+not(%c : @owned $C):
+  cond_br undef, left, right
+
+left:
+  unreachable
+
+right:
+  unreachable
+}
+
+// CHECK-LABEL: sil [ossa] @unreachable_def_3 : {{.*}} {
+// CHECK:       {{bb[0-9]+}}([[C:%[^,]+]] :
+// CHECK:         cond_br
+// CHECK:         cond_br undef, [[LEFT:bb[0-9]+]], [[RIGHT:bb[0-9]+]]
+// CHECK:       [[LEFT]]:
+// CHECK-NEXT:    destroy_value [dead_end] [[C]]
+// CHECK-NEXT:    unreachable
+// CHECK:       [[RIGHT]]:
+// CHECK-NEXT:    destroy_value [dead_end] [[C]]
+// CHECK:         unreachable
+// CHECK-LABEL: } // end sil function 'unreachable_def_3'
+sil [ossa] @unreachable_def_3 : $@convention(thin) () -> () {
+entry:
+  %t = tuple ()
+  return %t : $()
+
+header(%c : @owned $C):
+  br body
+
+body:
+  cond_br undef, die, backedge
+
+backedge:
+  br header(%c)
+
+die:
+  cond_br undef, left, right
+
+left:
+  unreachable
+
+right:
+  unreachable
+}
