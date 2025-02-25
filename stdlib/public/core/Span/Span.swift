@@ -366,6 +366,7 @@ extension Span where Element: ~Copyable {
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
+  @_semantics("fixed_storage.get_count")
   public var count: Int { _count }
 
   /// A Boolean value indicating whether the span is empty.
@@ -390,6 +391,12 @@ extension Span where Element: ~Copyable {
 @available(SwiftStdlib 6.1, *)
 extension Span where Element: ~Copyable {
 
+  @inlinable
+  @_semantics("fixed_storage.check_index")
+  internal func _checkIndex(_ position: Index) {
+    _precondition(indices.contains(position), "Index out of bounds")
+  }
+
   /// Accesses the element at the specified position in the `Span`.
   ///
   /// - Parameter position: The offset of the element to access. `position`
@@ -397,10 +404,11 @@ extension Span where Element: ~Copyable {
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
+  @_semantics("fixed_storage.get_element")
   public subscript(_ position: Index) -> Element {
     //FIXME: change to unsafeRawAddress when ready
     unsafeAddress {
-      _precondition(indices.contains(position), "Index out of bounds")
+      _checkIndex(position)
       return _unsafeAddressOfElement(unchecked: position)
     }
   }
@@ -436,6 +444,14 @@ extension Span where Element: ~Copyable {
 
 @available(SwiftStdlib 6.1, *)
 extension Span where Element: BitwiseCopyable {
+  @inlinable
+  @_semantics("fixed_storage.check_index")
+  internal func _checkIndex(_ position: Index) {
+    _precondition(
+      UInt(bitPattern: position) <  UInt(bitPattern: _count),
+      "Index out of bounds"
+    )
+  }
 
   /// Accesses the element at the specified position in the `Span`.
   ///
@@ -444,12 +460,10 @@ extension Span where Element: BitwiseCopyable {
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
+  @_semantics("fixed_storage.get_element")
   public subscript(_ position: Index) -> Element {
     get {
-      _precondition(
-        UInt(bitPattern: position) <  UInt(bitPattern: _count),
-        "Index out of bounds"
-      )
+      _checkIndex(position)
       return self[unchecked: position]
     }
   }
