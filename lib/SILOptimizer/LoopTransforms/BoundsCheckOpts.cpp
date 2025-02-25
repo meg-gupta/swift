@@ -451,21 +451,31 @@ static BuiltinValueKind invertCmpID(BuiltinValueKind ID) {
   }
 }
 
-/// Checks if Start to End is the range of 0 to the count of an array.
-/// Returns the array if this is the case.
-static SILValue getZeroToCountArray(SILValue Start, SILValue End) {
-  auto *IL = dyn_cast<IntegerLiteralInst>(Start);
-  if (!IL || IL->getValue() != 0)
+/// Checks if Start to End is the range of 0 to the count of an array or a fixed
+/// storage type. Returns the self value if this is the case.
+static SILValue getZeroToCountSelf(SILValue start, SILValue end) {
+  auto *intLiteral = dyn_cast<IntegerLiteralInst>(start);
+  if (!intLiteral || intLiteral->getValue() != 0) {
     return SILValue();
-
-  auto *SEI = dyn_cast<StructExtractInst>(End);
-  if (!SEI)
+  }
+  auto *sei = dyn_cast<StructExtractInst>(end);
+  if (!sei) {
     return SILValue();
-
-  ArraySemanticsCall SemCall(SEI->getOperand());
-  if (SemCall.getKind() != ArrayCallKind::kGetCount)
+  }
+  auto *applyInst = dyn_cast<ApplyInst>(sei->getOperand());
+  if (!applyInst) {
     return SILValue();
-  return SemCall.getSelf();
+  }
+  auto *callee = applyInst->getReferencedFunctionOrNull();
+  if (!callee) {
+    return SILValue();
+  }
+  for (auto attr : callee->getSemanticsAttrs()) {
+    if (attr == "array.get_count" || attr == "fixed_storage.get_count") {
+      return applyInst->getSelfArgument();
+    }
+  }
+  return SILValue();
 }
 
 /// Checks whether the cond_br in the preheader's predecessor ensures that the
@@ -503,7 +513,7 @@ static bool isLessThanCheck(SILValue Start, SILValue End,
     // Special case: if it is a 0-to-count loop, we know that the count cannot
     // be negative. In this case the 'Start < End' check can also be done with
     // 'count != 0'.
-    return getZeroToCountArray(Start, End);
+    return getZeroToCountSelf(Start, End);
   default:
     return false;
   }
@@ -588,12 +598,12 @@ struct InductionInfo {
 
   SILInstruction *getInstruction() { return Inc; }
 
-  SILValue getFirstValue(SILLocation &Loc, SILBuilder &B, unsigned AddVal) {
-    return AddVal != 0 ? getAdd(Loc, Start, AddVal, B) : Start;
+  SILValue getFirstValue(SILLocation loc, SILBuilder &B, unsigned AddVal) {
+    return AddVal != 0 ? getAdd(loc, Start, AddVal, B) : Start;
   }
 
-  SILValue getLastValue(SILLocation &Loc, SILBuilder &B, unsigned SubVal) {
-    return SubVal != 0 ? getSub(Loc, End, SubVal, B) : End;
+  SILValue getLastValue(SILLocation loc, SILBuilder &B, unsigned SubVal) {
+    return SubVal != 0 ? getSub(loc, End, SubVal, B) : End;
   }
 
   /// If necessary insert an overflow for this induction variable.
@@ -810,9 +820,27 @@ public:
     return nullptr;
   }
 
-  /// Returns true if the loop iterates from 0 until count of \p ArrayVal.
-  bool isZeroToCount(SILValue ArrayVal) {
-    return getZeroToCountArray(Ind->Start, Ind->End) == ArrayVal;
+  /// Returns true if the loop iterates from 0 until count of \p selfValue.
+  bool isZeroToCount(SILValue selfValue) {
+    return getZeroToCountSelf(Ind->Start, Ind->End) == selfValue;
+  }
+
+  SILValue getFirstValue(SILInstruction *insertPt) {
+    SILBuilderWithScope builder(insertPt);
+    auto firstValue =
+        Ind->getFirstValue(insertPt->getLoc(), builder, preIncrement ? 1 : 0);
+    auto intType = SILType::getPrimitiveObjectType(
+        builder.getASTContext().getIntType()->getCanonicalType());
+    return builder.createStruct(insertPt->getLoc(), intType, {firstValue});
+  }
+
+  SILValue getLastValue(SILInstruction *insertPt) {
+    SILBuilderWithScope builder(insertPt);
+    auto lastValue =
+        Ind->getLastValue(insertPt->getLoc(), builder, preIncrement ? 0 : 1);
+    auto intType = SILType::getPrimitiveObjectType(
+        builder.getASTContext().getIntType()->getCanonicalType());
+    return builder.createStruct(insertPt->getLoc(), intType, {lastValue});
   }
 
   /// Hoists the necessary check for beginning and end of the induction
@@ -958,8 +986,12 @@ private:
   std::pair<bool, std::optional<InductionAnalysis>>
   findAndOptimizeInductionVariables(SILLoop *loop);
 
-  bool optimizeArrayBoundsCheckInLoop(SILLoop *loop,
-                                      std::optional<InductionAnalysis> indVars);
+  bool
+  optimizeArrayBoundsCheckInLoop(SILLoop *loop,
+                                 std::optional<InductionAnalysis> &indVars);
+
+  bool optimizeFixedStorageBoundsCheckInLoop(
+      SILLoop *loop, std::optional<InductionAnalysis> &indVars);
 
   /// Remove redundant checks in a basic block. This function will reset the
   /// state after an instruction that may modify any array allowing removal of
@@ -978,6 +1010,11 @@ private:
                                     ABCAnalysis &abcAnalysis,
                                     InductionAnalysis &indVars,
                                     int recursionDepth);
+
+  bool hoistFixedStorageBoundsChecksInLoop(SILLoop *loop,
+                                           DominanceInfoNode *currentNode,
+                                           InductionAnalysis &indVars,
+                                           int recursionDepth);
 
 public:
   void run() override {
@@ -1232,7 +1269,9 @@ bool BoundsCheckOpts::optimizeArrayBoundsCheckInLoop(SILLoop *loop) {
   bool changed = false;
   auto result = findAndOptimizeInductionVariables(loop);
   changed |= result.first;
-  changed |= optimizeArrayBoundsCheckInLoop(loop, std::move(result.second));
+  auto indVars = std::move(result.second);
+  changed |= optimizeArrayBoundsCheckInLoop(loop, indVars);
+  changed |= optimizeFixedStorageBoundsCheckInLoop(loop, indVars);
 
   if (changed) {
     preheader->getParent()->verify(
@@ -1341,7 +1380,7 @@ BoundsCheckOpts::findAndOptimizeInductionVariables(SILLoop *loop) {
 }
 
 bool BoundsCheckOpts::optimizeArrayBoundsCheckInLoop(
-    SILLoop *loop, std::optional<InductionAnalysis> indVars) {
+    SILLoop *loop, std::optional<InductionAnalysis> &indVars) {
 
   // Collect safe arrays. Arrays are safe if there is no function call that
   // could mutate their size in the loop.
@@ -1374,6 +1413,24 @@ bool BoundsCheckOpts::optimizeArrayBoundsCheckInLoop(
   changed |=
       hoistArrayBoundsChecksInLoop(loop, DT->getNode(loop->getHeader()),
                                    abcAnalysis, *indVars, /*recursionDepth*/ 0);
+  return changed;
+}
+
+bool BoundsCheckOpts::optimizeFixedStorageBoundsCheckInLoop(
+    SILLoop *loop, std::optional<InductionAnalysis> &indVars) {
+  bool changed = false;
+
+  LLVM_DEBUG(llvm::dbgs()
+             << "Attempting to hoist bounds checks for Span and InlineArray in "
+             << *loop);
+
+  if (!indVars) {
+    LLVM_DEBUG(llvm::dbgs() << "No induction variables found\n");
+    return changed;
+  }
+
+  changed |= hoistFixedStorageBoundsChecksInLoop(
+      loop, DT->getNode(loop->getHeader()), *indVars, /*recursionDepth*/ 0);
   return changed;
 }
 
@@ -1483,6 +1540,108 @@ bool BoundsCheckOpts::hoistArrayBoundsChecksInLoop(
   for (auto child : *currentNode) {
     changed |= hoistArrayBoundsChecksInLoop(loop, child, abcAnalysis, indVars,
                                             recursionDepth + 1);
+  }
+
+  return changed;
+}
+
+bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
+    SILLoop *loop, DominanceInfoNode *currentNode, InductionAnalysis &indVars,
+    int recursionDepth) {
+  auto preheader = loop->getLoopPreheader();
+  auto singleExitingBlock = loop->getExitingBlock();
+  // Avoid a stack overflow for very deep dominator trees.
+  if (recursionDepth >= maxRecursionDepth)
+    return false;
+
+  bool changed = false;
+  auto *curBlock = currentNode->getBlock();
+  bool blockAlwaysExecutes =
+      isGuaranteedToBeExecuted(DT, curBlock, singleExitingBlock);
+
+  for (auto instIt = curBlock->begin(); instIt != curBlock->end();) {
+    auto inst = &*instIt;
+    ++instIt;
+
+    auto *applyInst = dyn_cast<ApplyInst>(inst);
+    if (!applyInst) {
+      continue;
+    }
+    auto *callee = applyInst->getReferencedFunctionOrNull();
+    if (!callee) {
+      continue;
+    }
+    bool foundFixedStorageBoundsCheck = false;
+    for (auto &attr : callee->getSemanticsAttrs()) {
+      if (attr == "fixed_storage.check_index") {
+        foundFixedStorageBoundsCheck = true;
+        break;
+      }
+    }
+    if (!foundFixedStorageBoundsCheck) {
+      continue;
+    }
+
+    // InlineArray._checkIndex's self argument can get dead coded.
+    if (!applyInst->hasSelfArgument()) {
+      continue;
+    }
+
+    auto selfValue = applyInst->getSelfArgument();
+
+    if (!DT->dominates(selfValue->getParentBlock(), preheader)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  " << *selfValue << " does not dominate preheader\n");
+      continue;
+    }
+
+    auto indexValue = applyInst->getArgument(0);
+
+    // If the bounds check is loop invariant, hoist it.
+    if (blockAlwaysExecutes && dominates(DT, indexValue, preheader)) {
+      LLVM_DEBUG(llvm::dbgs() << "  Invariant bounds check removed\n");
+      changed = true;
+      applyInst->moveBefore(preheader->getTerminator());
+      continue;
+    }
+
+    auto accessFunction =
+        AccessFunction::getLinearFunction(indexValue, indVars);
+    if (!accessFunction) {
+      LLVM_DEBUG(llvm::dbgs() << " not a linear function " << *inst);
+      continue;
+    }
+
+    // If the loop iterates 0 through count, remove the bounds check.
+    if (accessFunction.isZeroToCount(selfValue)) {
+      LLVM_DEBUG(llvm::dbgs() << "  Redundant bounds check removed\n");
+      changed = true;
+      applyInst->eraseFromParent();
+      continue;
+    }
+
+    // If the bounds check does not execute always, we cannot hoist it.
+    if (!blockAlwaysExecutes) {
+      LLVM_DEBUG(llvm::dbgs() << "  Bounds check does not execute always\n");
+      continue;
+    }
+
+    LLVM_DEBUG(llvm::dbgs() << "  Bounds check hoisted\n");
+    changed = true;
+    auto firstValue = accessFunction.getFirstValue(preheader->getTerminator());
+    auto newLowerBoundCheck = applyInst->clone(preheader->getTerminator());
+    newLowerBoundCheck->setOperand(1, firstValue);
+
+    auto lastValue = accessFunction.getLastValue(preheader->getTerminator());
+    auto newUpperBoundCheck = applyInst->clone(preheader->getTerminator());
+    newUpperBoundCheck->setOperand(1, lastValue);
+    applyInst->eraseFromParent();
+  }
+
+  // Traverse the children in the dominator tree.
+  for (auto child : *currentNode) {
+    changed |= hoistFixedStorageBoundsChecksInLoop(loop, child, indVars,
+                                                   recursionDepth + 1);
   }
 
   return changed;

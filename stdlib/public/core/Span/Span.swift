@@ -393,6 +393,7 @@ extension Span where Element: ~Copyable {
 
   @inlinable
   @_semantics("fixed_storage.check_index")
+  @_effects(notEscaping self.**)
   internal func _checkIndex(_ position: Index) {
     _precondition(indices.contains(position), "Index out of bounds")
   }
@@ -404,7 +405,6 @@ extension Span where Element: ~Copyable {
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
-  @_semantics("fixed_storage.get_element")
   public subscript(_ position: Index) -> Element {
     //FIXME: change to unsafeRawAddress when ready
     unsafeAddress {
@@ -446,6 +446,7 @@ extension Span where Element: ~Copyable {
 extension Span where Element: BitwiseCopyable {
   @inlinable
   @_semantics("fixed_storage.check_index")
+  @_effects(notEscaping self.**)
   internal func _checkIndex(_ position: Index) {
     _precondition(
       UInt(bitPattern: position) <  UInt(bitPattern: _count),
@@ -460,7 +461,6 @@ extension Span where Element: BitwiseCopyable {
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
-  @_semantics("fixed_storage.get_element")
   public subscript(_ position: Index) -> Element {
     get {
       _checkIndex(position)
