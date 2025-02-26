@@ -1626,7 +1626,8 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
 
     // If the loop iterates 0 through count, remove the bounds check.
     if (accessFunction.isZeroToCount(selfValue)) {
-      LLVM_DEBUG(llvm::dbgs() << "  Redundant bounds check removed\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  Redundant Span/InlineArray bounds check removed\n");
       changed = true;
       applyInst->eraseFromParent();
       continue;
@@ -1638,7 +1639,7 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
       continue;
     }
 
-    LLVM_DEBUG(llvm::dbgs() << "  Bounds check hoisted\n");
+    LLVM_DEBUG(llvm::dbgs() << "  Span/InlineArray bounds check hoisted\n");
     changed = true;
     auto firstValue = accessFunction.getFirstValue(preheader->getTerminator());
     auto newLowerBoundCheck = applyInst->clone(preheader->getTerminator());
@@ -1724,6 +1725,8 @@ bool BoundsCheckOpts::removeRedundantFixedStorageBoundsChecksInLoop(
       continue;
     }
 
+    LLVM_DEBUG(llvm::dbgs()
+               << "  Eliminated redundant Span/InlineArray bounds check");
     changed = true;
     applyInst->eraseFromParent();
   }
