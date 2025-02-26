@@ -1016,6 +1016,11 @@ private:
                                            InductionAnalysis &indVars,
                                            int recursionDepth);
 
+  bool removeRedundantFixedStorageBoundsChecksInLoop(
+      SILLoop *loop, DominanceInfoNode *currentNode,
+      llvm::DenseSet<std::pair<SILValue, SILValue>> &dominatingSafeChecks,
+      int recursionDepth);
+
 public:
   void run() override {
     bool changed = false;
@@ -1418,17 +1423,24 @@ bool BoundsCheckOpts::optimizeArrayBoundsCheckInLoop(
 
 bool BoundsCheckOpts::optimizeFixedStorageBoundsCheckInLoop(
     SILLoop *loop, std::optional<InductionAnalysis> &indVars) {
-  bool changed = false;
+  // Try removing redundant bounds checks in the loop.
+  LLVM_DEBUG(llvm::dbgs() << "Attempting to eliminate redundant bounds checks "
+                             "for Span and InlineArray in "
+                          << *loop);
+  llvm::DenseSet<std::pair<SILValue, SILValue>>
+      dominatingSafeFixedStorageChecks;
+  bool changed = removeRedundantFixedStorageBoundsChecksInLoop(
+      loop, DT->getNode(loop->getHeader()), dominatingSafeFixedStorageChecks,
+      /*recursionDepth*/ 0);
 
+  // Try hoisting bounds checks from the loop.
   LLVM_DEBUG(llvm::dbgs()
              << "Attempting to hoist bounds checks for Span and InlineArray in "
              << *loop);
-
   if (!indVars) {
     LLVM_DEBUG(llvm::dbgs() << "No induction variables found\n");
     return changed;
   }
-
   changed |= hoistFixedStorageBoundsChecksInLoop(
       loop, DT->getNode(loop->getHeader()), *indVars, /*recursionDepth*/ 0);
   return changed;
@@ -1643,6 +1655,90 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
     changed |= hoistFixedStorageBoundsChecksInLoop(loop, child, indVars,
                                                    recursionDepth + 1);
   }
+
+  return changed;
+}
+
+bool BoundsCheckOpts::removeRedundantFixedStorageBoundsChecksInLoop(
+    SILLoop *loop, DominanceInfoNode *currentNode,
+    llvm::DenseSet<std::pair<SILValue, SILValue>> &dominatingSafeChecks,
+    int recursionDepth) {
+  auto *currentBlock = currentNode->getBlock();
+  if (!loop->contains(currentBlock)) {
+    return false;
+  }
+
+  if (recursionDepth >= maxRecursionDepth) {
+    return false;
+  }
+
+  bool changed = false;
+
+  // When we come back from the dominator tree recursion we need to remove
+  // checks that we have seen for the first time.
+  SmallVector<std::pair<SILValue, SILValue>, 8> safeChecksToPop;
+
+  for (auto iter = currentBlock->begin(); iter != currentBlock->end();) {
+    auto inst = &*iter;
+    ++iter;
+
+    auto *applyInst = dyn_cast<ApplyInst>(inst);
+    if (!applyInst) {
+      continue;
+    }
+    auto *callee = applyInst->getCalleeFunction();
+    if (!callee) {
+      continue;
+    }
+    bool foundFixedStorageBoundsCheck = false;
+    for (auto &attr : callee->getSemanticsAttrs()) {
+      if (attr == "fixed_storage.check_index") {
+        foundFixedStorageBoundsCheck = true;
+        break;
+      }
+    }
+    if (!foundFixedStorageBoundsCheck) {
+      continue;
+    }
+
+    // InlineArray._checkIndex's self argument can get dead coded.
+    if (!applyInst->hasSelfArgument()) {
+      continue;
+    }
+
+    auto selfValue = applyInst->getSelfArgument();
+
+    if (!DT->dominates(selfValue->getParentBlock(), loop->getLoopPreheader())) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  " << *selfValue << " does not dominate preheader\n");
+      continue;
+    }
+
+    auto indexValue = applyInst->getArgument(0);
+    auto selfAndIndex = std::make_pair(selfValue, indexValue);
+    if (!dominatingSafeChecks.count(selfAndIndex)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << " first time: " << *inst << "  with self: " << *selfValue);
+      dominatingSafeChecks.insert(selfAndIndex);
+      safeChecksToPop.push_back(selfAndIndex);
+      continue;
+    }
+
+    changed = true;
+    applyInst->eraseFromParent();
+  }
+
+  // Traverse the children in the dominator tree inside the loop.
+  for (auto child : *currentNode) {
+    changed |= removeRedundantFixedStorageBoundsChecksInLoop(
+        loop, child, dominatingSafeChecks, recursionDepth + 1);
+  }
+
+  // Remove checks we have seen for the first time.
+  std::for_each(safeChecksToPop.begin(), safeChecksToPop.end(),
+                [&](std::pair<SILValue, SILValue> &value) {
+                  dominatingSafeChecks.erase(value);
+                });
 
   return changed;
 }
