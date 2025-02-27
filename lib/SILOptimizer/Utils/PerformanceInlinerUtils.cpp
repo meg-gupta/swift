@@ -596,8 +596,7 @@ SemanticFunctionLevel swift::getSemanticFunctionLevel(SILFunction *function) {
   // ideally use a separate annotation rather than @_semantics.
   for (auto &attrs : function->getSemanticsAttrs()) {
     if (attrs == "fixed_storage.check_index" ||
-        attrs == "fixed_storage.get_count" ||
-        attrs == "fixed_storage.get_element") {
+        attrs == "fixed_storage.get_count") {
       return SemanticFunctionLevel::Fundamental;
     }
   }
