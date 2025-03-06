@@ -124,8 +124,11 @@ private struct Uses {
   // E.g. the none-case of a switch_enum of an Optional.
   private(set) var nonDestroyingLiverangeExits: Stack<Instruction>
 
-  var allLifetimeEndingInstructions: [Instruction] {
-    Array(destroys.lazy.map { $0 }) + Array(nonDestroyingLiverangeExits)
+  // FIXME: Use an InstructionSetVector
+  var allLifetimeEndingInstructions : InstructionWorklist {
+    var worklist = InstructionWorklist(context)
+    worklist.pushIfNotVisited(contentsOf: Array(destroys.lazy.map { $0 }) + Array(nonDestroyingLiverangeExits))
+    return worklist
   }
 
   private(set) var usersInDeadEndBlocks: Stack<Instruction>
@@ -323,7 +326,12 @@ private func createEndBorrows(for beginBorrow: Value, atEndOf liverange: Instruc
   //   destroy_value %2
   //   destroy_value %3  // The final destroy. Here we need to create the `end_borrow`(s)
   //
-  for endInst in collectedUses.allLifetimeEndingInstructions {
+  var worklist = collectedUses.allLifetimeEndingInstructions
+  defer {
+    worklist.deinitialize()
+  }
+
+  while let endInst = worklist.pop() {
     if !liverange.contains(endInst) {
       let builder = Builder(before: endInst, context)
       builder.createEndBorrow(of: beginBorrow)
