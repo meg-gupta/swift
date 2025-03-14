@@ -1067,7 +1067,6 @@ static bool tryExtendLifetimeToLastUse(
   // Closure User may not be post-dominating the previously created copy_value.
   // Create destroy_value at leaking blocks.
 
-  endLifetimeAtLeakingBlocks(closureCopy, {singleUser->getParent()}, deadEndBlocks);
   /*
   llvm::errs() << "after lifetime extension of\n";
   escapingClosure->dump();

@@ -17,6 +17,26 @@ sil @$sSSSgIegg_So8FakeNSStringCSgIyBy_TR : $@convention(c) (@inout_aliasable @b
 sil @nothrower : $@convention(thin) () -> Int 
 sil @rethrower : $@convention(thin) (@guaranteed @noescape @callee_guaranteed () -> (Int, @error any Error)) -> (Int, @error any Error) 
 
+sil [ossa] @testRethrowing1 : $@convention(thin) () -> ((), @error any Error) {
+bb0:
+  %nothrower = function_ref @nothrower : $@convention(thin) () -> Int 
+  %thick_nothrower = thin_to_thick_function %nothrower : $@convention(thin) () -> Int to $@callee_guaranteed () -> Int 
+  %throwing_nothrower = convert_function %thick_nothrower : $@callee_guaranteed () -> Int to $@callee_guaranteed () -> (Int, @error any Error) 
+  %nonescaping_nothrower = convert_escape_to_noescape [not_guaranteed] %throwing_nothrower : $@callee_guaranteed () -> (Int, @error any Error) to $@noescape @callee_guaranteed () -> (Int, @error any Error)
+  %throwsfnref = function_ref @throwsfn : $@convention(thin) () -> ((), @error any Error) 
+  try_apply %throwsfnref() : $@convention(thin) () -> ((), @error any Error), normal bb1, error bb2
+
+bb1(%arg : $()):
+  %nonthrower = function_ref @nonthrowing : $@convention(thin) (@guaranteed @noescape @callee_guaranteed () -> (Int, @error any Error)) -> () 
+  apply %nonthrower(%nonescaping_nothrower) : $@convention(thin) (@guaranteed @noescape @callee_guaranteed () -> (Int, @error any Error)) -> () 
+  destroy_value %nonescaping_nothrower : $@noescape @callee_guaranteed () -> (Int, @error any Error) 
+  %8 = tuple ()                                   
+  return %8 : $()                                 
+
+bb2(%error : @owned $any Error):
+  destroy_value %nonescaping_nothrower : $@noescape @callee_guaranteed () -> (Int, @error any Error) 
+  throw %error
+} 
 // Just make sure that we perform the optimization and do not trigger the ownership verifier.
 //
 // CHECK-LABEL: sil [ossa] @test1 : $@convention(thin) (@guaranteed Optional<@callee_guaranteed (@guaranteed Optional<String>) -> ()>, @guaranteed Optional<@callee_guaranteed (@guaranteed Optional<String>) -> ()>) -> () {
