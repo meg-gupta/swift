@@ -424,7 +424,173 @@ static bool somethingIsRetained(SILInstruction *from, AllocStackInst *alloc) {
   return false;
 }
 
-SILInstruction *SILCombiner::legacyVisitAllocStackInst(AllocStackInst *AS) {
+/// Replaces an alloc_stack of an enum by an alloc_stack of the payload if only
+/// one enum case (with payload) is stored to that location.
+///
+/// For example:
+///
+///   %loc = alloc_stack $Optional<T>
+///   %payload = init_enum_data_addr %loc
+///   store %value to %payload
+///   ...
+///   %take_addr = unchecked_take_enum_data_addr %loc
+///   %l = load %take_addr
+///
+/// is transformed to
+///
+///   %loc = alloc_stack $T
+///   store %value to %loc
+///   ...
+///   %l = load %loc
+bool SILCombiner::optimizeStackAllocatedEnum(AllocStackInst *AS) {
+  EnumDecl *enumDecl = AS->getType().getEnumOrBoundGenericEnum();
+  if (!enumDecl)
+    return false;
+  
+  EnumElementDecl *element = nullptr;
+  unsigned numInits =0;
+  unsigned numTakes = 0;
+  SILBasicBlock *initBlock = nullptr;
+  SILBasicBlock *takeBlock = nullptr;
+  SILType payloadType;
+  
+  // First step: check if the stack location is only used to hold one specific
+  // enum case with payload.
+  for (auto *use : AS->getUses()) {
+    SILInstruction *user = use->getUser();
+    switch (user->getKind()) {
+      case SILInstructionKind::DestroyAddrInst:
+      case SILInstructionKind::DeallocStackInst:
+      case SILInstructionKind::InjectEnumAddrInst:
+        // We'll check init_enum_addr below.
+        break;
+      case SILInstructionKind::DebugValueInst:
+        if (DebugValueInst::hasAddrVal(user))
+          break;
+        return false;
+      case SILInstructionKind::InitEnumDataAddrInst: {
+        auto *ieda = cast<InitEnumDataAddrInst>(user);
+        auto *el = ieda->getElement();
+        if (element && el != element)
+          return false;
+        element = el;
+        assert(!payloadType || payloadType == ieda->getType());
+        payloadType = ieda->getType();
+        numInits++;
+        initBlock = user->getParent();
+        break;
+      }
+      case SILInstructionKind::UncheckedTakeEnumDataAddrInst: {
+        auto *el = cast<UncheckedTakeEnumDataAddrInst>(user)->getElement();
+        if (element && el != element)
+          return false;
+        element = el;
+        numTakes++;
+        takeBlock = user->getParent();
+        break;
+      }
+      default:
+        return false;
+    }
+  }
+  if (!element || !payloadType)
+    return false;
+
+  // If the enum has a single init-take pair in a single block, we know that
+  // the enum cannot contain any valid payload outside that init-take pair.
+  //
+  // This also means that we can ignore any inject_enum_addr of another enum
+  // case, because this can only inject a case without a payload.
+  bool singleInitTakePair =
+    (numInits == 1 && numTakes == 1 && initBlock == takeBlock);
+  if (!singleInitTakePair) {
+    // No single init-take pair: We cannot ignore inject_enum_addrs with a
+    // mismatching case.
+    for (auto *use : AS->getUses()) {
+      if (auto *inject = dyn_cast<InjectEnumAddrInst>(use->getUser())) {
+        if (inject->getElement() != element)
+          return false;
+      }
+    }
+  }
+
+  // Second step: replace the enum alloc_stack with a payload alloc_stack.
+  Builder.setCurrentDebugScope(AS->getDebugScope());
+  auto *newAlloc = Builder.createAllocStack(
+      AS->getLoc(), payloadType, {}, AS->hasDynamicLifetime(), IsNotLexical,
+      IsNotFromVarDecl, DoesNotUseMoveableValueDebugInfo, true);
+  if (auto varInfo = AS->getVarInfo()) {
+    // TODO: Add support for op_enum_fragment
+    // For now, we can't represent this variable correctly, so we drop it.
+    Builder.createDebugValue(AS->getLoc(), SILUndef::get(AS), *varInfo);
+  }
+
+  while (!AS->use_empty()) {
+    Operand *use = *AS->use_begin();
+    SILInstruction *user = use->getUser();
+    switch (user->getKind()) {
+      case SILInstructionKind::InjectEnumAddrInst: {
+        // There maybe inject_enum_addr of enum cases other than the init-take
+        // pair, and on those control flow paths the newly allocated enum
+        // temporary will be uninitialized causing memory lifetime errors. Set
+        // dynamic_lifetime on the temporary to avoid this.
+        bool setDynamicLifetime = false;
+        for (auto *use : AS->getUses()) {
+          if (auto *inject = dyn_cast<InjectEnumAddrInst>(use->getUser())) {
+            if (inject->getElement() != element) {
+              setDynamicLifetime = true;
+              break;
+            }
+          }
+        }
+        if (setDynamicLifetime) {
+          newAlloc->setDynamicLifetime();
+        }
+        eraseInstFromFunction(*user);
+        break;
+      }
+      case SILInstructionKind::DestroyAddrInst:
+        if (singleInitTakePair) {
+          // It's not possible that the enum has a payload at the destroy_addr,
+          // because it must have already been taken by the take of the
+          // single init-take pair.
+          // We _have_ to remove the destroy_addr, because we also remove all
+          // inject_enum_addrs which might inject a payload-less case before
+          // the destroy_addr.
+          eraseInstFromFunction(*user);
+        } else {
+          // The enum payload can still be valid at the destroy_addr, so we have
+          // to keep the destroy_addr. Just replace the enum with the payload
+          // (and because it's not a singleInitTakePair, we can be sure that the
+          // enum cannot have any other case than the payload case).
+          use->set(newAlloc);
+        }
+        break;
+      case SILInstructionKind::DeallocStackInst:
+        use->set(newAlloc);
+        break;
+      case SILInstructionKind::InitEnumDataAddrInst:
+      case SILInstructionKind::UncheckedTakeEnumDataAddrInst: {
+        auto *svi = cast<SingleValueInstruction>(user);
+        svi->replaceAllUsesWith(newAlloc);
+        eraseInstFromFunction(*svi);
+        break;
+      }
+      case SILInstructionKind::DebugValueInst:
+        // TODO: Add support for op_enum_fragment
+        use->set(SILUndef::get(AS));
+        break;
+      default:
+        llvm_unreachable("unexpected alloc_stack user");
+    }
+  }
+  return true;
+}
+
+SILInstruction *SILCombiner::visitAllocStackInst(AllocStackInst *AS) {
+  if (optimizeStackAllocatedEnum(AS))
+    return nullptr;
+
   // If we are testing SILCombine and we are asked not to eliminate
   // alloc_stacks, just return.
   if (DisableAllocStackOpts)
