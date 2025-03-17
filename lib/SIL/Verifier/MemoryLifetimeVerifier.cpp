@@ -278,7 +278,7 @@ void MemoryLifetimeVerifier::requireBitsClear(const Bits &bits, SILValue addr,
                                              SILInstruction *where) {
   if (auto *loc = locations.getLocation(addr)) {
     require(bits & loc->subLocations, "memory is initialized, but shouldn't be",
-            where, /*excludeTrivialEnums*/ true);
+            where, /*excludeTrivialEnums*/ false);
   }
 }
 
@@ -637,7 +637,7 @@ void MemoryLifetimeVerifier::checkFunction(BitDataflow &dataFlow) {
       if (predState.reachableFromEntry) {
         require((bs.data.entrySet ^ predState.exitSet) & nonTrivialLocations,
           "lifetime mismatch in predecessors", pred->getTerminator(),
-          /*excludeTrivialEnums*/ true);
+          /*excludeTrivialEnums*/ false);
       }
     }
 
@@ -652,14 +652,14 @@ void MemoryLifetimeVerifier::checkFunction(BitDataflow &dataFlow) {
         require(bs.data.exitSet & ~expectedReturnBits & nonTrivialLocations,
                 "memory is initialized at function return but shouldn't be",
                 term,
-                /*excludeTrivialEnums*/ true);
+                /*excludeTrivialEnums*/ false);
         break;
       case SILInstructionKind::ThrowInst:
         require(expectedThrowBits & ~bs.data.exitSet,
           "indirect argument is not alive at throw", term);
         require(bs.data.exitSet & ~expectedThrowBits & nonTrivialLocations,
                 "memory is initialized at throw but shouldn't be", term,
-                /*excludeTrivialEnums*/ true);
+                /*excludeTrivialEnums*/ false);
         break;
       default:
         break;
