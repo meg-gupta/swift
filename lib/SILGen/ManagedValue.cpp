@@ -211,7 +211,20 @@ ManagedValue ManagedValue::materialize(SILGenFunction &SGF,
   auto temporary = SGF.emitTemporaryAllocation(loc, getType());
   bool hadCleanup = hasCleanup();
 
-  if (hadCleanup) {
+  auto checkIfNoneValueStoredToNoneTrivialTemporary =
+      [](SILValue value, SILValue temporary) -> bool {
+    if (value->getOwnershipKind() != OwnershipKind::None) {
+      return false;
+    }
+    if (temporary->getType().isTrivial(temporary->getFunction())) {
+      return false;
+    }
+    assert(temporary->getType().getEnumOrBoundGenericEnum() != nullptr);
+    return true;
+  };
+
+  if (hadCleanup ||
+      checkIfNoneValueStoredToNoneTrivialTemporary(getValue(), temporary)) {
     SGF.B.emitStoreValueOperation(loc, forward(SGF), temporary,
                                   StoreOwnershipQualifier::Init);
 
@@ -219,6 +232,7 @@ ManagedValue ManagedValue::materialize(SILGenFunction &SGF,
     return ManagedValue::forOwnedAddressRValue(
         temporary, SGF.enterDestroyCleanup(temporary));
   }
+
   auto &lowering = SGF.getTypeLowering(getType());
   if (lowering.isAddressOnly()) {
     assert(!SGF.silConv.useLoweredAddresses());
