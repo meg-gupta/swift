@@ -587,9 +587,26 @@ bool SILCombiner::optimizeStackAllocatedEnum(AllocStackInst *AS) {
     Operand *use = *AS->use_begin();
     SILInstruction *user = use->getUser();
     switch (user->getKind()) {
-      case SILInstructionKind::InjectEnumAddrInst:
+      case SILInstructionKind::InjectEnumAddrInst: {
+        // There maybe inject_enum_addr of enum cases other than the init-take
+        // pair, and on those control flow paths the newly allocated enum
+        // temporary will be uninitialized causing memory lifetime errors. Set
+        // dynamic_lifetime on the temporary to avoid this.
+        bool setDynamicLifetime = false;
+        for (auto *use : AS->getUses()) {
+          if (auto *inject = dyn_cast<InjectEnumAddrInst>(use->getUser())) {
+            if (inject->getElement() != element) {
+              setDynamicLifetime = true;
+              break;
+            }
+          }
+        }
+        if (setDynamicLifetime) {
+          newAlloc->setDynamicLifetime();
+        }
         eraseInstFromFunction(*user);
         break;
+      }
       case SILInstructionKind::DestroyAddrInst:
         if (singleInitTakePair) {
           // It's not possible that the enum has a payload at the destroy_addr,
