@@ -1018,9 +1018,9 @@ SILCombiner::visitInjectEnumAddrInst(InjectEnumAddrInst *IEAI) {
                           IEAI->getOperand()->getType().getObjectType());
     auto storeQual = !func->hasOwnership()
                          ? StoreOwnershipQualifier::Unqualified
-                     : IEAI->getOperand()->getType().isMoveOnly()
-                         ? StoreOwnershipQualifier::Init
-                         : StoreOwnershipQualifier::Trivial;
+                     : IEAI->getOperand()->getType().isTrivial(*func)
+                         ? StoreOwnershipQualifier::Trivial
+                         : StoreOwnershipQualifier::Init;
     Builder.createStore(IEAI->getLoc(), E, IEAI->getOperand(), storeQual);
     return eraseInstFromFunction(*IEAI);
   }
