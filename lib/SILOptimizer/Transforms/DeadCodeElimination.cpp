@@ -69,6 +69,12 @@ static bool seemsUseful(SILInstruction *I) {
       return false;
   }
 
+  if (auto *utedai = dyn_cast<UncheckedTakeEnumDataAddrInst>(I)) {
+    if (!utedai->isDestructive()) {
+      return false;
+    }
+  }
+
   if (I->mayHaveSideEffects())
     return true;
 
