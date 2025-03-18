@@ -551,8 +551,7 @@ eliminateUnneededForwardingUnarySingleValueInst(SingleValueInstruction *inst,
   if (isa<DropDeinitInst>(inst))
     return next;
   if (auto *uedi = dyn_cast<UncheckedEnumDataInst>(inst)) {
-    if (uedi->getOperand()->getType().isValueTypeWithDeinit())
-      return next;
+    return next;
   }
   for (auto *use : getNonDebugUses(inst)) {
     if (auto *destroy = dyn_cast<DestroyValueInst>(use->getUser())) {

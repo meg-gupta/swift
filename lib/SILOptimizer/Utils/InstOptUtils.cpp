@@ -179,6 +179,9 @@ bool swift::isInstructionTriviallyDead(SILInstruction *inst) {
   if (isa<BorrowedFromInst>(inst))
     return false;
 
+  if (inst->getFunction()->hasOwnership() && isa<UncheckedEnumDataInst>(inst))
+    return false;
+
   // An ossa end scope instruction is trivially dead if its operand has
   // OwnershipKind::None. This can occur after CFG simplification in the
   // presence of non-payloaded or trivial payload cases of non-trivial enums.

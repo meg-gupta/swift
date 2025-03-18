@@ -252,6 +252,12 @@ bool SILCombiner::trySinkOwnedForwardingInst(SingleValueInstruction *svi) {
                    [](Operand *use) { return !use->isLifetimeEnding(); }))
     return false;
 
+  if (auto *ued = dyn_cast<UncheckedEnumDataInst>(svi)) {
+    if (ued->use_empty()) {
+      auto *newDestroy = Builder.createDestroyValue(ued->getLoc(), ued->getOperand());
+      Worklist.add(newDestroy);
+    }
+  }
   while (!svi->use_empty()) {
     auto *sviUse = *svi->use_begin();
     auto *sviUser = sviUse->getUser();
