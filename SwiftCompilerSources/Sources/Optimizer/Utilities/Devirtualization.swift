@@ -243,7 +243,7 @@ extension DestroyAddrInst : DevirtualizableDestroy {
       }
     }
 
-    if !operand.type.isTrivial(in: parentFunction) {
+    if !operand.value.type.isTrivial(in: parentFunction) {
       builder.createDestroyAddr(address: operand.value)
     }
     return true
