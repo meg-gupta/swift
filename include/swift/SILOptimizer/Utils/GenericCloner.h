@@ -42,6 +42,8 @@ class GenericCloner
 
   llvm::SmallVector<AllocStackInst *, 8> AllocStacks;
   llvm::SmallVector<StoreBorrowInst *, 8> StoreBorrowsToCleanup;
+  llvm::SmallVector<UncheckedTakeEnumDataAddrInst *> enumInstsToFixup;
+
   AllocStackInst *ReturnValueAddr = nullptr;
   AllocStackInst *ErrorValueAddr = nullptr;
 
@@ -80,6 +82,8 @@ public:
                                         const ReabstractionInfo &ReInfo,
                                         StringRef NewName);
 
+  void visitUncheckedTakeEnumDataAddrInst(UncheckedTakeEnumDataAddrInst *inst);
+
 protected:
   void visitTerminator(SILBasicBlock *BB);
 
@@ -104,7 +108,6 @@ private:
   SILFunction *getCloned() { return &getBuilder().getFunction(); }
 
   const SILDebugScope *remapScope(const SILDebugScope *DS);
-
 };
 
 } // end namespace swift
