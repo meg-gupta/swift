@@ -434,6 +434,10 @@ void addHighLevelLoopOptPasses(SILPassPipelinePlan &P) {
 
   // Run high-level loop opts.
   P.addLoopRotate();
+  // Rotating a loop whose header is a switch_enum moves the switch_enum to the
+  // latch. Forward the condition that produces its operand so that
+  // BoundsCheckOpts sees an induction variable compare as the loop exit.
+  P.addConditionForwarding();
 
   // Cleanup.
   P.addDCE();
