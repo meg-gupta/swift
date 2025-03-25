@@ -348,6 +348,8 @@ enum OptimizationLevelKind {
 
 void addSimplifyCFGSILCombinePasses(SILPassPipelinePlan &P) {
   P.addSimplifyCFG();
+  P.addLoopRotate();
+  P.addSimplifyCFG();
   P.addConditionForwarding();
   // Jump threading can expose opportunity for silcombine (enum -> is_enum_tag->
   // cond_br).
@@ -368,7 +370,6 @@ void addHighLevelLoopOptPasses(SILPassPipelinePlan &P) {
   addSimplifyCFGSILCombinePasses(P);
 
   // Run high-level loop opts.
-  P.addLoopRotate();
 
   // Cleanup.
   P.addDCE();
