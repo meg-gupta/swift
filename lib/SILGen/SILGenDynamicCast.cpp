@@ -41,17 +41,13 @@ namespace {
     CheckedCastInstOptions Options;
 
   public:
-    CheckedCastEmitter(SILGenFunction &SGF, SILLocation loc,
-                       Type sourceType, Type targetType)
-      : SGF(SGF), Loc(loc), SourceType(sourceType->getCanonicalType()),
-        TargetType(targetType->getCanonicalType()),
-        Strategy(computeStrategy()),
-        Options(computedOptions()) {
-    }
-
-    bool isOperandIndirect() const {
-      return Strategy == CastStrategy::Address;
-    }
+    CheckedCastEmitter(SILGenFunction &SGF, SILLocation loc, Type sourceType,
+                       Type targetType, bool generateByAddress)
+        : SGF(SGF), Loc(loc), SourceType(sourceType->getCanonicalType()),
+          TargetType(targetType->getCanonicalType()),
+          Strategy(computeStrategy(generateByAddress)),
+          Options(computedOptions()) {}
+    bool isOperandIndirect() const { return Strategy == CastStrategy::Address; }
 
     ManagedValue emitOperand(Expr *operand) {
       AbstractionPattern mostGeneral = SGF.SGM.Types.getMostGeneralAbstraction();
@@ -296,11 +292,8 @@ namespace {
     }
 
   private:
-    CastStrategy computeStrategy() const {
-      if (canSILUseScalarCheckedCastInstructions(SGF.SGM.M, SourceType,
-                                                 TargetType))
-        return CastStrategy::Scalar;
-      return CastStrategy::Address;
+    CastStrategy computeStrategy(bool generateByAddress) const {
+      return generateByAddress ? CastStrategy::Address : CastStrategy::Scalar;
     }
 
     CheckedCastInstOptions computedOptions() const {
@@ -345,7 +338,11 @@ void SILGenFunction::emitCheckedCastBranch(
     llvm::function_ref<void(ManagedValue)> handleTrue,
     llvm::function_ref<void(std::optional<ManagedValue>)> handleFalse,
     ProfileCounter TrueCount, ProfileCounter FalseCount) {
-  CheckedCastEmitter emitter(*this, loc, source->getType(), targetType);
+  bool generateByAddress = !canSILUseScalarConsumingCheckedCastInstructions(
+      &getFunction(), source->getType()->getCanonicalType(),
+      targetType->getCanonicalType());
+  CheckedCastEmitter emitter(*this, loc, source->getType(), targetType,
+                             generateByAddress);
   ManagedValue operand = emitter.emitOperand(source);
   emitter.emitConditional(operand, CastConsumptionKind::TakeAlways, ctx,
                           handleTrue, handleFalse, TrueCount, FalseCount);
@@ -357,7 +354,10 @@ void SILGenFunction::emitCheckedCastBranch(
     llvm::function_ref<void(ManagedValue)> handleTrue,
     llvm::function_ref<void(std::optional<ManagedValue>)> handleFalse,
     ProfileCounter TrueCount, ProfileCounter FalseCount) {
-  CheckedCastEmitter emitter(*this, loc, sourceType, targetType);
+  bool generateByAddress = !canSILUseScalarCheckedCastInstructions(
+      &getFunction(), src.getFinalConsumption(), src.getType(), targetType);
+  CheckedCastEmitter emitter(*this, loc, sourceType, targetType,
+                             generateByAddress);
   emitter.emitConditional(src.getFinalManagedValue(), src.getFinalConsumption(),
                           ctx, handleTrue, handleFalse, TrueCount, FalseCount);
 }
@@ -405,9 +405,9 @@ adjustForConditionalCheckedCastOperand(SILLocation loc, ManagedValue src,
   // temporary if necessary.
   
   // Figure out if we need the value to be in a temporary.
-  bool requiresAddress =
-    !canSILUseScalarCheckedCastInstructions(SGF.SGM.M, sourceType, targetType);
-  
+  bool requiresAddress = !canSILUseScalarConsumingCheckedCastInstructions(
+      &SGF.getFunction(), sourceType, targetType);
+
   AbstractionPattern abstraction = SGF.SGM.M.Types.getMostGeneralAbstraction();
   auto &srcAbstractTL = SGF.getTypeLowering(abstraction, sourceType);
   
@@ -458,8 +458,11 @@ RValue Lowering::emitUnconditionalCheckedCast(SILGenFunction &SGF,
                                       /*conditional=*/false);
   }
 
-  CheckedCastEmitter emitter(SGF, loc, operand->getType(),
-                             targetType);
+  bool generateByAddress = !canSILUseScalarConsumingCheckedCastInstructions(
+      &SGF.getFunction(), operand->getType()->getCanonicalType(),
+      targetType->getCanonicalType());
+  CheckedCastEmitter emitter(SGF, loc, operand->getType(), targetType,
+                             generateByAddress);
   ManagedValue operandValue = emitter.emitOperand(operand);
   return emitter.emitUnconditionalCast(operandValue, C);
 }

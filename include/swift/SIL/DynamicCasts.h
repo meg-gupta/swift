@@ -93,9 +93,18 @@ bool emitSuccessfulIndirectUnconditionalCast(SILBuilder &B, SILLocation loc,
 
 /// Can the given cast be performed by the scalar checked-cast instructions in
 /// the current SIL stage, or do we need to use the indirect instructions?
-bool canSILUseScalarCheckedCastInstructions(SILModule &M,
-                                            CanType sourceType,
-                                            CanType targetType);
+bool canSILUseScalarCheckedCastInstructions(const SILFunction *func,
+                                            CastConsumptionKind consumption,
+                                            SILType sourceType,
+                                            CanType targetFormalType);
+
+/// Similar to above. Takes `sourceType` which is a CanType unlike the version
+/// above. This version is useful for determining address v/s value forms in
+/// SILGen before the expression for the source operand is emitted. This is
+/// valid for "take" consumptions only.
+bool canSILUseScalarConsumingCheckedCastInstructions(const SILFunction *func,
+                                                     CanType sourceType,
+                                                     CanType targetFormalType);
 
 /// Can the given cast be performed by the scalar checked-cast
 /// instructions at IRGen, or do we need to use the indirect instructions?
@@ -216,8 +225,11 @@ public:
   CastConsumptionKind getConsumptionKind() const {
     switch (getKind()) {
     case SILDynamicCastKind::CheckedCastAddrBranchInst:
+      return cast<CheckedCastAddrBranchInst>(inst)->getConsumptionKind();
     case SILDynamicCastKind::CheckedCastBranchInst:
+      llvm_unreachable("unsupported");
     case SILDynamicCastKind::UnconditionalCheckedCastAddrInst:
+      return CastConsumptionKind::TakeAlways;
     case SILDynamicCastKind::UnconditionalCheckedCastInst:
       llvm_unreachable("unsupported");
     }
@@ -455,7 +467,8 @@ public:
 
   bool canSILUseScalarCheckedCastInstructions() const {
     return swift::canSILUseScalarCheckedCastInstructions(
-        getModule(), getSourceFormalType(), getTargetFormalType());
+        getFunction(), getConsumptionKind(), getSourceLoweredType(),
+        getTargetFormalType());
   }
 
   CheckedCastInstOptions getCheckedCastOptions() const {

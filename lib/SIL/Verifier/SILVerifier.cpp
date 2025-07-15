@@ -4849,7 +4849,8 @@ public:
     }
   }
 
-  void verifyCheckedCast(bool isExact, SILType fromTy, SILType toTy) {
+  void verifyCheckedCast(bool isExact, SILType fromTy, SILType toTy,
+                         ValueOwnershipKind ownership) {
     // Verify common invariants.
     require(fromTy.isObject() && toTy.isObject(),
             "value checked cast src and dest must be objects");
@@ -4857,8 +4858,12 @@ public:
     auto fromCanTy = fromTy.getASTType();
     auto toCanTy = toTy.getASTType();
 
-    require(canSILUseScalarCheckedCastInstructions(F.getModule(),
-                                                   fromCanTy, toCanTy),
+    // Scalar forms have no consumption, derive conservatively from ownership.
+    auto consumption = ownership == OwnershipKind::Guaranteed
+                           ? CastConsumptionKind::BorrowAlways
+                           : CastConsumptionKind::TakeAlways;
+    require(canSILUseScalarCheckedCastInstructions(&F, consumption, fromTy,
+                                                   toCanTy),
             "invalid value checked cast src or dest types");
 
     // Peel off metatypes. If two types are checked-cast-able, so are their
@@ -4897,9 +4902,9 @@ public:
   }
 
   void checkUnconditionalCheckedCastInst(UnconditionalCheckedCastInst *CI) {
-    verifyCheckedCast(/*exact*/ false,
-                      CI->getOperand()->getType(),
-                      CI->getType());
+    verifyCheckedCast(
+        /*exact*/ false, CI->getOperand()->getType(), CI->getType(),
+        CI->getForwardingOwnershipKind());
     verifyLocalArchetype(CI, CI->getType().getASTType());
   }
 
@@ -4946,9 +4951,10 @@ public:
   }
 
   void checkCheckedCastBranchInst(CheckedCastBranchInst *CBI) {
-    verifyCheckedCast(CBI->isExact(),
-                      CBI->getSourceLoweredType(),
-                      CBI->getTargetLoweredType());
+    verifyCheckedCast(
+        CBI->isExact(), CBI->getSourceLoweredType(),
+        CBI->getTargetLoweredType(),
+        CBI->getForwardingOwnershipKind());
     verifyLocalArchetype(CBI, CBI->getTargetFormalType());
 
     require(CBI->getSuccessBB()->args_size() == 1,

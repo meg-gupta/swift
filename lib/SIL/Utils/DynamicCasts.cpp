@@ -23,6 +23,9 @@
 using namespace swift;
 using namespace Lowering;
 
+static bool canPreserveOwnershipForPotentialAnyObjectTypes(CanType sourceType,
+                                                           CanType targetType);
+
 static unsigned getAnyMetatypeDepth(CanType type) {
   unsigned depth = 0;
   while (auto metatype = dyn_cast<AnyMetatypeType>(type)) {
@@ -336,12 +339,18 @@ static bool isPotentiallyAnyObject(Type type) {
 // __SwiftValue, cases (B1) and (B2) above will no longer apply. At that time,
 // expand ownership preserving cast types to AnyObject. Then remove the
 // isPotentiallyAnyObject() check.
+
 bool swift::doesCastPreserveOwnershipForTypes(SILModule &module,
                                               CanType sourceType,
                                               CanType targetType) {
   if (!canIRGenUseScalarCheckedCastInstructions(module, sourceType, targetType))
     return false;
 
+  return canPreserveOwnershipForPotentialAnyObjectTypes(sourceType, targetType);
+}
+
+static bool canPreserveOwnershipForPotentialAnyObjectTypes(CanType sourceType,
+                                                           CanType targetType) {
   // (B2) unwrapping
   if (isPotentiallyAnyObject(sourceType))
     return false;
@@ -353,6 +362,7 @@ bool swift::doesCastPreserveOwnershipForTypes(SILModule &module,
     return
       sourceType->mayHaveSuperclass() || sourceType->isClassExistentialType();
   }
+
   return true;
 }
 
@@ -1337,6 +1347,16 @@ bool swift::emitSuccessfulIndirectUnconditionalCast(
   return true;
 }
 
+static bool isBorrowingConsumption(const SILFunction *func,
+                                   CastConsumptionKind consumption,
+                                   SILType sourceType) {
+  if (consumption == CastConsumptionKind::TakeOnSuccess ||
+      consumption == CastConsumptionKind::TakeAlways) {
+    return false;
+  }
+  return func->hasOwnership() && !sourceType.isTrivial(*func);
+}
+
 /// Can the given cast be performed by the scalar checked-cast
 /// instructions at the current SIL stage?
 ///
@@ -1345,14 +1365,40 @@ bool swift::emitSuccessfulIndirectUnconditionalCast(
 /// or forward it. The result is always either +1 or trivial. The cast never
 /// hides a copy. doesCastPreserveOwnershipForTypes determines whether the
 /// scalar cast is also compatible with guaranteed values.
-bool swift::canSILUseScalarCheckedCastInstructions(SILModule &M,
-                                                   CanType sourceFormalType,
-                                                   CanType targetFormalType) {
-  if (!M.useLoweredAddresses())
+bool swift::canSILUseScalarCheckedCastInstructions(
+    const SILFunction *func, CastConsumptionKind consumption,
+    SILType sourceType, CanType targetFormalType) {
+
+  auto &mod = func->getModule();
+  if (!mod.useLoweredAddresses())
     return true;
 
-  return canIRGenUseScalarCheckedCastInstructions(M, sourceFormalType,
-                                                  targetFormalType);
+  if (!canIRGenUseScalarCheckedCastInstructions(mod, sourceType.getRawASTType(),
+                                                targetFormalType)) {
+    return false;
+  }
+
+  if (canPreserveOwnershipForPotentialAnyObjectTypes(sourceType.getRawASTType(),
+                                                     targetFormalType)) {
+    return true;
+  }
+
+  // If ownership cannot be preserved, do not allow @guaranteed forwarding
+  // casts.
+  return !isBorrowingConsumption(func, consumption, sourceType);
+}
+
+bool swift::canSILUseScalarConsumingCheckedCastInstructions(
+    const SILFunction *func, CanType sourceType, CanType targetFormalType) {
+  auto &mod = func->getModule();
+  if (!mod.useLoweredAddresses())
+    return true;
+
+  if (!canIRGenUseScalarCheckedCastInstructions(mod, sourceType,
+                                                targetFormalType)) {
+    return false;
+  }
+  return true;
 }
 
 /// Can the given cast be performed by the scalar checked-cast
@@ -1434,9 +1480,8 @@ void swift::emitIndirectConditionalCastWithScalar(
     SILValue destAddr, CanType targetFormalType,
     SILBasicBlock *indirectSuccBB, SILBasicBlock *indirectFailBB,
     ProfileCounter TrueCount, ProfileCounter FalseCount) {
-  assert(canSILUseScalarCheckedCastInstructions(B.getModule(),
-                                                sourceFormalType,
-                                                targetFormalType));
+  assert(canSILUseScalarCheckedCastInstructions(
+      &B.getFunction(), consumption, srcAddr->getType(), targetFormalType));
 
   // Create our successor and fail blocks.
   SILBasicBlock *scalarFailBB = B.splitBlockForFallthrough();

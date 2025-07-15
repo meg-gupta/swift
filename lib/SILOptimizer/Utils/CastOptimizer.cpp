@@ -1161,7 +1161,7 @@ SILInstruction *CastOptimizer::optimizeCheckedCastAddrBranchInst(
       if (MI) {
         if (SuccessBB->getSinglePredecessorBlock() &&
             canSILUseScalarCheckedCastInstructions(
-                Inst->getModule(), MI->getType().getASTType(),
+                Inst->getFunction(), Inst->getConsumptionKind(), MI->getType(),
                 Inst->getTargetFormalType())) {
           SILBuilderWithScope B(Inst, builderContext);
           auto NewI = B.createCheckedCastBranch(
