@@ -1064,9 +1064,6 @@ CastOptimizer::simplifyCheckedCastBranchInst(CheckedCastBranchInst *Inst) {
       // The unconditional_cast can be skipped, if the result of a cast
       // is not used afterwards.
       if (!ResultNotUsed) {
-        if (!dynamicCast.canSILUseScalarCheckedCastInstructions())
-          return nullptr;
-
         CastedValue =
             emitSuccessfulScalarUnconditionalCast(Builder, Loc, dynamicCast);
       } else {
