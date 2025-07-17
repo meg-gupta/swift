@@ -173,6 +173,44 @@ extension MutableSpan where Element: BitwiseCopyable {
 
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
+extension MutableSpan where Element: BitwiseCopyable {
+  /// Accesses the element at the specified position in the `MutableSpan`.
+  ///
+  /// - Parameter position: The offset of the element to access. `position`
+  ///     must be greater or equal to zero, and less than `count`.
+  ///
+  /// - Complexity: O(1)
+  @_alwaysEmitIntoClient
+  public subscript(_ position: Index) -> Element {
+    get {
+      _checkIndex(position)
+      return unsafe self[unchecked: position]
+    }
+  }
+
+  /// Accesses the element at the specified position in the `Span`.
+  ///
+  /// This subscript does not validate `position`. Using this subscript
+  /// with an invalid `position` results in undefined behaviour.
+  ///
+  /// - Parameter position: The offset of the element to access. `position`
+  ///     must be greater or equal to zero, and less than `count`.
+  ///
+  /// - Complexity: O(1)
+  @unsafe
+  @_alwaysEmitIntoClient
+  public subscript(unchecked position: Index) -> Element {
+    get {
+      let elementOffset = position &* MemoryLayout<Element>.stride
+      let address = unsafe _start().advanced(by: elementOffset)
+      return unsafe address.loadUnaligned(as: Element.self)
+    }
+  }
+}
+
+
+@available(SwiftCompatibilitySpan 5.0, *)
+@_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension Span where Element: ~Copyable {
 
   @_alwaysEmitIntoClient
@@ -280,7 +318,13 @@ extension MutableSpan where Element: BitwiseCopyable {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: ~Copyable {
-
+  // SILOptimizer looks for fixed_storage.check_index semantics for bounds check optimizations.
+  @_semantics("fixed_storage.check_index")
+  @inline(__always)
+  @_alwaysEmitIntoClient
+  internal func _checkIndex(_ position: Index) {
+    _precondition(indices.contains(position), "Index out of bounds")
+  }
   /// Accesses the element at the specified position in the `Span`.
   ///
   /// - Parameter position: The offset of the element to access. `position`
@@ -290,12 +334,12 @@ extension MutableSpan where Element: ~Copyable {
   @_alwaysEmitIntoClient
   public subscript(_ position: Index) -> Element {
     unsafeAddress {
-      _precondition(indices.contains(position), "index out of bounds")
+      _checkIndex(position)
       return unsafe UnsafePointer(_unsafeAddressOfElement(unchecked: position))
     }
     @lifetime(self: copy self)
     unsafeMutableAddress {
-      _precondition(indices.contains(position), "index out of bounds")
+      _checkIndex(position)
        return unsafe _unsafeAddressOfElement(unchecked: position)
     }
   }
