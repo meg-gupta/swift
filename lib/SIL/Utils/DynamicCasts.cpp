@@ -1355,6 +1355,29 @@ bool swift::canSILUseScalarCheckedCastInstructions(SILModule &M,
                                                   targetFormalType);
 }
 
+bool swift::canOptimizeToScalarCheckedCastInstructions(
+    SILFunction *func, CanType sourceType, CanType targetType,
+    CastConsumptionKind consumption) {
+  if (!canSILUseScalarCheckedCastInstructions(func->getModule(), sourceType,
+                                              targetType)) {
+    return false;
+  }
+
+  // Check if we preserve ownership for @guaranteed conversions.
+  if (consumption != CastConsumptionKind::CopyOnSuccess) {
+    // @guaranteed conversion is generated only for
+    // CastConsumptionKind::CopyOnSuccess
+    return true;
+  }
+
+  if (!func->hasOwnership()) {
+    return true;
+  }
+
+  return doesCastPreserveOwnershipForTypes(func->getModule(), sourceType,
+                                           targetType);
+}
+
 /// Can the given cast be performed by the scalar checked-cast
 /// instructions?
 bool swift::canIRGenUseScalarCheckedCastInstructions(SILModule &M,
