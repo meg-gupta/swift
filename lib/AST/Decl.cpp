@@ -3418,6 +3418,16 @@ bool AbstractStorageDecl::requiresOpaqueAccessor(AccessorKind kind) const {
   llvm_unreachable("bad accessor kind");
 }
 
+bool AbstractStorageDecl::requiresOpaqueSetter() const {
+  if (!supportsMutation()) {
+    return false;
+  }
+  if (getAccessor(AccessorKind::Mutate)) {
+    return false;
+  }
+  return true;
+}
+
 bool AbstractStorageDecl::requiresOpaqueReadCoroutine() const {
   ASTContext &ctx = getASTContext();
   if (ctx.LangOpts.hasFeature(Feature::CoroutineAccessors))
