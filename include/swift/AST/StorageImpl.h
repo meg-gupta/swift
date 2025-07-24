@@ -426,32 +426,36 @@ public:
       return;
 
     case WriteImplKind::Set:
-      assert(readImpl == ReadImplKind::Get ||
-             readImpl == ReadImplKind::Address ||
-             readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2);
+      assert(
+          readImpl == ReadImplKind::Get || readImpl == ReadImplKind::Address ||
+          readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2 ||
+          readImpl == ReadImplKind::Borrow);
       assert(readWriteImpl == ReadWriteImplKind::MaterializeToTemporary ||
              readWriteImpl == ReadWriteImplKind::Modify ||
              readWriteImpl == ReadWriteImplKind::Modify2);
       return;
 
     case WriteImplKind::Modify:
-      assert(readImpl == ReadImplKind::Get ||
-             readImpl == ReadImplKind::Address ||
-             readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2);
+      assert(
+          readImpl == ReadImplKind::Get || readImpl == ReadImplKind::Address ||
+          readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2 ||
+          readImpl == ReadImplKind::Borrow);
       assert(readWriteImpl == ReadWriteImplKind::Modify);
       return;
 
     case WriteImplKind::Modify2:
-      assert(readImpl == ReadImplKind::Get ||
-             readImpl == ReadImplKind::Address ||
-             readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2);
+      assert(
+          readImpl == ReadImplKind::Get || readImpl == ReadImplKind::Address ||
+          readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2 ||
+          readImpl == ReadImplKind::Borrow);
       assert(readWriteImpl == ReadWriteImplKind::Modify2);
       return;
 
     case WriteImplKind::MutableAddress:
-      assert(readImpl == ReadImplKind::Get ||
-             readImpl == ReadImplKind::Address ||
-             readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2);
+      assert(
+          readImpl == ReadImplKind::Get || readImpl == ReadImplKind::Address ||
+          readImpl == ReadImplKind::Read || readImpl == ReadImplKind::Read2 ||
+          readImpl == ReadImplKind::Borrow);
       assert(readWriteImpl == ReadWriteImplKind::MutableAddress);
       return;
     case WriteImplKind::Mutate:
