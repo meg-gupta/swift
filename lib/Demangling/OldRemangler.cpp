@@ -3152,3 +3152,13 @@ ManglingError Remangler::mangleDependentGenericParamValueMarker(Node *node,
                                                                 unsigned depth) {
   return MANGLING_ERROR(ManglingError::UnsupportedNodeKind, node);
 }
+
+ManglingError Remangler::mangleBorrowAccessor(Node *node, EntityContext &ctx,
+                                              unsigned depth) {
+  return MANGLING_ERROR(ManglingError::UnsupportedNodeKind, node);
+}
+
+ManglingError Remangler::mangleMutateAccessor(Node *node, EntityContext &ctx,
+                                              unsigned depth) {
+  return MANGLING_ERROR(ManglingError::UnsupportedNodeKind, node);
+}
