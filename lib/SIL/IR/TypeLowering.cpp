@@ -4531,6 +4531,9 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case ReadImplKind::Inherited:
             llvm_unreachable("inherited local variable?");
+          case ReadImplKind::Borrow:
+            collectAccessorCaptures(AccessorKind::Borrow);
+            break;
           }
 
           switch (impl.getWriteImpl()) {
@@ -4555,6 +4558,9 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case WriteImplKind::InheritedWithObservers:
             llvm_unreachable("inherited local variable");
+          case WriteImplKind::Mutate:
+            collectAccessorCaptures(AccessorKind::Mutate);
+            break;
           }
 
           switch (impl.getReadWriteImpl()) {
@@ -4578,6 +4584,9 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case ReadWriteImplKind::InheritedWithDidSet:
             llvm_unreachable("inherited local variable");
+          case ReadWriteImplKind::Mutate:
+            collectAccessorCaptures(AccessorKind::Mutate);
+            break;
           }
         }
 
