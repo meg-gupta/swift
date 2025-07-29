@@ -74,6 +74,10 @@ printArtificialName(const swift::AbstractStorageDecl *ASD, AccessorKind AK, llvm
   case AccessorKind::Modify:
   case AccessorKind::Modify2:
     return true;
+  case AccessorKind::Borrow:
+    llvm_unreachable("borrow accessor should not need an artificial name");
+  case AccessorKind::Mutate:
+    llvm_unreachable("mutate accessor should not need an artificial name");
   }
 
   llvm_unreachable("Unhandled AccessorKind in switch.");
