@@ -4121,6 +4121,14 @@ ManglingError Remangler::mangleDependentGenericParamValueMarker(Node *node,
   return ManglingError::Success;
 }
 
+ManglingError Remangler::mangleBorrowAccessor(Node *node, unsigned depth) {
+  return mangleAbstractStorage(node->getFirstChild(), "b", depth + 1);
+}
+
+ManglingError Remangler::mangleMutateAccessor(Node *node, unsigned depth) {
+  return mangleAbstractStorage(node->getFirstChild(), "z", depth + 1);
+}
+
 } // anonymous namespace
 
 /// The top-level interface to the remangler.
