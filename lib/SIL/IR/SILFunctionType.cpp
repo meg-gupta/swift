@@ -707,6 +707,7 @@ static CanSILFunctionType getAutoDiffPullbackType(
     case ResultConvention::UnownedInnerPointer:
     case ResultConvention::Owned:
     case ResultConvention::Autoreleased:
+    case ResultConvention::Guaranteed:
       if (tl.isAddressOnly()) {
         conv = ParameterConvention::Indirect_In_Guaranteed;
       } else {
@@ -1054,6 +1055,7 @@ CanSILFunctionType SILFunctionType::getAutoDiffTransposeFunctionType(
     switch (result.getConvention()) {
     case ResultConvention::Owned:
     case ResultConvention::Autoreleased:
+    case ResultConvention::Guaranteed:
       newConv = tl.isTrivial() ? ParameterConvention::Direct_Unowned
                                : ParameterConvention::Direct_Guaranteed;
       break;
@@ -1440,6 +1442,7 @@ public:
 
         case ResultConvention::Autoreleased:
         case ResultConvention::Owned:
+        case ResultConvention::Guaranteed:
           // These aren't distinguishable from unowned for trivial types.
           convention = ResultConvention::Unowned;
           break;
@@ -3227,10 +3230,16 @@ static CanSILFunctionType getNativeSILFunctionType(
       if (constant) {
         if (constant->isSetter()) {
           return getSILFunctionTypeForConventions(DefaultSetterConventions());
-        } else if (constant->isInitAccessor()) {
+        }
+        if (constant->isInitAccessor()) {
           return getSILFunctionTypeForInitAccessor(
               TC, context, origType, substInterfaceType, extInfoBuilder,
               DefaultSetterConventions(), *constant);
+        }
+        if (constant->isBorrowAccessor()) {
+          return getSILFunctionTypeForConventions(
+              DefaultConventions(NormalParameterConvention::Guaranteed,
+                                 ResultConvention::Guaranteed));
         }
       }
       return getSILFunctionTypeForConventions(

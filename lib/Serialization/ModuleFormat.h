@@ -433,6 +433,7 @@ enum class ResultConvention : uint8_t {
   UnownedInnerPointer,
   Autoreleased,
   Pack,
+  Guaranteed,
 };
 using ResultConventionField = BCFixed<3>;
 

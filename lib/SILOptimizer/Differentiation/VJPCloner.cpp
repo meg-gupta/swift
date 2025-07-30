@@ -1120,6 +1120,7 @@ SILFunction *VJPCloner::Implementation::createEmptyPullback() {
     case ResultConvention::UnownedInnerPointer:
     case ResultConvention::Owned:
     case ResultConvention::Autoreleased:
+    case ResultConvention::Guaranteed:
       if (tl.isAddressOnly()) {
         conv = ParameterConvention::Indirect_In_Guaranteed;
       } else {

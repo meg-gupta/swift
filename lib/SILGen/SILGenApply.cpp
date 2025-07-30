@@ -6244,6 +6244,10 @@ RValue SILGenFunction::emitApply(
       // Unretained. Retain the value.
       result = resultTL.emitCopyValue(B, loc, result);
       break;
+
+    // TODO (borrow accessors): Revisit this
+    case ResultConvention::Guaranteed:
+      break;
     }
 
     directResults.push_back(emitManagedRValueWithCleanup(result, resultTL));

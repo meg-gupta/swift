@@ -2272,6 +2272,8 @@ static char getResultConvention(ResultConvention conv) {
     case ResultConvention::UnownedInnerPointer: return 'u';
     case ResultConvention::Autoreleased: return 'a';
     case ResultConvention::Pack: return 'k';
+    case ResultConvention::Guaranteed:
+      return 'g';
   }
   llvm_unreachable("bad result convention");
 }
