@@ -7874,6 +7874,8 @@ static StringRef getStringForResultConvention(ResultConvention conv) {
   case ResultConvention::UnownedInnerPointer: return "@unowned_inner_pointer ";
   case ResultConvention::Autoreleased: return "@autoreleased ";
   case ResultConvention::Pack: return "@pack_out ";
+  case ResultConvention::GuaranteedAddress:
+    return "@guaranteed_addr ";
   }
   llvm_unreachable("bad result convention");
 }
