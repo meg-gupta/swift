@@ -64,6 +64,14 @@ struct Wrapper {
     unsafeMutableAddress { // expected-error{{variable cannot provide both a mutable addressor and a 'mutate' accessor}}
     }
   }
+  var k8: Klass {
+    borrow async throws { // expected-error{{'borrow' accessor cannot have specifier 'async'}} expected-error{{'borrow' accessor cannot have specifier 'throws'}}
+      return _otherK
+    }
+    mutate async throws { // expected-error{{'mutate' accessor cannot have specifier 'async'}} expected-error{{'mutate' accessor cannot have specifier 'throws'}}
+      return &_otherK
+    }
+  }
 }
 
 var i: Int
