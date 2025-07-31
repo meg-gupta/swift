@@ -3433,6 +3433,11 @@ bool AbstractStorageDecl::requiresOpaqueReadCoroutine() const {
   if (ctx.LangOpts.hasFeature(Feature::CoroutineAccessors))
     return requiresCorrespondingUnderscoredCoroutineAccessor(
         AccessorKind::Read2);
+
+  // If a borrow accessor is present, we don't need a read coroutine.
+  if (getAccessor(AccessorKind::Borrow)) {
+    return false;
+  }
   return getOpaqueReadOwnership() != OpaqueReadOwnership::Owned;
 }
 
@@ -3440,6 +3445,11 @@ bool AbstractStorageDecl::requiresOpaqueRead2Coroutine() const {
   ASTContext &ctx = getASTContext();
   if (!ctx.LangOpts.hasFeature(Feature::CoroutineAccessors))
     return false;
+
+  // If a borrow accessor is present, we don't need a read coroutine.
+  if (getAccessor(AccessorKind::Borrow)) {
+    return false;
+  }
   return getOpaqueReadOwnership() != OpaqueReadOwnership::Owned;
 }
 
