@@ -2267,6 +2267,8 @@ getParamDifferentiability(SILParameterInfo::Options options) {
 static char getResultConvention(ResultConvention conv) {
   switch (conv) {
     case ResultConvention::Indirect: return 'r';
+    case ResultConvention::IndirectGuaranteed:
+      return 'R';
     case ResultConvention::Owned: return 'o';
     case ResultConvention::Unowned: return 'd';
     case ResultConvention::UnownedInnerPointer: return 'u';

@@ -721,6 +721,8 @@ static CanSILFunctionType getAutoDiffPullbackType(
     case ResultConvention::Indirect:
       conv = ParameterConvention::Indirect_In_Guaranteed;
       break;
+    case ResultConvention::IndirectGuaranteed:
+      llvm_unreachable("mutate accessor not yet implemented");
     }
     return conv;
   };
@@ -1069,6 +1071,8 @@ CanSILFunctionType SILFunctionType::getAutoDiffTransposeFunctionType(
     case ResultConvention::Indirect:
       newConv = ParameterConvention::Indirect_In_Guaranteed;
       break;
+    case ResultConvention::IndirectGuaranteed:
+      llvm_unreachable("mutate accessor not yet implemented");
     }
     return {result.getInterfaceType(), newConv};
   };
@@ -1436,6 +1440,9 @@ public:
         case ResultConvention::UnownedInnerPointer:
           // Leave these as-is.
           break;
+
+        case ResultConvention::IndirectGuaranteed:
+          llvm_unreachable("in_guaranteed convention is invalid");
 
         case ResultConvention::Pack:
           llvm_unreachable("pack convention for non-pack");
@@ -3240,6 +3247,11 @@ static CanSILFunctionType getNativeSILFunctionType(
           return getSILFunctionTypeForConventions(
               DefaultConventions(NormalParameterConvention::Guaranteed,
                                  ResultConvention::Guaranteed));
+        }
+        if (constant->isMutateAccessor()) {
+          return getSILFunctionTypeForConventions(
+              DefaultConventions(NormalParameterConvention::Guaranteed,
+                                 ResultConvention::IndirectGuaranteed));
         }
       }
       return getSILFunctionTypeForConventions(

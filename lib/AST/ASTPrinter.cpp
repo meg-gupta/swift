@@ -7067,7 +7067,8 @@ public:
         else if (T->getErrorResult().getConvention() == ResultConvention::Unowned)
           Printer << "@error_unowned ";
         else {
-          assert(false && "Should have error, error_indirect, or error_unowned");
+          assert(false && "Should have error, error_indirect, "
+                          "error_indirect_guaranteed, or error_unowned");
         }
         T->getErrorResult().getInterfaceType().print(Printer, Options);
       }
@@ -7869,6 +7870,8 @@ void SILParameterInfo::print(
 static StringRef getStringForResultConvention(ResultConvention conv) {
   switch (conv) {
   case ResultConvention::Indirect: return "@out ";
+  case ResultConvention::IndirectGuaranteed:
+    return "@out_guaranteed ";
   case ResultConvention::Owned: return "@owned ";
   case ResultConvention::Unowned: return "";
   case ResultConvention::UnownedInnerPointer: return "@unowned_inner_pointer ";

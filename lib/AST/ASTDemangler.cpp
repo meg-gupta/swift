@@ -550,6 +550,8 @@ static ResultConvention getResultConvention(ImplResultConvention conv) {
   switch (conv) {
   case Demangle::ImplResultConvention::Indirect:
     return ResultConvention::Indirect;
+  case Demangle::ImplResultConvention::IndirectGuaranteed:
+    return ResultConvention::IndirectGuaranteed;
   case Demangle::ImplResultConvention::Owned:
     return ResultConvention::Owned;
   case Demangle::ImplResultConvention::Unowned:

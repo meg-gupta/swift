@@ -226,6 +226,7 @@ using ImplFunctionYield = ImplFunctionParam<Type>;
 
 enum class ImplResultConvention {
   Indirect,
+  IndirectGuaranteed,
   Owned,
   Unowned,
   UnownedInnerPointer,
@@ -254,6 +255,8 @@ public:
   getConventionFromString(StringRef conventionString) {
     if (conventionString == "@out")
       return ConventionType::Indirect;
+    if (conventionString == "@out_guaranteed")
+      return ConventionType::IndirectGuaranteed;
     if (conventionString == "@owned")
       return ConventionType::Owned;
     if (conventionString == "@unowned")

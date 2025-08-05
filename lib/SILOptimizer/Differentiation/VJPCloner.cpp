@@ -1131,6 +1131,8 @@ SILFunction *VJPCloner::Implementation::createEmptyPullback() {
     case ResultConvention::Indirect:
       conv = ParameterConvention::Indirect_In_Guaranteed;
       break;
+    case ResultConvention::IndirectGuaranteed:
+      llvm_unreachable("mutate accessors not yet implemented");
     case ResultConvention::Pack:
       conv = ParameterConvention::Pack_Guaranteed;
       break;

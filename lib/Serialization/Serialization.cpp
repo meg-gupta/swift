@@ -5504,6 +5504,7 @@ getRawSILParameterInfoOptions(swift::SILParameterInfo::Options options) {
 static uint8_t getRawStableResultConvention(swift::ResultConvention rc) {
   switch (rc) {
   SIMPLE_CASE(ResultConvention, Indirect)
+  SIMPLE_CASE(ResultConvention, IndirectGuaranteed)
   SIMPLE_CASE(ResultConvention, Owned)
   SIMPLE_CASE(ResultConvention, Unowned)
   SIMPLE_CASE(ResultConvention, UnownedInnerPointer)

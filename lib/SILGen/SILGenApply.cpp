@@ -6248,6 +6248,9 @@ RValue SILGenFunction::emitApply(
     // TODO (borrow accessors): Revisit this
     case ResultConvention::Guaranteed:
       break;
+    // TODO (mutate accessors): Revisit this
+    case ResultConvention::IndirectGuaranteed:
+      break;
     }
 
     directResults.push_back(emitManagedRValueWithCleanup(result, resultTL));

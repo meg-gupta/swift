@@ -2281,6 +2281,9 @@ NodePointer Demangler::demangleImplResultConvention(Node::Kind ConvKind) {
   const char *attr = nullptr;
   switch (nextChar()) {
     case 'r': attr = "@out"; break;
+    case 'R':
+      attr = "@out_guaranteed";
+      break;
     case 'o': attr = "@owned"; break;
     case 'd': attr = "@unowned"; break;
     case 'u': attr = "@unowned_inner_pointer"; break;

@@ -428,6 +428,7 @@ using SILParameterInfoOptions = OptionSet<SILParameterInfoFlags>;
 // the module version.
 enum class ResultConvention : uint8_t {
   Indirect,
+  IndirectGuaranteed,
   Owned,
   Unowned,
   UnownedInnerPointer,

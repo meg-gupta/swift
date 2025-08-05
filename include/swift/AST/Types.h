@@ -4785,11 +4785,17 @@ enum class ResultConvention : uint8_t {
   /// The caller is responsible for using the returned value within a valid
   /// scope.
   Guaranteed,
+
+  /// This result is returned indirectly and is guaranteed by the callee.
+  /// The caller is responsible for using the returned value within a valid
+  /// scope.
+  IndirectGuaranteed,
 };
 
 // Does this result require indirect storage for the purpose of reabstraction?
 inline bool isIndirectFormalResult(ResultConvention convention) {
   return convention == ResultConvention::Indirect ||
+         convention == ResultConvention::IndirectGuaranteed ||
          convention == ResultConvention::Pack;
 }
 

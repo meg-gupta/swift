@@ -78,6 +78,7 @@ void registerBridgedClass(BridgedStringRef className, SwiftMetatype metatype);
 
 enum class BridgedResultConvention {
   Indirect,
+  IndirectGuaranteed,
   Owned,
   Unowned,
   UnownedInnerPointer,

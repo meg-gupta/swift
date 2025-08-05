@@ -632,6 +632,7 @@ inline bool SILModuleConventions::isIndirectSILResult(SILResultInfo result,
     return (loweredAddresses ||
             result.getInterfaceType()->isOpenedExistentialWithError());
   case ResultConvention::Pack:
+  case ResultConvention::IndirectGuaranteed:
     return true;
   case ResultConvention::Owned:
   case ResultConvention::Unowned:
