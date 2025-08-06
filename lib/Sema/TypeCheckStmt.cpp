@@ -1086,6 +1086,8 @@ public:
     }
 
     auto *exprToTypeCheck = RS->getResult();
+    auto contextType = ResultTy;
+
     InOutExpr *inoutExpr = nullptr;
 
     if (auto *accessor = TheFunc->getAccessorDecl()) {
@@ -1093,6 +1095,8 @@ public:
         if ((inoutExpr = dyn_cast<InOutExpr>(exprToTypeCheck))) {
           // Strip the & off so that the constraint system doesn't complain.
           exprToTypeCheck = inoutExpr->getSubExpr();
+          contextType =
+              LValueType::get(ResultTy->getAs<InOutType>()->getObjectType());
         } else {
           getASTContext()
               .Diags
@@ -1104,13 +1108,13 @@ public:
     }
     using namespace constraints;
     auto target =
-        SyntacticElementTarget::forReturn(RS, exprToTypeCheck, ResultTy, DC);
+        SyntacticElementTarget::forReturn(RS, exprToTypeCheck, contextType, DC);
     auto resultTarget = TypeChecker::typeCheckTarget(target);
     if (resultTarget) {
       // Propagate the change into the inout expression we stripped before.
       if (inoutExpr) {
         inoutExpr->setSubExpr(resultTarget->getAsExpr());
-        inoutExpr->setType(InOutType::get(ResultTy));
+        inoutExpr->setType(ResultTy);
         RS->setResult(inoutExpr);
       } else {
         RS->setResult(resultTarget->getAsExpr());
@@ -1121,7 +1125,7 @@ public:
       // Propagate the change into the inout expression we stripped before.
       if (inoutExpr) {
         inoutExpr->setSubExpr(target.getAsExpr());
-        inoutExpr->setType(InOutType::get(ResultTy));
+        inoutExpr->setType(ResultTy);
         RS->setResult(inoutExpr);
       } else {
         RS->setResult(target.getAsExpr());
