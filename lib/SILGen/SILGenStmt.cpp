@@ -726,6 +726,8 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     for (auto cleanup : resultCleanups) {
       Cleanups.forwardCleanup(cleanup);
     }
+  } else if (F.getConventions().hasGuaranteedSILResults()) {
+    emitLValue(ret, SGFAccessKind::ReadWrite);
   } else {
     // SILValue return.
     FullExpr scope(Cleanups, CleanupLocation(ret));
