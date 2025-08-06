@@ -1095,8 +1095,7 @@ public:
         if ((inoutExpr = dyn_cast<InOutExpr>(exprToTypeCheck))) {
           // Strip the & off so that the constraint system doesn't complain.
           exprToTypeCheck = inoutExpr->getSubExpr();
-          contextType =
-              LValueType::get(ResultTy->getAs<InOutType>()->getObjectType());
+          contextType = LValueType::get(ResultTy);
         } else {
           getASTContext()
               .Diags
@@ -1111,25 +1110,17 @@ public:
         SyntacticElementTarget::forReturn(RS, exprToTypeCheck, contextType, DC);
     auto resultTarget = TypeChecker::typeCheckTarget(target);
     if (resultTarget) {
-      // Propagate the change into the inout expression we stripped before.
       if (inoutExpr) {
-        inoutExpr->setSubExpr(resultTarget->getAsExpr());
-        inoutExpr->setType(ResultTy);
-        RS->setResult(inoutExpr);
+        auto *returnExpr = resultTarget->getAsExpr();
+        returnExpr->setType(returnExpr->getType()->getAs<LValueType>()->getObjectType());
+        RS->setResult(returnExpr);
       } else {
         RS->setResult(resultTarget->getAsExpr());
       }
     } else {
       // Update the expression even if type-checking failed as e.g pre-checking
       // may have folded a sequence expr.
-      // Propagate the change into the inout expression we stripped before.
-      if (inoutExpr) {
-        inoutExpr->setSubExpr(target.getAsExpr());
-        inoutExpr->setType(ResultTy);
-        RS->setResult(inoutExpr);
-      } else {
-        RS->setResult(target.getAsExpr());
-      }
+      RS->setResult(target.getAsExpr());
       tryDiagnoseUnnecessaryCastOverOptionSet(getASTContext(), RS->getResult(),
                                               ResultTy);
     }

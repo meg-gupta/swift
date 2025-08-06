@@ -26,8 +26,10 @@ void SILGenFunction::prepareEpilog(
     std::optional<Type> errorType, CleanupLocation CleanupL) {
   auto *epilogBB = createBasicBlock();
 
+  if (F.getConventions().hasGuaranteedSILResults()) {
+  }
   // If we have any direct results, receive them via BB arguments.
-  if (directResultType) {
+  else if (directResultType) {
     auto fnConv = F.getConventions();
     // Set NeedsReturn for indirect or direct results. This ensures that SILGen
     // emits unreachable if there is no source level return.

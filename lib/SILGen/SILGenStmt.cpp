@@ -726,8 +726,15 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     for (auto cleanup : resultCleanups) {
       Cleanups.forwardCleanup(cleanup);
     }
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);     
   } else if (F.getConventions().hasGuaranteedSILResults()) {
-    emitLValue(ret, SGFAccessKind::ReadWrite);
+    ManagedValue address;
+    {
+      FormalEvaluationScope scope(*this);
+      auto LV = emitLValue(ret, SGFAccessKind::BorrowedAddressRead);
+      address = emitAddressOfLValue(ret, std::move(LV));
+    }
+    B.createReturn(ret, address);
   } else {
     // SILValue return.
     FullExpr scope(Cleanups, CleanupLocation(ret));
@@ -748,9 +755,8 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     std::move(RV)
       .ensurePlusOne(*this, CleanupLocation(ret))
       .forwardAll(*this, directResults);
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);      
   }
-
-  Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
 }
 
 void StmtEmitter::visitReturnStmt(ReturnStmt *S) {
