@@ -1111,8 +1111,10 @@ public:
       if (inoutExpr) {
         inoutExpr->setSubExpr(resultTarget->getAsExpr());
         inoutExpr->setType(InOutType::get(ResultTy));
+        RS->setResult(inoutExpr);
+      } else {
+        RS->setResult(resultTarget->getAsExpr());
       }
-      RS->setResult(resultTarget->getAsExpr());
     } else {
       // Update the expression even if type-checking failed as e.g pre-checking
       // may have folded a sequence expr.
@@ -1120,8 +1122,10 @@ public:
       if (inoutExpr) {
         inoutExpr->setSubExpr(target.getAsExpr());
         inoutExpr->setType(InOutType::get(ResultTy));
+        RS->setResult(inoutExpr);
+      } else {
+        RS->setResult(target.getAsExpr());
       }
-      RS->setResult(inoutExpr);
       tryDiagnoseUnnecessaryCastOverOptionSet(getASTContext(), RS->getResult(),
                                               ResultTy);
     }
