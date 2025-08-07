@@ -3359,6 +3359,10 @@ static bool isBorrowableSubject(SILGenFunction &SGF,
     case AccessorKind::WillSet:
     case AccessorKind::DidSet:
       llvm_unreachable("should not be involved in a read");
+    case AccessorKind::Borrow:
+      llvm_unreachable("borrow accessor is not yet implemented");
+    case AccessorKind::Mutate:
+      llvm_unreachable("mutate accessor is not yet implemented");
     }
     llvm_unreachable("switch not covered?");
     
