@@ -4559,6 +4559,8 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case ReadImplKind::Inherited:
             llvm_unreachable("inherited local variable?");
+          case ReadImplKind::Borrow:
+            llvm_unreachable("borrow accessor is not yet implemented");
           }
 
           switch (impl.getWriteImpl()) {
@@ -4583,6 +4585,8 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case WriteImplKind::InheritedWithObservers:
             llvm_unreachable("inherited local variable");
+          case WriteImplKind::Mutate:
+            llvm_unreachable("mutate accessor is not yet implemented");
           }
 
           switch (impl.getReadWriteImpl()) {
@@ -4606,6 +4610,8 @@ TypeConverter::getLoweredLocalCaptures(SILDeclRef fn) {
             break;
           case ReadWriteImplKind::InheritedWithDidSet:
             llvm_unreachable("inherited local variable");
+          case ReadWriteImplKind::Mutate:
+            llvm_unreachable("mutate accessor is not yet implemented");
           }
         }
 

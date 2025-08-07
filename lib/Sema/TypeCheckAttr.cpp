@@ -5966,6 +5966,10 @@ static DescriptiveDeclKind getAccessorDescriptiveDeclKind(AccessorKind kind) {
     return DescriptiveDeclKind::MutableAddressor;
   case AccessorKind::Init:
     return DescriptiveDeclKind::InitAccessor;
+  case AccessorKind::Borrow:
+    return DescriptiveDeclKind::BorrowAccessor;
+  case AccessorKind::Mutate:
+    return DescriptiveDeclKind::MutateAccessor;
   }
 }
 
