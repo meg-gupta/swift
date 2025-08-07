@@ -2376,6 +2376,8 @@ computeOverriddenDecls(ValueDecl *decl, bool ignoreMissingImports) {
     case AccessorKind::Address:
     case AccessorKind::MutableAddress:
     case AccessorKind::Init:
+    case AccessorKind::Borrow:
+    case AccessorKind::Mutate:
       // These accessors are never part of the opaque set. Bail out early
       // to avoid computing the overridden declarations of the storage.
       return noResults;
