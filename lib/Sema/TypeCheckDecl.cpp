@@ -880,7 +880,9 @@ IsFinalRequest::evaluate(Evaluator &evaluator, ValueDecl *decl) const {
           case AccessorKind::Modify:
           case AccessorKind::Get:
           case AccessorKind::DistributedGet:
-          case AccessorKind::Set: {
+          case AccessorKind::Set:
+          case AccessorKind::Borrow:
+          case AccessorKind::Mutate: {
             // Coroutines and accessors are final if their storage is.
             auto storage = accessor->getStorage();
             if (storage->isFinal())
