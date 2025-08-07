@@ -1538,6 +1538,10 @@ static void emitIndirectResultParameters(SILGenFunction &SGF,
   CanType resultTypeInContext =
     DC->mapTypeIntoContext(resultType)->getCanonicalType();
 
+  if (resultType->is<InOutType>()) {
+    return;
+  }
+
   // Tuples in the original result type are expanded.
   if (origResultType.isTuple()) {
     origResultType.forEachTupleElement(resultTypeInContext,

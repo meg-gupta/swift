@@ -1424,8 +1424,12 @@ public:
 
     // Determine the result convention.
     ResultConvention convention;
-    if (isFormallyReturnedIndirectly(origType, substType,
-                                     substResultTLForConvention)) {
+
+    if (Convs.getResult(substResultTLForConvention) ==
+        ResultConvention::GuaranteedAddress) {
+      convention = ResultConvention::GuaranteedAddress;
+    } else if (isFormallyReturnedIndirectly(origType, substType,
+                                            substResultTLForConvention)) {
       convention = ResultConvention::Indirect;
     } else {
       convention = Convs.getResult(substResultTLForConvention);
@@ -1452,7 +1456,7 @@ public:
         }
       }
     }
-    
+
     SILResultInfo result(substResultTL.getLoweredType().getASTType(),
                          convention);
     if (hasSendingResult)

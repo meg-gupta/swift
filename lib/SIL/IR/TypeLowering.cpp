@@ -593,10 +593,11 @@ namespace {
                           IsTypeExpansionSensitive_t) {
       llvm_unreachable("shouldn't get an l-value type here");
     }
-    RetTy visitInOutType(CanInOutType type,
-                         AbstractionPattern origType,
-                         IsTypeExpansionSensitive_t) {
-      llvm_unreachable("shouldn't get an inout type here");
+    RetTy visitInOutType(CanInOutType type, AbstractionPattern origType,
+                         IsTypeExpansionSensitive_t isSensitive) {
+      RecursiveProperties properties;
+      properties.setAddressOnly();
+      return asImpl().handleAddressOnly(type.getObjectType(), properties);
     }
     RetTy visitErrorType(CanErrorType type,
                          AbstractionPattern origType,
@@ -2922,7 +2923,6 @@ TypeConverter::getTypeLowering(AbstractionPattern origType,
                                       ? IsTypeExpansionSensitive
                                       : IsNotTypeExpansionSensitive;
   auto key = getTypeKey(origType, substType, forExpansion);
-  assert(!substType->is<InOutType>());
 
   auto *candidateLowering = find(key.getKeyForMinimalExpansion());
   auto *lowering = getTypeLoweringForExpansion(
@@ -3367,6 +3367,10 @@ void TypeConverter::verifyTrivialLowering(const TypeLowering &lowering,
 
           auto *nominal = ty.getAnyNominal();
 
+          if (auto inoutType = dyn_cast<InOutType>(ty)) {
+            nominal =
+                inoutType->getObjectType()->getCanonicalType().getAnyNominal();
+          }
           // Non-nominal types (besides case (3) handled above) are trivial iff
           // conforming.
           if (!nominal) {

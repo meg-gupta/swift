@@ -2127,7 +2127,7 @@ ResultTypeRequest::evaluate(Evaluator &evaluator, ValueDecl *decl) const {
       return TupleType::getEmpty(ctx);
 
     case AccessorKind::Mutate:
-      return storage->getValueInterfaceType();
+      return InOutType::get(storage->getValueInterfaceType());
 
     // Addressor result types can get complicated because of the owner.
     case AccessorKind::Address:
