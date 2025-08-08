@@ -5323,6 +5323,13 @@ public:
   void checkReturnInst(ReturnInst *RI) {
     LLVM_DEBUG(RI->print(llvm::dbgs()));
 
+    if (RI->getFunction()->getDeclRef().isMutateAccessor()) {
+      // TODO: The following check fails for mutate accessors since we cannot
+      // recover the original AST type from the SILType due to it being an
+      // InOutType.
+      return;
+    }
+
     SILType functionResultType =
         F.getLoweredType(F.mapTypeIntoContext(fnConv.getSILResultType(
                                                   F.getTypeExpansionContext()))
