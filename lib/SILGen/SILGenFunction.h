@@ -2076,6 +2076,13 @@ public:
                                       SmallVectorImpl<ManagedValue> &yields,
                                       bool isOnSelfParameter);
 
+  ManagedValue emitMutateAccessor(SILLocation loc, SILDeclRef accessor,
+                                  SubstitutionMap substitutions,
+                                  ArgumentSource &&selfValue, bool isSuper,
+                                  bool isDirectUse,
+                                  PreparedArguments &&subscriptIndices,
+                                  bool isOnSelfParameter);
+
   RValue emitApplyConversionFunction(SILLocation loc,
                                      Expr *funcExpr,
                                      Type resultType,
@@ -2361,6 +2368,12 @@ public:
   void emitEndApplyWithRethrow(SILLocation loc,
                                MultipleValueInstructionResult *token,
                                SILValue allocation);
+
+  ManagedValue applyMutateAccessor(SILLocation loc, ManagedValue fn,
+                                   bool canUnwind, SubstitutionMap subs,
+                                   ArrayRef<ManagedValue> args,
+                                   CanSILFunctionType substFnType,
+                                   ApplyOptions options);
 
   ManagedValue emitExtractFunctionIsolation(SILLocation loc,
                                         ArgumentSource &&fnValue);

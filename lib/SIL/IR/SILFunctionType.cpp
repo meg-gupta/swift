@@ -167,11 +167,18 @@ CanType SILResultInfo::getReturnValueType(SILModule &M,
                                           const SILFunctionType *t,
                                           TypeExpansionContext context) const {
   // TODO: We should always require a function type.
-  if (t)
+  if (t) {
+    if (isGuaranteedAddressResult()) {
+      return InOutType::get(
+          t->substInterfaceType(
+               M, SILType::getPrimitiveAddressType(getInterfaceType()), context)
+              .getASTType())->getCanonicalType();
+    }
     return t
         ->substInterfaceType(
             M, SILType::getPrimitiveAddressType(getInterfaceType()), context)
         .getASTType();
+  }
 
   return getInterfaceType();
 }
@@ -196,6 +203,11 @@ SILFunctionType::getDirectFormalResultsType(SILModule &M,
       type = CanType(TupleType::get(elts, getASTContext()));
       cache = type;
     }
+  }
+
+  if (auto *inout = type->getAs<InOutType>()) {
+    return SILType::getPrimitiveAddressType(
+        inout->getObjectType()->getCanonicalType());
   }
   return SILType::getPrimitiveObjectType(type);
 }

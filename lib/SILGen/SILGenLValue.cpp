@@ -2296,6 +2296,44 @@ namespace {
   };
 }
 
+namespace {
+class MutateAccessorComponent
+    : public AccessorBasedComponent<PhysicalPathComponent> {
+public:
+  MutateAccessorComponent(AbstractStorageDecl *decl, SILDeclRef accessor,
+                          bool isSuper, bool isDirectAccessorUse,
+                          SubstitutionMap substitutions, CanType baseFormalType,
+                          LValueTypeData typeData,
+                          ArgumentList *argListForDiagnostics,
+                          PreparedArguments &&indices, bool isOnSelfParameter)
+      : AccessorBasedComponent(CoroutineAccessorKind, decl, accessor, isSuper,
+                               isDirectAccessorUse, substitutions,
+                               baseFormalType, typeData, argListForDiagnostics,
+                               std::move(indices), isOnSelfParameter) {}
+
+  using AccessorBasedComponent::AccessorBasedComponent;
+
+  ManagedValue project(SILGenFunction &SGF, SILLocation loc,
+                       ManagedValue base) &&
+      override {
+    assert(SGF.isInFormalEvaluationScope() &&
+           "offsetting l-value for modification without writeback scope");
+
+    ManagedValue result;
+
+    auto args = std::move(*this).prepareAccessorArgs(SGF, loc, base, Accessor);
+    auto address = SGF.emitMutateAccessor(
+        loc, Accessor, Substitutions, std::move(args.base), IsSuper,
+        IsDirectAccessorUse, std::move(args.Indices), IsOnSelfParameter);
+    return address;
+  }
+
+  void dump(raw_ostream &OS, unsigned indent) const override {
+    printBase(OS, indent, "MutateAccessorComponent");
+  }
+};
+} // namespace
+
 static ManagedValue
 makeBaseConsumableMaterializedRValue(SILGenFunction &SGF,
                                      SILLocation loc, ManagedValue base) {
@@ -3361,8 +3399,12 @@ namespace {
       }
       case AccessorKind::Borrow:
         llvm_unreachable("borrow accessor is not yet implemented");
-      case AccessorKind::Mutate:
-        llvm_unreachable("mutate accessor is not yet implemented");
+      case AccessorKind::Mutate: {
+        auto typeData = getPhysicalStorageTypeData(
+            SGF.getTypeExpansionContext(), SGF.SGM, AccessKind, Storage, Subs,
+            FormalRValueType);
+        return asImpl().emitUsingMutateAccessor(accessor, isDirect, typeData);
+      }
       }
 
       llvm_unreachable("bad kind");
@@ -3463,6 +3505,11 @@ void LValue::addNonMemberVarComponent(
           nullptr, PreparedArguments(),
           /*isOnSelfParameter=*/false,
           ActorIso);
+    }
+
+    void emitUsingMutateAccessor(SILDeclRef accessor, bool isDirect,
+                                 LValueTypeData typeData) {
+      llvm_unreachable("mutate accessor is illegal");
     }
 
     void emitUsingMaterialization(AccessStrategy readStrategy,
@@ -4144,6 +4191,15 @@ struct MemberStorageAccessEmitter : AccessEmitter<Impl, StorageType> {
         Storage, accessor, IsSuper, isDirect, Subs,
         BaseFormalType, typeData, ArgListForDiagnostics, std::move(Indices),
         IsOnSelfParameter, ActorIso);
+  }
+
+  void emitUsingMutateAccessor(SILDeclRef accessor, bool isDirect,
+                               LValueTypeData typeData) {
+    assert(!ActorIso);
+    LV.add<MutateAccessorComponent>(
+        Storage, accessor,
+        /*isSuper*/ false, isDirect, Subs, BaseFormalType, typeData, nullptr,
+        PreparedArguments(), /*isOnSelfParameter*/ false);
   }
 
   void emitUsingMaterialization(AccessStrategy readStrategy,

@@ -4941,6 +4941,10 @@ public:
     return getConvention() == ResultConvention::Pack;
   }
 
+  bool isGuaranteedAddressResult() const {
+    return getConvention() == ResultConvention::GuaranteedAddress;
+  }
+
   /// Transform this SILResultInfo by applying the user-provided
   /// function to its type.
   ///
