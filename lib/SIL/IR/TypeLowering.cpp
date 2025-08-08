@@ -241,6 +241,11 @@ namespace {
       return asImpl().handle(type, properties);
     }
 
+    RetTy handleGuaranteedAddress(CanType type,
+                                  RecursiveProperties properties) {
+      return asImpl().handle(type, properties);
+    }
+
     RetTy handleNonTrivialAggregate(CanType type,
                                     RecursiveProperties properties) {
       return asImpl().handle(type, properties);
@@ -596,7 +601,8 @@ namespace {
     RetTy visitInOutType(CanInOutType type,
                          AbstractionPattern origType,
                          IsTypeExpansionSensitive_t) {
-      llvm_unreachable("shouldn't get an inout type here");
+      RecursiveProperties properties;
+      return asImpl().handleGuaranteedAddress(type.getObjectType(), properties);
     }
     RetTy visitErrorType(CanErrorType type,
                          AbstractionPattern origType,
@@ -2035,6 +2041,88 @@ namespace {
     }
   };
 
+  /// A class for guaranteed addresses
+  class GuaranteedAddressTypeLowering : public TypeLowering {
+  public:
+    GuaranteedAddressTypeLowering(SILType type, RecursiveProperties properties,
+                                  TypeExpansionContext forExpansion)
+        : TypeLowering(type, properties, IsNotReferenceCounted, forExpansion) {}
+
+    void emitCopyInto(SILBuilder &B, SILLocation loc, SILValue src,
+                      SILValue dest, IsTake_t isTake,
+                      IsInitialization_t isInit) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    SILValue emitLoadOfCopy(SILBuilder &B, SILLocation loc, SILValue addr,
+                            IsTake_t isTake) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitStoreOfCopy(SILBuilder &B, SILLocation loc, SILValue newValue,
+                         SILValue addr,
+                         IsInitialization_t isInit) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitStore(SILBuilder &B, SILLocation loc, SILValue value,
+                   SILValue addr, StoreOwnershipQualifier qual) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    SILValue emitLoad(SILBuilder &B, SILLocation loc, SILValue addr,
+                      LoadOwnershipQualifier qual) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    SILValue emitLoweredLoad(SILBuilder &B, SILLocation loc, SILValue addr,
+                             LoadOwnershipQualifier qual,
+                             Lowering::TypeLowering::TypeExpansionKind
+                                 expansionKind) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitLoweredStore(SILBuilder &B, SILLocation loc, SILValue value,
+                          SILValue addr, StoreOwnershipQualifier qual,
+                          Lowering::TypeLowering::TypeExpansionKind
+                              expansionKind) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitDestroyAddress(SILBuilder &B, SILLocation loc,
+                            SILValue addr) const override {
+      if (!isTrivial())
+        B.createDestroyAddr(loc, addr);
+    }
+
+    void emitDestroyRValue(SILBuilder &B, SILLocation loc,
+                           SILValue value) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    SILValue emitCopyValue(SILBuilder &B, SILLocation loc,
+                           SILValue value) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    SILValue emitLoweredCopyValue(SILBuilder &B, SILLocation loc,
+                                  SILValue value,
+                                  TypeExpansionKind style) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitDestroyValue(SILBuilder &B, SILLocation loc,
+                          SILValue value) const override {
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+
+    void emitLoweredDestroyValue(SILBuilder &B, SILLocation loc, SILValue value,
+                                 TypeExpansionKind style) const override {
+      llvm_unreachable("type is not loadable!");
+      llvm_unreachable("GuaranteedAddress not yet implemented");
+    }
+  };
+
   /// A class for non-trivial, address-only, move only types.
   class MoveOnlyAddressOnlyTypeLowering : public TypeLowering {
   public:
@@ -2341,7 +2429,15 @@ namespace {
                                  : SILValueCategory::Object);
       return new (TC) OpaqueValueTypeLowering(silType, properties, Expansion);
     }
-    
+
+    TypeLowering *handleGuaranteedAddress(CanType type,
+                                          RecursiveProperties properties) {
+      properties = mergeHasPack(HasPack_t(type->hasAnyPack()), properties);
+      auto silType = SILType::getPrimitiveAddressType(type);
+      return new (TC)
+          GuaranteedAddressTypeLowering(silType, properties, Expansion);
+    }
+
     TypeLowering *handleInfinite(CanType type,
                                  RecursiveProperties properties) {
       properties = mergeHasPack(HasPack_t(type->hasAnyPack()), properties);
@@ -2922,7 +3018,6 @@ TypeConverter::getTypeLowering(AbstractionPattern origType,
                                       ? IsTypeExpansionSensitive
                                       : IsNotTypeExpansionSensitive;
   auto key = getTypeKey(origType, substType, forExpansion);
-  assert(!substType->is<InOutType>());
 
   auto *candidateLowering = find(key.getKeyForMinimalExpansion());
   auto *lowering = getTypeLoweringForExpansion(
@@ -3277,6 +3372,14 @@ void TypeConverter::verifyTrivialLowering(const TypeLowering &lowering,
             return true;
 
           auto *nominal = ty.getAnyNominal();
+
+          // TODO: InOutType and other wrapper types are problematic because of
+          // such checks which hides the object type
+          if (auto inoutType = dyn_cast<InOutType>(ty)) {
+            nominal =
+                inoutType->getObjectType()->getCanonicalType().getAnyNominal();
+          }
+
           // Only pack-related non-nominal aggregates may be responsible for
           // non-conformance; walk into the rest.
           if (!nominal)
@@ -3366,6 +3469,13 @@ void TypeConverter::verifyTrivialLowering(const TypeLowering &lowering,
           }
 
           auto *nominal = ty.getAnyNominal();
+
+          // TODO: InOutType and other wrapper types are problematic because of
+          // such checks which hides the object type
+          if (auto inoutType = dyn_cast<InOutType>(ty)) {
+            nominal =
+                inoutType->getObjectType()->getCanonicalType().getAnyNominal();
+          }
 
           // Non-nominal types (besides case (3) handled above) are trivial iff
           // conforming.
