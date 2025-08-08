@@ -659,6 +659,8 @@ SILResultInfo::getOwnershipKind(SILFunction &F,
     if (IsTrivial)
       return OwnershipKind::None;
     return OwnershipKind::Unowned;
+  case ResultConvention::GuaranteedAddress:
+    return OwnershipKind::None;
   }
 
   llvm_unreachable("Unhandled ResultConvention in switch.");

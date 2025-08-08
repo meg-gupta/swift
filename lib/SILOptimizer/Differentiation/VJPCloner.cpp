@@ -1133,6 +1133,8 @@ SILFunction *VJPCloner::Implementation::createEmptyPullback() {
     case ResultConvention::Pack:
       conv = ParameterConvention::Pack_Guaranteed;
       break;
+    case ResultConvention::GuaranteedAddress:
+      llvm_unreachable("borrow accessor is not yet implemented");
     }
     return {tanType, conv};
   };
