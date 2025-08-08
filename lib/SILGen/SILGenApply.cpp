@@ -6247,6 +6247,10 @@ RValue SILGenFunction::emitApply(
       // Unretained. Retain the value.
       result = resultTL.emitCopyValue(B, loc, result);
       break;
+
+    case ResultConvention::GuaranteedAddress:
+      llvm_unreachable("borrow accessor is not yet implemented");
+      break;
     }
 
     directResults.push_back(emitManagedRValueWithCleanup(result, resultTL));
