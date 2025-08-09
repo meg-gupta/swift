@@ -2059,6 +2059,19 @@ public:
                                       SmallVectorImpl<ManagedValue> &yields,
                                       bool isOnSelfParameter);
 
+  ManagedValue emitBorrowAccessor(SILLocation loc, SILDeclRef accessor,
+                                  SubstitutionMap substitutions,
+                                  ArgumentSource &&selfValue, bool isSuper,
+                                  bool isDirectUse,
+                                  PreparedArguments &&subscriptIndices,
+                                  bool isOnSelfParameter);
+
+  ManagedValue applyBorrowAccessor(SILLocation loc, ManagedValue fn,
+                                   bool canUnwind, SubstitutionMap subs,
+                                   ArrayRef<ManagedValue> args,
+                                   CanSILFunctionType substFnType,
+                                   ApplyOptions options);
+
   RValue emitApplyConversionFunction(SILLocation loc,
                                      Expr *funcExpr,
                                      Type resultType,

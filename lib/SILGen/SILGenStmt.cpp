@@ -726,6 +726,29 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     for (auto cleanup : resultCleanups) {
       Cleanups.forwardCleanup(cleanup);
     }
+
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
+  } else if (F.getConventions().hasGuaranteedAddressResults()) {
+    ManagedValue address;
+    // TODO: Artificial scope to force emission of end_access
+    // Disable generation of access scopes in mutate and borrow accessors since
+    // the caller has the same checks?
+    {
+      FormalEvaluationScope scope(*this);
+      auto LV = emitLValue(ret, SGFAccessKind::BorrowedAddressRead);
+      address = emitAddressOfLValue(ret, std::move(LV));
+    }
+    B.createReturn(ret, address);
+  } else if (F.getConventions().hasGuaranteedResults()) {
+    // SILValue return.
+    FullExpr scope(Cleanups, CleanupLocation(ret));
+
+    // TODO: handle tuples and reabstraction
+    auto RV = emitRValue(ret);
+
+    std::move(RV).forwardAll(*this, directResults);
+
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
   } else {
     // SILValue return.
     FullExpr scope(Cleanups, CleanupLocation(ret));
@@ -742,13 +765,13 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     } else {
       RV = emitRValue(ret);
     }
-    
-    std::move(RV)
-      .ensurePlusOne(*this, CleanupLocation(ret))
-      .forwardAll(*this, directResults);
-  }
 
-  Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
+    std::move(RV)
+        .ensurePlusOne(*this, CleanupLocation(ret))
+        .forwardAll(*this, directResults);
+
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
+  }
 }
 
 void StmtEmitter::visitReturnStmt(ReturnStmt *S) {

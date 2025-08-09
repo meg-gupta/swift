@@ -650,6 +650,11 @@ bool SILValueOwnershipChecker::checkValueWithoutLifetimeEndingUses(
                                                extendLifetimeUses);
   }
 
+  if (auto *returnValue = dyn_cast<ApplyInst>(value)) {
+    // TODO: check for borrow accessors
+    return true;
+  }
+
   // Check if we are a guaranteed subobject. In such a case, we should never
   // have lifetime ending uses, since our lifetime is guaranteed by our
   // operand, so there is nothing further to do. So just return true.
