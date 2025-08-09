@@ -738,6 +738,16 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
       address = emitAddressOfLValue(ret, std::move(LV));
     }
     B.createReturn(ret, address);
+  } else if (F.getConventions().hasGuaranteedResults()) {
+    // SILValue return.
+    FullExpr scope(Cleanups, CleanupLocation(ret));
+
+    // TODO: handle tuples and reabstraction
+    auto  RV = emitRValue(ret, SGFContext::AllowGuaranteedPlusZero);
+
+    std::move(RV)
+        .forwardAll(*this, directResults);
+    Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
   } else {
     // SILValue return.
     FullExpr scope(Cleanups, CleanupLocation(ret));

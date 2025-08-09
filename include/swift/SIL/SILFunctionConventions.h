@@ -307,6 +307,15 @@ public:
     return false;
   }
 
+  bool hasGuaranteedResults() const {
+    for (auto result : funcTy->getResults()) {
+      if (result.getConvention() == ResultConvention::Guaranteed) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   struct SILResultTypeFunc;
 
   // Gratuitous template parameter is to delay instantiating `mapped_iterator`
