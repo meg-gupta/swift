@@ -434,6 +434,7 @@ enum class ResultConvention : uint8_t {
   Autoreleased,
   Pack,
   GuaranteedAddress,
+  Guaranteed,
 };
 using ResultConventionField = BCFixed<3>;
 
