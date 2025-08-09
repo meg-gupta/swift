@@ -4783,6 +4783,10 @@ enum class ResultConvention : uint8_t {
   /// The caller is responsible for using the returned address within a valid
   /// scope. This is valid only for borrow and mutate accessors.
   GuaranteedAddress,
+
+  /// The caller is responsible for using the returned value within a valid
+  /// scope. This is valid only for borrow accessors.
+  Guaranteed,
 };
 
 // Does this result require indirect storage for the purpose of reabstraction?
@@ -4937,6 +4941,14 @@ public:
   /// Is this a pack result?  Pack results are always indirect.
   bool isPack() const {
     return getConvention() == ResultConvention::Pack;
+  }
+
+  bool isGuaranteedAddressResult() const {
+    return getConvention() == ResultConvention::GuaranteedAddress;
+  }
+
+  bool isGuaranteedResult() const {
+    return getConvention() == ResultConvention::Guaranteed;
   }
 
   /// Transform this SILResultInfo by applying the user-provided
