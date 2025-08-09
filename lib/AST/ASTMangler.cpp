@@ -2274,6 +2274,8 @@ static char getResultConvention(ResultConvention conv) {
     case ResultConvention::Pack: return 'k';
     case ResultConvention::GuaranteedAddress:
       return 'g';
+    case ResultConvention::Guaranteed:
+      return 'G';
   }
   llvm_unreachable("bad result convention");
 }
