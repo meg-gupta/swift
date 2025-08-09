@@ -1428,7 +1428,12 @@ public:
     ResultConvention convention;
     if (isFormallyReturnedIndirectly(origType, substType,
                                      substResultTLForConvention)) {
-      convention = ResultConvention::Indirect;
+      if (Convs.getResult(substResultTLForConvention) ==
+          ResultConvention::GuaranteedAddress) {
+        convention = ResultConvention::GuaranteedAddress;
+      } else {
+        convention = ResultConvention::Indirect;
+      }
     } else {
       convention = Convs.getResult(substResultTLForConvention);
 
@@ -3235,10 +3240,16 @@ static CanSILFunctionType getNativeSILFunctionType(
       if (constant) {
         if (constant->isSetter()) {
           return getSILFunctionTypeForConventions(DefaultSetterConventions());
-        } else if (constant->isInitAccessor()) {
+        }
+		if (constant->isInitAccessor()) {
           return getSILFunctionTypeForInitAccessor(
               TC, context, origType, substInterfaceType, extInfoBuilder,
               DefaultSetterConventions(), *constant);
+        }
+        if (constant->isBorrowAccessor()) {
+          return getSILFunctionTypeForConventions(
+              DefaultConventions(NormalParameterConvention::Guaranteed,
+                                 ResultConvention::Guaranteed));
         }
       }
       return getSILFunctionTypeForConventions(
