@@ -3259,6 +3259,11 @@ static CanSILFunctionType getNativeSILFunctionType(
               DefaultConventions(NormalParameterConvention::Guaranteed,
                                  ResultConvention::GuaranteedAddress));
         }
+        if (constant->isBorrowAccessor()) {
+          return getSILFunctionTypeForConventions(
+              DefaultConventions(NormalParameterConvention::Guaranteed,
+                                 ResultConvention::Guaranteed));
+        }
       }
       return getSILFunctionTypeForConventions(
           DefaultConventions(NormalParameterConvention::Guaranteed));
