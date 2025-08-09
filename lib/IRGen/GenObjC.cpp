@@ -936,6 +936,7 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     case ResultConvention::Autoreleased:
     case ResultConvention::Pack:
     case ResultConvention::GuaranteedAddress:
+    case ResultConvention::Guaranteed:
       lifetimeExtendsSelf = false;
       break;
     }
