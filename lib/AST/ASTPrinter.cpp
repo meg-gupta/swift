@@ -7804,6 +7804,8 @@ static StringRef getStringForResultConvention(ResultConvention conv) {
   case ResultConvention::Pack: return "@pack_out ";
   case ResultConvention::GuaranteedAddress:
     return "@guaranteed_addr ";
+  case ResultConvention::Guaranteed:
+    return "@guaranteed ";
   }
   llvm_unreachable("bad result convention");
 }
