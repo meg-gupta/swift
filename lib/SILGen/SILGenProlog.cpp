@@ -1535,6 +1535,12 @@ static void emitIndirectResultParameters(SILGenFunction &SGF,
                                          Type resultType,
                                          AbstractionPattern origResultType,
                                          DeclContext *DC) {
+
+  if (auto *accessor = dyn_cast<AccessorDecl>(DC)) {
+    if (accessor->isBorrowAccessor()) {
+      return;
+    }
+  }
   CanType resultTypeInContext =
     DC->mapTypeIntoContext(resultType)->getCanonicalType();
 

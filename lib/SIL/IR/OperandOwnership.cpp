@@ -611,7 +611,7 @@ OperandOwnership OperandOwnershipClassifier::visitReturnInst(ReturnInst *i) {
   switch (i->getOwnershipKind()) {
   case OwnershipKind::Any:
   case OwnershipKind::Guaranteed:
-    llvm_unreachable("invalid value ownership");
+    return OperandOwnership::InstantaneousUse;
   case OwnershipKind::None:
     return OperandOwnership::TrivialUse;
   case OwnershipKind::Unowned:
