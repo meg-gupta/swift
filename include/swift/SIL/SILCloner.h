@@ -2224,6 +2224,15 @@ void SILCloner<ImplClass>::visitCopyableToMoveOnlyWrapperValueInst(
 }
 
 template <typename ImplClass>
+void SILCloner<ImplClass>::visitMarkUnresolvedGuaranteedValueInst(
+    MarkUnresolvedGuaranteedValueInst *Inst) {
+  getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
+  auto *MVI = getBuilder().createMarkUnresolvedGuaranteedValueInst(
+      getOpLocation(Inst->getLoc()), getOpValue(Inst->getOperand()));
+  recordClonedInstruction(Inst, MVI);
+}
+
+template <typename ImplClass>
 void SILCloner<ImplClass>::visitReleaseValueInst(ReleaseValueInst *Inst) {
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
   recordClonedInstruction(

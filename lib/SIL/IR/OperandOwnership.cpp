@@ -434,6 +434,12 @@ OperandOwnershipClassifier::visitBorrowedFromInst(BorrowedFromInst *bfi) {
                                 : OperandOwnership::Borrow;
 }
 
+OperandOwnership
+OperandOwnershipClassifier::visitMarkUnresolvedGuaranteedValueInst(
+    MarkUnresolvedGuaranteedValueInst *bfi) {
+  return OperandOwnership::ForwardingConsume;
+}
+
 // MARK: Instructions whose use ownership depends on the operand in question.
 
 OperandOwnership OperandOwnershipClassifier::

@@ -2761,9 +2761,7 @@ RValue RValueEmitter::visitMemberRefExpr(MemberRefExpr *e,
   // Any writebacks for this access are tightly scoped.
   FormalEvaluationScope scope(SGF);
 
-  LValue lv = SGF.emitLValue(e, resultCtx.isGuaranteedPlusZeroOk()
-                                    ? SGFAccessKind::BorrowedObjectRead
-                                    : SGFAccessKind::OwnedObjectRead);
+  LValue lv = SGF.emitLValue(e, SGFAccessKind::OwnedObjectRead);
 
   // Otherwise, we can't load at +0 without further analysis, since the formal
   // access into the lvalue will end immediately.

@@ -566,6 +566,7 @@ RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType)
   case SILInstructionKind::MarkUnresolvedReferenceBindingInst:
   case SILInstructionKind::CopyableToMoveOnlyWrapperValueInst:
   case SILInstructionKind::MoveOnlyWrapperToCopyableValueInst:
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst:
   case SILInstructionKind::UncheckedOwnershipConversionInst:
   case SILInstructionKind::LoadInst:
   case SILInstructionKind::LoadBorrowInst:

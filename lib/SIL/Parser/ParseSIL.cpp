@@ -3833,7 +3833,16 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
           B.createGuaranteedMoveOnlyWrapperToCopyableValue(InstLoc, Val);
     break;
   }
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst: {
+    if (parseTypedValueRef(Val, B))
+      return true;
+    if (parseSILDebugLocation(InstLoc, B))
+      return true;
 
+    auto *MVI = B.createMarkUnresolvedGuaranteedValueInst(InstLoc, Val);
+    ResultVal = MVI;
+    break;
+  }
   case SILInstructionKind::LoadInst: {
     std::optional<LoadOwnershipQualifier> Qualifier;
     SourceLoc AddrLoc;

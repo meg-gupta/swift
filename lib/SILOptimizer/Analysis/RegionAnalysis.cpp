@@ -300,6 +300,7 @@ static bool isStaticallyLookThroughInst(SILInstruction *inst) {
   case SILInstructionKind::MoveOnlyWrapperToCopyableAddrInst:
   case SILInstructionKind::MoveOnlyWrapperToCopyableBoxInst:
   case SILInstructionKind::MoveOnlyWrapperToCopyableValueInst:
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst:
   case SILInstructionKind::OpenExistentialAddrInst:
   case SILInstructionKind::OpenExistentialValueInst:
   case SILInstructionKind::ProjectBlockStorageInst:
@@ -1106,7 +1107,8 @@ bool TrackableValue::isSendingParameter() const {
 
     // Look through instructions that we don't care about.
     if (isa<MarkUnresolvedNonCopyableValueInst,
-            MoveOnlyWrapperToCopyableAddrInst>(user)) {
+            MoveOnlyWrapperToCopyableAddrInst,
+            MarkUnresolvedGuaranteedValueInst>(user)) {
       worklist.pushResultOperandsIfNotVisited(user);
     }
 
@@ -3442,6 +3444,7 @@ CONSTANT_TRANSLATION(MoveOnlyWrapperToCopyableValueInst, LookThrough)
 CONSTANT_TRANSLATION(MoveOnlyWrapperToCopyableBoxInst, LookThrough)
 CONSTANT_TRANSLATION(MoveOnlyWrapperToCopyableAddrInst, LookThrough)
 CONSTANT_TRANSLATION(CopyableToMoveOnlyWrapperAddrInst, LookThrough)
+CONSTANT_TRANSLATION(MarkUnresolvedGuaranteedValueInst, LookThrough)
 CONSTANT_TRANSLATION(MarkUninitializedInst, LookThrough)
 // We identify destructured results with their operand's region.
 CONSTANT_TRANSLATION(DestructureTupleInst, LookThrough)

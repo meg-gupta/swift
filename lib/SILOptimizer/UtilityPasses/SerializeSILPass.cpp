@@ -178,6 +178,7 @@ static bool hasOpaqueArchetype(TypeExpansionContext context,
   case SILInstructionKind::MarkUnresolvedReferenceBindingInst:
   case SILInstructionKind::CopyableToMoveOnlyWrapperValueInst:
   case SILInstructionKind::MoveOnlyWrapperToCopyableValueInst:
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst:
   case SILInstructionKind::UnownedCopyValueInst:
   case SILInstructionKind::WeakCopyValueInst:
 #define REF_STORAGE(Name, ...)                                                 \

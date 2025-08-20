@@ -1303,7 +1303,9 @@ public:
     auto e = getLoweredExplosion(i->getOperand());
     setLoweredExplosion(i, e);
   }
-
+  void visitMarkUnresolvedGuaranteedValueInst(MarkUnresolvedGuaranteedValueInst *i) {
+    llvm_unreachable("Invalid in Lowered SIL");
+  }
   void visitMergeIsolationRegionInst(MergeIsolationRegionInst *i) {
     llvm_unreachable("Valid only when ownership is enabled");
   }

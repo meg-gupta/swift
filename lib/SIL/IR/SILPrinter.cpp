@@ -2375,6 +2375,11 @@ public:
     *this << getIDAndType(I->getOperand());
   }
 
+  void visitMarkUnresolvedGuaranteedValueInst(
+      MarkUnresolvedGuaranteedValueInst *I) {
+    *this << getIDAndType(I->getOperand());
+  }
+
   void visitUnownedCopyValueInst(UnownedCopyValueInst *I) {
     *this << getIDAndType(I->getOperand());
   }

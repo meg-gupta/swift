@@ -1785,6 +1785,9 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
     writeOneOperandExtraAttributeLayout(SI.getKind(), Attr, SI.getOperand(0));
     break;
   }
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst: {
+    llvm_unreachable("MarkUnresolvedGuaranteedValueInst shouldn't be here");
+  }
   case SILInstructionKind::MarkUninitializedInst: {
     unsigned Attr =
         (unsigned)cast<MarkUninitializedInst>(&SI)->getMarkUninitializedKind();

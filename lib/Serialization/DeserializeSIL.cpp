@@ -2892,6 +2892,9 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn,
         CKind, Strict);
     break;
   }
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst: {
+    llvm_unreachable("MarkUnresolvedGuaranteedValueInst should not be here");
+  }
   case SILInstructionKind::StoreInst: {
     auto Ty = MF->getType(TyID);
     SILType addrType = getSILType(Ty, (SILValueCategory)TyCategory, Fn);

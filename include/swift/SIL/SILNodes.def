@@ -519,6 +519,10 @@ ABSTRACT_VALUE_AND_INST(SingleValueInstruction, ValueBase, SILInstruction)
                     copyable_to_moveonlywrapper_addr, SingleValueInstruction,
                     None, DoesNotRelease)
 
+
+ SINGLE_VALUE_INST(MarkUnresolvedGuaranteedValueInst, mark_unresolved_guaranteed_value,
+                    SingleValueInstruction, None, DoesNotRelease)     
+
   // IsUnique does not actually write to memory but should be modeled
   // as such. Its operand is a pointer to an object reference. The
   // optimizer should not assume that the same object is pointed to after

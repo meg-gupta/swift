@@ -1548,6 +1548,12 @@ public:
         MoveOnlyWrapperToCopyableValueInst::Guaranteed));
   }
 
+  MarkUnresolvedGuaranteedValueInst *createMarkUnresolvedGuaranteedValueInst(
+      SILLocation loc, SILValue src) {
+    return insert(new (getModule()) MarkUnresolvedGuaranteedValueInst(
+        getSILDebugLocation(loc), src));
+  }
+
   UnconditionalCheckedCastInst *
   createUnconditionalCheckedCast(SILLocation Loc,
                                  CheckedCastInstOptions options,

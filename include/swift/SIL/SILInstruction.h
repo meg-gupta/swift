@@ -9563,6 +9563,21 @@ class MoveOnlyWrapperToCopyableAddrInst
   }
 };
 
+class MarkUnresolvedGuaranteedValueInst
+    : public UnaryInstructionBase<
+          SILInstructionKind::MarkUnresolvedGuaranteedValueInst,
+          OwnershipForwardingSingleValueInstruction> {
+  friend class SILBuilder;
+
+private:
+  MarkUnresolvedGuaranteedValueInst(SILDebugLocation DebugLoc,
+                                     SILValue operand)
+      : UnaryInstructionBase(DebugLoc, operand, operand->getType(),
+                             OwnershipKind::Guaranteed) {
+  }
+};
+
+
 /// Given an object reference, return true iff it is non-nil and refers
 /// to a native swift object with strong reference count of 1.
 class IsUniqueInst
@@ -11667,6 +11682,7 @@ OwnershipForwardingSingleValueInstruction::classof(SILInstructionKind kind) {
   case SILInstructionKind::DifferentiableFunctionInst:
   case SILInstructionKind::MarkUnresolvedNonCopyableValueInst:
   case SILInstructionKind::MarkUnresolvedReferenceBindingInst:
+  case SILInstructionKind::MarkUnresolvedGuaranteedValueInst:
   case SILInstructionKind::ConvertFunctionInst:
   case SILInstructionKind::UpcastInst:
   case SILInstructionKind::UncheckedRefCastInst:
