@@ -727,26 +727,59 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     for (auto cleanup : resultCleanups) {
       Cleanups.forwardCleanup(cleanup);
     }
+  } else if (F.getConventions().hasGuaranteedResults() ||
+             F.getConventions().hasGuaranteedAddressResults()) {
+    // Literal expressions can be represented in a borrow accessor.
+    // TODO: Assert such expressions produce trivial results.
+    if (isa<LiteralExpr>(ret)) {
+      auto RV = emitRValue(ret);
+      std::move(RV).forwardAll(*this, directResults);
+    } else {
+      // Projections of self can be represented in a borrow accessor.
+      FormalEvaluationScope scope(*this);
+      auto storageRefResult =
+          StorageRefResult::findStorageReferenceExprForBorrow(ret);
+      auto lvExpr = storageRefResult.getTransitiveRoot();
+      if (!lvExpr) {
+        diagnose(getASTContext(), ret->getStartLoc(),
+                 diag::invalid_borrow_accessor_return);
+        return;
+      }
+      auto *lookupExpr = dyn_cast<LookupExpr>(storageRefResult.getStorageRef());
+      auto *base = dyn_cast_or_null<DeclRefExpr>(lookupExpr->getBase());
+      auto *varDecl = dyn_cast_or_null<VarDecl>(base->getDecl());
+      if (!lookupExpr || !base || !varDecl || !varDecl->isSelfParameter()) {
+        diagnose(getASTContext(), ret->getStartLoc(),
+                 diag::invalid_borrow_accessor_return);
+        return;
+      }
+      // Emit a return value at +0.
+      auto lvalue = emitLValue(ret, F.getConventions().hasGuaranteedResults()
+                                        ? SGFAccessKind::BorrowedObjectRead
+                                        : SGFAccessKind::BorrowedAddressRead);
+      auto result = emitBorrowedLValue(ret, std::move(lvalue)).forward(*this);
+      directResults.push_back(result);
+    }
   } else {
     // SILValue return.
     FullExpr scope(Cleanups, CleanupLocation(ret));
-    
+
     // Does the return context require reabstraction?
     RValue RV;
-    
+
     auto loweredRetTy = getLoweredType(retTy);
     auto loweredResultTy = getLoweredType(origRetTy, retTy);
     if (loweredResultTy != loweredRetTy) {
-      auto conversion = Conversion::getSubstToOrig(origRetTy, retTy,
-                                                   loweredRetTy, loweredResultTy);
+      auto conversion = Conversion::getSubstToOrig(
+          origRetTy, retTy, loweredRetTy, loweredResultTy);
       RV = RValue(*this, ret, emitConvertedRValue(ret, conversion));
     } else {
       RV = emitRValue(ret);
     }
-    
+
     std::move(RV)
-      .ensurePlusOne(*this, CleanupLocation(ret))
-      .forwardAll(*this, directResults);
+        .ensurePlusOne(*this, CleanupLocation(ret))
+        .forwardAll(*this, directResults);
   }
 
   Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);

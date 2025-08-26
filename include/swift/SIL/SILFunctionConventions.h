@@ -525,8 +525,12 @@ SILFunctionConventions::getDirectSILResultTypes(
 template <bool _>
 unsigned SILFunctionConventions::getNumExpandedDirectSILResults(
     TypeExpansionContext context) const {
-  if (silConv.loweredAddresses)
+  if (silConv.loweredAddresses) {
+    if (hasGuaranteedAddressResults() || hasGuaranteedResults()) {
+      return 1;
+    }
     return funcTy->getNumDirectFormalResults();
+  }
   unsigned retval = 0;
   // Worklist of elements to flatten or count.
   SmallVector<SILType, 4> flattenedElements;
@@ -677,10 +681,11 @@ inline SILType SILModuleConventions::getSILYieldInterfaceType(
   return getSILParamInterfaceType(yield, loweredAddresses);
 }
 
-inline SILType SILModuleConventions::getSILResultInterfaceType(
-                                                      SILResultInfo result,
-                                                      bool loweredAddresses) {
-  return SILModuleConventions::isIndirectSILResult(result, loweredAddresses)
+inline SILType
+SILModuleConventions::getSILResultInterfaceType(SILResultInfo result,
+                                                bool loweredAddresses) {
+  return SILModuleConventions::isIndirectSILResult(result, loweredAddresses) ||
+                 result.isGuaranteedAddressResult()
              ? SILType::getPrimitiveAddressType(result.getInterfaceType())
              : SILType::getPrimitiveObjectType(result.getInterfaceType());
 }

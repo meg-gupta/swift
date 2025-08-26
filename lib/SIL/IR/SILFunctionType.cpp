@@ -180,6 +180,34 @@ SILType
 SILFunctionType::getDirectFormalResultsType(SILModule &M,
                                             TypeExpansionContext context) {
   CanType type;
+
+  bool hasGuaranteedAddress = false;
+  for (auto result : getResults()) {
+    if (result.isGuaranteedAddressResult()) {
+      hasGuaranteedAddress = true;
+    }
+  }
+  if (hasGuaranteedAddress) {
+    if (getNumDirectFormalResults() == 1) {
+      return SILType::getPrimitiveAddressType(
+          getSingleDirectFormalResult().getReturnValueType(M, this, context));
+    }
+    auto &cache = getMutableFormalResultsCache();
+    if (cache) {
+      type = cache;
+    } else {
+      SmallVector<TupleTypeElt, 4> elts;
+      for (auto result : getResults()) {
+        if (!result.isFormalIndirect()) {
+          elts.push_back(result.getReturnValueType(M, this, context));
+        }
+      }
+      type = CanType(TupleType::get(elts, getASTContext()));
+      cache = type;
+    }
+    return SILType::getPrimitiveAddressType(type);
+  }
+
   if (getNumDirectFormalResults() == 0) {
     type = getASTContext().TheEmptyTupleType;
   } else if (getNumDirectFormalResults() == 1) {
@@ -1457,7 +1485,6 @@ public:
         case ResultConvention::Indirect:
         case ResultConvention::Unowned:
         case ResultConvention::UnownedInnerPointer:
-        case ResultConvention::Guaranteed:
           // Leave these as-is.
           break;
 
@@ -1469,6 +1496,7 @@ public:
 
         case ResultConvention::Autoreleased:
         case ResultConvention::Owned:
+        case ResultConvention::Guaranteed:
           // These aren't distinguishable from unowned for trivial types.
           convention = ResultConvention::Unowned;
           break;

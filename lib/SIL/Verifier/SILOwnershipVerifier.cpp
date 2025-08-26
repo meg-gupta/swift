@@ -657,6 +657,14 @@ bool SILValueOwnershipChecker::checkValueWithoutLifetimeEndingUses(
     if (value->isGuaranteedForwarding()) {
       return true;
     }
+    if (auto *applyInst =
+            dyn_cast<ApplyInst>(value->getDefiningInstruction())) {
+      if (auto *callee = applyInst->getCalleeFunction()) {
+        if (callee->getConventions().hasGuaranteedResults()) {
+          return true;
+        }
+      }
+    }
   }
 
   if (auto *uoc = dyn_cast<UncheckedOwnershipConversionInst>(value)) {
