@@ -796,6 +796,7 @@ bool swift::isIdentityPreservingRefCast(SingleValueInstruction *svi) {
   return isa<CopyValueInst>(svi) || isa<BeginBorrowInst>(svi) ||
          isa<EndInitLetRefInst>(svi) || isa<BeginDeallocRefInst>(svi) ||
          isa<EndCOWMutationInst>(svi) ||
+         isa<MarkUnresolvedNonCopyableValueInst>(svi) ||
          isIdentityAndOwnershipPreservingRefCast(svi);
 }
 

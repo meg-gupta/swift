@@ -18,6 +18,7 @@
 
 #include "swift/Basic/Assertions.h"
 #include "swift/Basic/Defer.h"
+#include "swift/Basic/GraphNodeWorklist.h"
 #include "swift/SIL/BasicBlockBits.h"
 #include "swift/SIL/BasicBlockDatastructures.h"
 #include "swift/SIL/BasicBlockUtils.h"
@@ -107,6 +108,7 @@ namespace {
 struct SILGenCleanup : SILModuleTransform {
   void run() override;
 
+  bool simplifyNoncopyableBorrowAccessors(SILFunction *function);
   bool completeOSSALifetimes(SILFunction *function);
   template <typename Range>
   bool completeLifetimesInRange(Range const &range,
@@ -329,6 +331,95 @@ bool SILGenCleanup::completeLifetimesInRange(Range const &range,
   return changed;
 }
 
+static bool isBorrowAccessor(SILFunction *function) {
+  auto *accessorDecl =
+      dyn_cast_or_null<AccessorDecl>(function->getDeclContext());
+  return accessorDecl && accessorDecl->isBorrowAccessor();
+}
+
+bool SILGenCleanup::simplifyNoncopyableBorrowAccessors(SILFunction *function) {
+  if (!isBorrowAccessor(function)) {
+    return false;
+  }
+  if (!function->isDefinition()) {
+    return false;
+  }
+  auto self = function->getSelfArgument();
+  if (self->getType().isAddress() || !self->getType().isMoveOnly()) {
+    return false;
+  }
+  if (!function->getConventions().hasGuaranteedResults()) {
+    return false;
+  }
+
+  auto returnBB = function->findReturnBB();
+  if (returnBB == function->end()) {
+    return false;
+  }
+
+  auto *returnInst = cast<ReturnInst>(returnBB->getTerminator());
+  auto returnValue = returnInst->getOperand();
+
+  SmallVector<SILValue> guaranteedRoots;
+  findGuaranteedReferenceRoots(returnValue, /*lookThroughNestedBorrows*/ false,
+                               guaranteedRoots);
+
+  GraphNodeWorklist<SILValue, 4> selfProjections;
+  SmallVector<SILInstruction *> toDelete;
+  for (auto root : guaranteedRoots) {
+    assert(root->getOwnershipKind() == OwnershipKind::Guaranteed);
+    auto uncheckedGuaranteed = cast<UncheckedOwnershipConversionInst>(root);
+    auto uncheckedUnowned = cast<UncheckedOwnershipConversionInst>(
+        uncheckedGuaranteed->getOperand());
+    toDelete.push_back(uncheckedGuaranteed);
+    toDelete.push_back(uncheckedUnowned);
+    auto selfProjection = uncheckedUnowned->getOperand();
+    selfProjections.insert(selfProjection);
+  }
+
+  SmallVector<SILValue> moveOnlyRoots;
+  while (!selfProjections.empty()) {
+    moveOnlyRoots.clear();
+    auto selfProjection = selfProjections.pop();
+    findGuaranteedReferenceRoots(
+        selfProjection, /*lookThroughNestedBorrows*/ true, moveOnlyRoots);
+    assert(moveOnlyRoots.size() == 1);
+    auto self = findReferenceRoot(moveOnlyRoots[0]);
+    if (auto *borrowApply =
+            dyn_cast_or_null<ApplyInst>(self->getDefiningInstruction())) {
+      self = stripBorrow(borrowApply->getSelfArgument());
+      if (auto munci =
+              dyn_cast_or_null<MarkUnresolvedNonCopyableValueInst>(self)) {
+        self = cast<CopyValueInst>(munci->getOperand())->getOperand();
+      }
+    }
+    if (dyn_cast_or_null<SILArgument>(self) == function->getSelfArgument()) {
+      auto *selfProjectionInst = selfProjection->getDefiningInstruction();
+      if (auto *forward = ForwardingInstruction::get(selfProjectionInst)) {
+        assert(selfProjectionInst->getNumOperands() == 1);
+        selfProjectionInst->setOperand(0, self);
+      } else {
+        auto *apply =
+            dyn_cast<ApplyInst>(selfProjection->getDefiningInstruction());
+        apply->setOperand(1, self);
+      }
+      for (auto *user :
+           selfProjection->getUsersOfType<UncheckedOwnershipConversionInst>()) {
+        auto *returnVal =
+            user->getSingleUserOfType<UncheckedOwnershipConversionInst>();
+        returnVal->replaceAllUsesWith(selfProjection);
+      }
+
+      continue;
+    }
+  }
+
+  for (auto inst : toDelete) {
+    inst->eraseFromParent();
+  }
+  return true;
+}
+
 void SILGenCleanup::run() {
   auto &module = *getModule();
   for (auto &function : module) {
@@ -340,7 +431,8 @@ void SILGenCleanup::run() {
     LLVM_DEBUG(llvm::dbgs()
                << "\nRunning SILGenCleanup on " << function.getName() << "\n");
 
-    bool changed = completeOSSALifetimes(&function);
+    bool changed = simplifyNoncopyableBorrowAccessors(&function);
+    changed |= completeOSSALifetimes(&function);
     DeadEndBlocks deadEndBlocks(&function);
     SILGenCanonicalize sgCanonicalize(deadEndBlocks);
 
