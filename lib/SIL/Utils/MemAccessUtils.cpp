@@ -1416,7 +1416,8 @@ public:
              // copyable_to_moveonlywrapper_addr, we just look through it when
              // we see it
              || isa<MoveOnlyWrapperToCopyableAddrInst>(projectedAddr) ||
-             isa<CopyableToMoveOnlyWrapperAddrInst>(projectedAddr));
+             isa<CopyableToMoveOnlyWrapperAddrInst>(projectedAddr) ||
+             isGuaranteedReturn(projectedAddr));
     }
     return sourceAddr->get();
   }
