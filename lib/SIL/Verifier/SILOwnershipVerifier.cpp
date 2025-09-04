@@ -69,12 +69,6 @@ llvm::cl::opt<bool> IsSILOwnershipVerifierTestingEnabled(
                    "comment in SILOwnershipVerifier.cpp above option for more "
                    "information."));
 
-/// This is an option to turn off ownership verification on a specific file. We
-/// still emit code as if we are in ownership mode, but we do not verify. This
-/// is useful for temporarily turning off verification on tests.
-static llvm::cl::opt<bool>
-    DisableOwnershipVerification("disable-sil-ownership-verification");
-
 //===----------------------------------------------------------------------===//
 //                         SILValueOwnershipChecker
 //===----------------------------------------------------------------------===//
@@ -840,8 +834,9 @@ bool SILValueOwnershipChecker::checkUses() {
 }
 
 bool disableOwnershipVerification(const SILModule &mod) {
-  if (DisableOwnershipVerification)
-    return true;
+  if (!mod.getOptions().VerifySILOwnership) {
+    return false;
+  }
   if (mod.getASTContext().blockListConfig.hasBlockListAction(
           mod.getSwiftModule()->getRealName().str(),
           BlockListKeyKind::ModuleName,
