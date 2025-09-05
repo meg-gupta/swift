@@ -89,7 +89,9 @@ enum class BridgedResultConvention {
   Unowned,
   UnownedInnerPointer,
   Autoreleased,
-  Pack
+  Pack,
+  GuaranteedAddress,
+  Guaranteed,
 };
 
 struct BridgedResultInfo {
