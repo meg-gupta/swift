@@ -5391,6 +5391,14 @@ public:
     return hasErrorResult() && getErrorResult().isFormalIndirect();
   }
 
+  bool hasGuaranteedAddressResults() const {
+    for (auto &result : getResults()) {
+      if (result.isGuaranteedAddressResult()) {
+        return true;
+      }
+    }
+    return false;
+  }
   struct IndirectFormalResultFilter {
     bool operator()(SILResultInfo result) const {
       return result.isFormalIndirect();

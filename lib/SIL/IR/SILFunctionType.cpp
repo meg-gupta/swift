@@ -180,6 +180,12 @@ SILType
 SILFunctionType::getDirectFormalResultsType(SILModule &M,
                                             TypeExpansionContext context) {
   CanType type;
+
+  if (hasGuaranteedAddressResults()) {
+    assert(getNumDirectFormalResults() == 1);
+      return SILType::getPrimitiveAddressType(
+          getSingleDirectFormalResult().getReturnValueType(M, this, context));
+  }
   if (getNumDirectFormalResults() == 0) {
     type = getASTContext().TheEmptyTupleType;
   } else if (getNumDirectFormalResults() == 1) {
@@ -1389,7 +1395,9 @@ public:
     bool hasAddressOnlyReturn = false;
 
     // Recur into tuples.
-    if (origType.isTuple()) {
+    // Do not explode tuples for borrow and mutate accessors since we cannot
+    // explode and reconstruct addresses.
+    if (origType.isTuple() && !isBorrowOrMutateAccessor) {
       origType.forEachTupleElement(substType,
                                    [&](TupleElementGenerator &elt) {
         // If the original element type is not a pack expansion, just
@@ -1457,7 +1465,6 @@ public:
         case ResultConvention::Indirect:
         case ResultConvention::Unowned:
         case ResultConvention::UnownedInnerPointer:
-        case ResultConvention::Guaranteed:
           // Leave these as-is.
           break;
 
@@ -1469,6 +1476,7 @@ public:
 
         case ResultConvention::Autoreleased:
         case ResultConvention::Owned:
+        case ResultConvention::Guaranteed:
           // These aren't distinguishable from unowned for trivial types.
           convention = ResultConvention::Unowned;
           break;
