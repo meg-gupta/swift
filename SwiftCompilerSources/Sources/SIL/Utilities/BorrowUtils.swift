@@ -535,6 +535,9 @@ public final class EnclosingValueIterator : IteratorProtocol {
           // Recurse through guaranteed forwarding non-phi instructions.
           let ops = forwardingInst.forwardedOperands
           worklist.pushIfNotVisited(contentsOf: ops.lazy.map { $0.value })
+        }
+        else if value.isGuaranteedApplyResult {
+          worklist.pushIfNotVisited(value.guaranteedResultBase)
         } else {
           fatalError("cannot get borrow introducers for unknown guaranteed value")
         }
@@ -616,6 +619,26 @@ extension Value {
       }
     }
     return self
+  }
+
+  public var isGuaranteedApplyResult: Bool {
+    guard let definingInstruction = self.definingInstruction else {
+      return false
+    }
+    guard let apply = definingInstruction as? ApplyInst else {
+      return false
+    }
+    guard apply.singleDirectResult != nil else {
+      return false
+    }
+    return apply.functionConvention.results[0].convention == .guaranteed
+  }
+
+  public var guaranteedResultBase: Value {
+    assert(isGuaranteedApplyResult)
+    let apply = definingInstruction! as! ApplyInst
+    // self argument
+    return apply.arguments.last!
   }
 }
 
