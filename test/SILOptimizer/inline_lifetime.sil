@@ -972,3 +972,55 @@ bb1(%9 : $()):
 bb2(%12 : @owned $Error):
   throw %12 : $Error
 }
+
+public class Klass {}
+
+public struct Wrapper {
+  var _k: Klass
+  var i: Int
+}
+
+sil @get_wrapper : $@convention(thin) () -> @owned Wrapper
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+sil [ossa] @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass {
+bb0(%0 : @guaranteed $Wrapper):
+  %2 = struct_extract %0, #Wrapper._k
+  return %2
+}
+
+// CHECK-LABEL: sil [ossa] @test_borrow_accessor1 :
+// CHECK-NOT: begin_borrow [lexical]
+// CHECK-LABEL: } // end sil function 'test_borrow_accessor1'
+sil [ossa] @test_borrow_accessor1 : $@convention(thin) (@owned Wrapper) -> () {
+bb0(%0 : @owned $Wrapper):
+  %1 = begin_borrow %0
+  %2 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %1
+  destroy_value %0
+  %6 = tuple ()
+  return %6
+}
+
+// CHECK-LABEL: sil [ossa] @test_borrow_accessor2 :
+// CHECK-NOT: begin_borrow [lexical]
+// CHECK-LABEL: } // end sil function 'test_borrow_accessor2'
+sil [ossa] @test_borrow_accessor2 : $@convention(thin) () -> () {
+bb0:
+  %1 = function_ref @get_wrapper : $@convention(thin) () -> @owned Wrapper
+  %2 = apply %1() : $@convention(thin) () -> @owned Wrapper
+  %move = move_value [lexical] %2
+  %3 = begin_borrow %move
+  %4 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %5 = apply %4(%3) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %6 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %7 = apply %6(%5) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %3
+  destroy_value %move
+  %10 = tuple ()
+  return %10
+}
+

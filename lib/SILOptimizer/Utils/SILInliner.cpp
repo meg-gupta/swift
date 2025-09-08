@@ -736,6 +736,18 @@ enum class Scope : uint8_t {
   Bare,
   Lexical,
 };
+
+bool checkLexicalWhileLookingThroughBorrows(SILValue value) {
+  if (!value->isLexical()) {
+    return false;
+  }
+  auto *bbi = dyn_cast<BeginBorrowInst>(value);
+  if (!bbi) {
+    return true;
+  }
+  return checkLexicalWhileLookingThroughBorrows(bbi->getOperand());
+}
+
 Scope scopeForArgument(Scope nonlexicalScope, SILValue callArg, unsigned index,
                        SILFunction *caller, SILFunction *callee) {
   if (!caller->hasOwnership()) {
@@ -762,7 +774,7 @@ Scope scopeForArgument(Scope nonlexicalScope, SILValue callArg, unsigned index,
   }
   // Lexical lifetimes are enabled and the function argument is lexical.
   // During inlining, we need to ensure that the lifetime is maintained.
-  if (callArg->isLexical()) {
+  if (!checkLexicalWhileLookingThroughBorrows(callArg)) {
     // The caller's value is already lexical.  It will maintain the lifetime of
     // the argument.  Just do an ownership conversion if needed.
     return nonlexicalScope;
