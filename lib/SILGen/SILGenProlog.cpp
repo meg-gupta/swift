@@ -700,6 +700,7 @@ public:
   }
 
 private:
+
   ManagedValue makeArgument(SILLocation loc, ParamDecl *pd) {
     LifetimeAnnotation lifetimeAnnotation = LifetimeAnnotation::None;
     bool isNoImplicitCopy = false;
@@ -728,15 +729,16 @@ private:
                                         : AbstractionPattern(substType));
 
       // A parameter can be directly marked as addressable, or its
-      // addressability can be implied by a scoped dependency.
-      bool isAddressable = false;
-      
-      isAddressable = pd->isAddressable()
-        || (ScopedDependencies.contains(pd)
-            && SGF.getTypeProperties(origType, substType)
-                  .isAddressableForDependencies());
-      paramValue = argEmitter.handleParam(origType, substType, pd,
-                                          isAddressable);
+      // addressability can be implied by a scoped dependency or a borrow
+      // dependency.
+      bool isAddressable =
+          pd->isAddressable() ||
+          (ScopedDependencies.contains(pd) &&
+           SGF.getTypeProperties(origType, substType)
+               .isAddressableForDependencies()) ||
+          SGF.getFunction().getConventions().hasGuaranteedAddressResult();
+      paramValue =
+          argEmitter.handleParam(origType, substType, pd, isAddressable);
     }
 
     // Reset the parameter data on the lowered parameter generator.

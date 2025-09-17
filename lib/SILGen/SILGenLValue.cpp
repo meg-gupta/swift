@@ -3064,6 +3064,12 @@ public:
         forGuaranteedReturn(forGuaranteedReturn),
         forGuaranteedAddressReturn(forGuaranteedAddressReturn) {}
 
+  static bool shouldBorrowBase(SILGenFunction &SGF, Expr *e,
+                               LValueOptions options) {
+    return isNonCopyableBaseBorrow(SGF, e) || options.ForGuaranteedReturn ||
+           options.ForGuaranteedAddressReturn;
+  }
+
   static bool isNonCopyableBaseBorrow(SILGenFunction &SGF, Expr *e) {
     if (auto *m = dyn_cast<MemberRefExpr>(e)) {
       // If our m is a pure noncopyable type or our base is, we need to perform
@@ -3172,8 +3178,7 @@ public:
     ManagedValue mv =
         SGF.emitRValueAsSingleValue(e, SGFContext::AllowImmediatePlusZero);
 
-    if (forGuaranteedReturn && mv.getValue()->getType().isMoveOnly() &&
-        !mv.getValue()->getType().isAddress()) {
+    if (forGuaranteedReturn && mv.getValue()->getType().isMoveOnly()) {
       // SILGen eagerly generates copy_value +
       // mark_unresolved_non_copyable_value for ~Copyable base values. The
       // generated mark_unresolved_non_copyable_value instructions drive
@@ -3284,11 +3289,14 @@ LValue SILGenLValue::visitRec(Expr *e, SGFAccessKind accessKind,
   // a `borrow x` operator, the operator is used on the base here), we want to
   // apply the lvalue within a formal access to the original value instead of
   // an actual loaded copy.
-  if (SILGenBorrowedBaseVisitor::isNonCopyableBaseBorrow(SGF, e) ||
-      options.ForGuaranteedReturn) {
+  if (SILGenBorrowedBaseVisitor::shouldBorrowBase(SGF, e, options)) {
     SILGenBorrowedBaseVisitor visitor(*this, SGF, orig,
-                                      options.ForGuaranteedReturn);
+                                      options.ForGuaranteedReturn,
+                                      options.ForGuaranteedAddressReturn);
     auto accessKind = SGFAccessKind::BorrowedObjectRead;
+    if (options.ForGuaranteedAddressReturn) {
+      accessKind = SGFAccessKind::BorrowedAddressRead;
+    }
     assert(!e->getType()->is<LValueType>()
         && "maybe need SGFAccessKind::BorrowedAddressRead ?");
     return visitor.visit(e, accessKind, options);
