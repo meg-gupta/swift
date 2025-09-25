@@ -738,17 +738,51 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
     }
   } else if (F.getConventions().hasGuaranteedResult() ||
              F.getConventions().hasGuaranteedAddressResult()) {
-    // If the return expression is a literal, emit as a regular return
-    // expression/
+    auto *afd = cast<AbstractFunctionDecl>(FunctionDC->getAsDecl());
     if (isa<LiteralExpr>(ret)) {
+      // If the return expression is a literal, emit as a regular return
+      // expression.
       auto RV = emitRValue(ret);
       std::move(RV).forwardAll(*this, directResults);
+    } else if (afd->getAttrs().hasAttribute<UnsafeSelfDependentResultAttr>()) {
+      // If the accessor is annotated with @_unsafeSelfDependentResultAttr,
+      // disable diagnosing the return expression.
+      // This is needed to implement borrow accessors for Unsafe*Pointer based
+      // Container types where the compiler cannot analyze the safety of return
+      // expressions based on pointer arithmetic and unsafe addressors.
+      // Example:
+      // public struct Container<Element: ~Copyable>: ~Copyable {
+      //   var _storage: UnsafeMutableBufferPointer<Element>
+      //   var _count: Int
+      //
+      //   public subscript(index: Int) -> Element {
+      //     @_unsafeSelfDependentResult
+      //     borrow {
+      //       precondition(index >= 0 && index < _count, "Index out of bounds")
+      //       return _storage.baseAddress.unsafelyUnwrapped.advanced(by:
+      //       index).pointee
+      //     }
+      //   }
+      // }
+      FormalEvaluationScope scope(*this);
+      LValueOptions options;
+      auto lvalue = emitLValue(ret,
+                               F.getConventions().hasGuaranteedResult()
+                                   ? SGFAccessKind::BorrowedObjectRead
+                                   : SGFAccessKind::BorrowedAddressRead,
+                               F.getConventions().hasGuaranteedResult()
+                                   ? options.forGuaranteedReturn(true)
+                                   : options.forGuaranteedAddressReturn(true));
+
+      auto resultValue = emitBorrowedLValue(ret, std::move(lvalue));
+      directResults.push_back(resultValue.getValue());
     } else {
-      // If the return expression is not a projection, diagnose as error.
+      // Diagnose if the return expression cannot borrow the self access.
       FormalEvaluationScope scope(*this);
       auto storageRefResult =
           StorageRefResult::findStorageReferenceExprForBorrow(ret);
       auto lvExpr = storageRefResult.getTransitiveRoot();
+      // If the return expression is not an lvalue, diagnose.
       if (!lvExpr) {
         diagnose(getASTContext(), ret->getStartLoc(),
                  diag::invalid_borrow_accessor_return);
@@ -756,11 +790,10 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
                  diag::borrow_accessor_not_a_projection_note);
         return;
       }
-      // If the return expression is not a projection of self, diagnose as
-      // error.
+      // If the return expression is not a transitive projection of self,
+      // diagnose.
       auto *baseExpr = lookThroughProjections(storageRefResult.getStorageRef());
-      if (!baseExpr->isSelfExprOf(
-              cast<AbstractFunctionDecl>(FunctionDC->getAsDecl()))) {
+      if (!baseExpr->isSelfExprOf(afd)) {
         diagnose(getASTContext(), ret->getStartLoc(),
                  diag::invalid_borrow_accessor_return);
         diagnose(getASTContext(), ret->getStartLoc(),

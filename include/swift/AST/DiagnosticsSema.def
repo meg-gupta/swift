@@ -8896,5 +8896,8 @@ ERROR(invalid_redecl_of_file_isolation,none,
 NOTE(invalid_redecl_of_file_isolation_prev,none,
      "default isolation was previously declared here", ())
 
+ERROR(unsafe_self_dependent_result_attr_on_invalid_decl,none,
+      "invalid use of @_unsafeSelfDependentResult", ())
+
 #define UNDEFINE_DIAGNOSTIC_MACROS
 #include "DefineDiagnosticMacros.h"

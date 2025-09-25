@@ -308,7 +308,8 @@ extension ASTGenVisitor {
         .UsableFromInline,
         .Used,
         .WarnUnqualifiedAccess,
-        .WeakLinked:
+        .WeakLinked,
+        .UnsafeSelfDependentResult:
 
         return handle(self.generateSimpleDeclAttr(attribute: node, kind: attrKind!))
 
