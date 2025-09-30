@@ -311,16 +311,34 @@ func test() {
 // CHECK:   ret ptr [[REG2]]
 // CHECK: }
 
-// CHECK: define hidden swiftcc ptr @"$s15borrow_accessor10GenWrapperV1kAA5KlassCvb"(ptr %"GenWrapper<T>", ptr noalias swiftself [[REG0:%.*]]) #0 {
+// CHECK: define hidden swiftcc ptr @"$s15borrow_accessor10GenWrapperV1kAA5KlassCvb"(ptr %"GenWrapper<T>", ptr noalias swiftself [[REG0]]) #0 {
 // CHECK: entry:
+// CHECK:   %self.debug = alloca ptr, align 8
+// CHECK:   call void @llvm.memset.p0.i64(ptr align 8 %self.debug, i8 0, i64 8, i1 false)
+// CHECK:   [[T1:%.*]] = alloca ptr, align 8
+// CHECK:   store ptr [[REG0]], ptr %self.debug, align 8
+// CHECK:   [[REG1:%.*]] = getelementptr inbounds ptr, ptr %"GenWrapper<T>", i64 2
+// CHECK:   [[T:%.*]] = load ptr, ptr [[REG1]], align 8
+// CHECK:   store ptr [[T]], ptr [[T1]], align 8
 // CHECK:   [[REG2:%.*]] = getelementptr inbounds i32, ptr %"GenWrapper<T>", i64 8
 // CHECK:   [[REG3:%.*]] = load i32, ptr [[REG2]], align 8
 // CHECK:   [[REG4:%.*]] = getelementptr inbounds i8, ptr [[REG0]], i32 [[REG3]]
-// CHECK:   ret ptr [[REG4]]
+// CHECK:   [[REG5:%.*]] = load ptr, ptr [[REG4]], align 8
+// CHECK:   ret ptr [[REG5]]
 // CHECK: }
 
 // CHECK: define hidden swiftcc ptr @"$s15borrow_accessor10GenWrapperVyxSicib"(i64 [[REG0:%.*]], ptr %"GenWrapper<T>", ptr noalias swiftself [[REG1:%.*]]) #0 {
 // CHECK: entry:
+// CHECK:   %index.debug = alloca i64, align 8
+// CHECK:   call void @llvm.memset.p0.i64(ptr align 8 %index.debug, i8 0, i64 8, i1 false)
+// CHECK:   %self.debug = alloca ptr, align 8
+// CHECK:   call void @llvm.memset.p0.i64(ptr align 8 %self.debug, i8 0, i64 8, i1 false)
+// CHECK:   [[T1:%.*]] = alloca ptr, align 8
+// CHECK:   store i64 [[REG0]], ptr %index.debug, align 8
+// CHECK:   store ptr [[REG1]], ptr %self.debug, align 8
+// CHECK:   [[REG2:%.*]] = getelementptr inbounds ptr, ptr %"GenWrapper<T>", i64 2
+// CHECK:   [[T:%.*]] = load ptr, ptr [[REG2]], align 8
+// CHECK:   store ptr [[T]], ptr [[T1]], align 8
 // CHECK:   ret ptr [[REG1]]
 // CHECK: }
 

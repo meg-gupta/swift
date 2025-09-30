@@ -19,7 +19,7 @@ func use(_ t: borrowing NC) {}
 func consume<T : ~Copyable>(_ t: consuming T) {}
 
 public struct S {
-  var _k: Klass
+  var _k: Klass = Klass()
 
   var borrowKlass: Klass {
     borrow {
@@ -204,6 +204,7 @@ public struct GenWrapper<T> {
   var _prop: T
   var _w: SimpleWrapper<T>
   var _klass: Klass
+  var _s: S = S()
 
   public var prop: T {
     borrow {
@@ -230,6 +231,12 @@ public struct GenWrapper<T> {
     }
   }
   
+  var s: S {
+    borrow {
+      return _s
+    }
+  }
+
   var nested: T {
     borrow {
       return prop
@@ -239,6 +246,18 @@ public struct GenWrapper<T> {
   var klass: Klass {
     borrow {
       return _klass
+    }
+  }
+
+  var nested_klass1: Klass {
+    borrow {
+      return _s.borrowKlass
+    }
+  }
+
+  var nested_klass2: Klass {
+    borrow {
+      return s.borrowKlass
     }
   }
 
@@ -311,6 +330,8 @@ public struct SimpleNCWrapper<T : ~Copyable> : ~Copyable {
 public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
   var _prop: T
   var _w: SimpleNCWrapper<T>
+  var _nc: NC = NC()
+  var _ncw: NCWrapper = NCWrapper()
 
   public var prop: T {
     borrow {
@@ -321,6 +342,18 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
   var nested_prop: T {
     borrow {
       return _w.borrow_prop
+    }
+  }
+
+  var nc: NC {
+    borrow {
+      return _nc
+    }
+  }
+
+  var nested_nc: NC {
+    borrow {
+      return _ncw.nested1
     }
   }
 
@@ -382,7 +415,7 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
 }
 
 public struct NCS: ~Copyable {
-  var _nc: NC
+  var _nc: NC = NC()
 
   var nc: NC {
     borrow {
@@ -392,8 +425,8 @@ public struct NCS: ~Copyable {
 }
 
 public struct NCWrapper: ~Copyable {
-  var _nc: NC
-  var _s: NCS
+  var _nc: NC = NC()
+  var _s: NCS = NCS()
 
   var nc: NC {
     borrow {
