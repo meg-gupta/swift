@@ -1387,15 +1387,17 @@ class DestructureResults {
   TypeExpansionContext context;
   bool hasSendingResult;
   bool isBorrowAccessor;
+  bool isMutateAccessor;
 
 public:
   DestructureResults(TypeExpansionContext context, TypeConverter &TC,
                      const Conventions &conventions,
                      SmallVectorImpl<SILResultInfo> &results,
-                     bool hasSendingResult, bool isBorrowOrMutateAccessor)
+                     bool hasSendingResult, bool isBorrowAccessor,
+                     bool isMutateAccessor)
       : TC(TC), Convs(conventions), Results(results), context(context),
-        hasSendingResult(hasSendingResult),
-        isBorrowAccessor(isBorrowOrMutateAccessor) {}
+        hasSendingResult(hasSendingResult), isBorrowAccessor(isBorrowAccessor),
+        isMutateAccessor(isMutateAccessor) {}
 
   void destructure(AbstractionPattern origType, CanType substType) {
     // Recur into tuples.
@@ -1459,6 +1461,8 @@ public:
       } else {
         convention = ResultConvention::Guaranteed;
       }
+    } else if (isMutateAccessor) {
+      convention = ResultConvention::GuaranteedAddress;
     } else if (isFormallyReturnedIndirectly(origType, substType,
                                             substResultTLForConvention)) {
       convention = ResultConvention::Indirect;
@@ -2716,9 +2720,9 @@ static CanSILFunctionType getSILFunctionType(
   // Destructure the result tuple type.
   SmallVector<SILResultInfo, 8> results;
   {
-    DestructureResults destructurer(expansionContext, TC, conventions, results,
-                                    hasSendingResult,
-                                    constant->isBorrowAccessor());
+    DestructureResults destructurer(
+        expansionContext, TC, conventions, results, hasSendingResult,
+        constant->isBorrowAccessor(), constant->isMutateAccessor());
     destructurer.destructure(origResultType, substFormalResultType);
   }
 
