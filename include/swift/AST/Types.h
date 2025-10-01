@@ -407,7 +407,7 @@ class alignas(1 << TypeAlignInBits) TypeBase
   }
 
 protected:
-  enum { NumAFTExtInfoBits = 15 };
+  enum { NumAFTExtInfoBits = 16 };
   enum { NumSILExtInfoBits = 14 };
 
   // clang-format off
@@ -445,7 +445,7 @@ protected:
     HasClangTypeInfo : 1,
     HasThrownError : 1,
     HasLifetimeDependencies : 1,
-    NumParams : 15
+    NumParams : 14
   );
 
   SWIFT_INLINE_BITFIELD_FULL(ArchetypeType, TypeBase, 1+1+16,
