@@ -785,6 +785,11 @@ public:
         lifetimeDependencies);
   }
 
+  [[nodiscard]] ASTExtInfoBuilder withHasInOutResult() const {
+    return ASTExtInfoBuilder((bits | InOutResultMask), clangTypeInfo,
+                             globalActor, thrownError, lifetimeDependencies);
+  }
+
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddInteger(bits);
     ID.AddPointer(clangTypeInfo.getType());
