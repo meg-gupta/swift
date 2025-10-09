@@ -1142,7 +1142,11 @@ void SILGenFunction::emitFunction(FuncDecl *fd) {
     // Emit the actual function body as usual
     emitStmt(fd->getTypecheckedBody());
 
-    emitEpilog(fd);
+    bool usesCustomEpilog =
+        getFunction().getConventions().hasGuaranteedResult() &&
+        getFunction().getSelfArgument()->getOwnershipKind() !=
+            OwnershipKind::Guaranteed;
+    emitEpilog(fd, usesCustomEpilog);
   }
 
   mergeCleanupBlocks();
