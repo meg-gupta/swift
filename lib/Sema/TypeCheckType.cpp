@@ -5009,6 +5009,7 @@ bool TypeResolver::resolveSingleSILResult(
         NORMAL(Owned, Owned)
         NORMAL(Guaranteed, Guaranteed)
         NORMAL(GuaranteedAddress, GuaranteedAddress)
+        NORMAL(Inout, Inout)
         NORMAL(UnownedInnerPointer, UnownedInnerPointer)
         NORMAL(Autoreleased, Autoreleased)
         NORMAL(PackOut, Pack)

@@ -7089,6 +7089,7 @@ getActualResultConvention(uint8_t raw) {
   CASE(Pack)
   CASE(GuaranteedAddress)
   CASE(Guaranteed)
+  CASE(Inout)
 #undef CASE
   }
   return std::nullopt;
