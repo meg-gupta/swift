@@ -107,6 +107,7 @@ namespace {
 struct SILGenCleanup : SILModuleTransform {
   void run() override;
 
+  bool fixupBorrowAccessors(SILFunction *function);
   bool completeOSSALifetimes(SILFunction *function);
   template <typename Range>
   bool completeLifetimesInRange(Range const &range,
@@ -229,6 +230,49 @@ void collectReachableRoots(SILFunction *function, BasicBlockWorklist &backward,
   } while (changed);
 }
 
+bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
+  if (!function->getConventions().hasGuaranteedResult()) {
+    return false;
+  }
+  auto returnBB = function->findReturnBB();
+  if (returnBB == function->end()) {
+    return false;
+  }
+
+  auto *returnInst = cast<ReturnInst>(returnBB->getTerminator());
+  auto returnValue = returnInst->getOperand();
+  if (returnValue->getOwnershipKind() != OwnershipKind::Guaranteed) {
+    return false;
+  }
+  SmallVector<SILValue, 8> enclosingValues;
+  findGuaranteedReferenceRoots(returnValue, /*lookThroughNestedBorrows=*/false,
+                               enclosingValues);
+  SmallVector<SILInstruction *> scopeEnds;
+  SmallVector<SILValue> operands;
+  for (auto enclosingValue : enclosingValues) {
+    BorrowedValue borrow(enclosingValue);
+    if (!borrow.isLocalScope()) {
+      continue;
+    }
+    assert(cast<LoadBorrowInst>(*borrow)->isUnchecked());
+    borrow.getLocalScopeEndingInstructions(scopeEnds);
+    for (auto *scopeEnd : scopeEnds) {
+      if (auto *endBorrow = dyn_cast<EndBorrowInst>(scopeEnd)) {
+        operands.push_back(endBorrow->getOperand());
+        endBorrow->eraseFromParent();
+      }
+    }
+  }
+  if (operands.empty()) {
+    return false;
+  }
+
+  SILBuilderWithScope(returnInst)
+      .createReturnBorrow(returnInst->getLoc(), returnValue, operands);
+  returnInst->eraseFromParent();
+  return true;
+}
+
 bool SILGenCleanup::completeOSSALifetimes(SILFunction *function) {
   if (!getModule()->getOptions().OSSACompleteLifetimes)
     return false;
@@ -339,7 +383,8 @@ void SILGenCleanup::run() {
     LLVM_DEBUG(llvm::dbgs()
                << "\nRunning SILGenCleanup on " << function.getName() << "\n");
 
-    bool changed = completeOSSALifetimes(&function);
+    bool changed = fixupBorrowAccessors(&function);
+    changed = completeOSSALifetimes(&function);
     DeadEndBlocks deadEndBlocks(&function);
     SILGenCanonicalize sgCanonicalize(deadEndBlocks);
 
