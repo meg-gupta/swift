@@ -336,6 +336,7 @@ static bool hasOpaqueArchetype(TypeExpansionContext context,
   case SILInstructionKind::TuplePackElementAddrInst:
   case SILInstructionKind::TypeValueInst:
   case SILInstructionKind::IgnoredUseInst:
+  case SILInstructionKind::UncheckedOwnershipInst:
     // Handle by operand and result check.
     break;
 

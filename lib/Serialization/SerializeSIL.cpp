@@ -1791,6 +1791,9 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
     writeOneOperandExtraAttributeLayout(SI.getKind(), Attr, SI.getOperand(0));
     break;
   }
+  case SILInstructionKind::UncheckedOwnershipInst: {
+    llvm_unreachable("Invalid unchecked_ownership during serialzation");
+  }
   case SILInstructionKind::YieldInst: {
     auto YI = cast<YieldInst>(&SI);
     SmallVector<ValueID, 4> args;

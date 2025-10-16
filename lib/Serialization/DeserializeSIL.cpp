@@ -2892,6 +2892,9 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn,
         CKind, Strict);
     break;
   }
+  case SILInstructionKind::UncheckedOwnershipInst: {
+    llvm_unreachable("Invalid unchecked_ownership in deserialization");
+  }
   case SILInstructionKind::StoreInst: {
     auto Ty = MF->getType(TyID);
     SILType addrType = getSILType(Ty, (SILValueCategory)TyCategory, Fn);

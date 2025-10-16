@@ -2362,6 +2362,10 @@ public:
     *this << getIDAndType(I->getOperand());
   }
 
+  void visitUncheckedOwnershipInst(UncheckedOwnershipInst *I) {
+    *this << getIDAndType(I->getOperand());
+  }
+
   void visitUnownedCopyValueInst(UnownedCopyValueInst *I) {
     *this << getIDAndType(I->getOperand());
   }
