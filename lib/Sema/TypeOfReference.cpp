@@ -1588,17 +1588,17 @@ std::pair<Type, Type> ConstraintSystem::getOpenedStorageType(
   // If the access is mutating, wrap the storage type in an lvalue type.
   Type refType;
   if (auto *subscript = dyn_cast<SubscriptDecl>(value)) {
-    auto elementTy = subscript->getElementInterfaceType();
+    auto *funcTy = subscript->getInterfaceType()->castTo<AnyFunctionType>();
 
+    auto indices = funcTy->getParams();
+
+    auto elementTy = funcTy->getResult();
     if (doesStorageProduceLValue(subscript, baseTy, useDC, *this, locator))
       elementTy = LValueType::get(elementTy);
 
-    auto indices = subscript->getInterfaceType()
-                            ->castTo<AnyFunctionType>()->getParams();
-
     // Transfer the thrown error type into the subscript reference type,
     // which will be used in the application.
-    FunctionType::ExtInfo info;
+    auto info = funcTy->getExtInfo();
     if (thrownErrorType) {
       info = info.withThrows(true, thrownErrorType);
       thrownErrorType = Type();
