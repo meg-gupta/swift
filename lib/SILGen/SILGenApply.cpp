@@ -5462,6 +5462,18 @@ ManagedValue CallEmission::applyBorrowMutateAccessor() {
             lookThroughMoveOnlyCheckerPattern(selfArgMV.getValue()));
   }
 
+  if (fnValue.getFunction()->getConventions().hasGuaranteedResult()) {
+    if (isa<LoadBorrowInst>(selfArgMV)) {
+      // unchecked_ownership is used to silence the ownership verifier for
+      // returning a value produced within a load_borrow scope. SILGenCleanup
+      // eliminates it and introduces return_borrow appropriately.
+      uncurriedArgs[uncurriedArgs.size() - 1] =
+          ManagedValue::forForwardedRValue(
+              SGF, SGF.B.createUncheckedOwnership(uncurriedLoc.value(),
+                                                  selfArgMV.getValue()));
+    }
+  }
+
   auto value = SGF.applyBorrowMutateAccessor(
       uncurriedLoc.value(), fnValue, canUnwind, callee.getSubstitutions(),
       uncurriedArgs, calleeTypeInfo.substFnType, options);
@@ -5475,21 +5487,12 @@ ManagedValue SILGenFunction::applyBorrowMutateAccessor(
     ApplyOptions options) {
   // Emit the call.
   SmallVector<SILValue, 4> rawResults;
+
   emitRawApply(*this, loc, fn, subs, args, substFnType, options,
                /*indirect results*/ {}, /*indirect errors*/ {}, rawResults,
                ExecutorBreadcrumb());
   assert(rawResults.size() == 1);
   auto rawResult = rawResults[0];
-
-  if (fn.getFunction()->getConventions().hasGuaranteedResult()) {
-    auto selfArg = args.back().getValue();
-    if (isa<LoadBorrowInst>(selfArg)) {
-      // unchecked_ownership is used to silence the ownership verifier for
-      // returning a value produced within a load_borrow scope. SILGenCleanup
-      // eliminates it and introduces return_borrow appropriately.
-      rawResult = B.createUncheckedOwnership(loc, rawResult);
-    }
-  }
 
   if (rawResult->getType().isMoveOnly()) {
     if (rawResult->getType().isAddress()) {

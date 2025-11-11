@@ -1,4 +1,5 @@
 // RUN:%target-swift-frontend -emit-silgen %s -enable-experimental-feature BorrowAndMutateAccessors | %FileCheck %s
+// RUN:%target-swift-frontend -emit-sil %s -enable-experimental-feature BorrowAndMutateAccessors
 
 // REQUIRES: swift_feature_BorrowAndMutateAccessors
 
@@ -552,8 +553,8 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
 // CHECK:   [[REG2:%.*]] = struct_element_addr [[REG0]], #GenWrapper._s
 // CHECK:   [[REG3:%.*]] = load_borrow [[REG2]]
 // CHECK:   [[REG4:%.*]] = function_ref @$s15borrow_accessor1SV1kAA5KlassCvb : $@convention(method) (@guaranteed S) -> @guaranteed Klass
-// CHECK:   [[REG5:%.*]] = apply [[REG4]]([[REG3]]) : $@convention(method) (@guaranteed S) -> @guaranteed Klass
-// CHECK:   [[REG6:%.*]] = unchecked_ownership [[REG5]]
+// CHECK:   [[REG5:%.*]] = unchecked_ownership [[REG3]]
+// CHECK:   [[REG6:%.*]] = apply [[REG4]]([[REG5]]) : $@convention(method) (@guaranteed S) -> @guaranteed Klass
 // CHECK:   end_borrow [[REG3]]
 // CHECK:   return [[REG6]]
 // CHECK: }
@@ -730,8 +731,8 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
 // CHECK:   [[REG3:%.*]] = struct_element_addr [[REG2]], #GenNCWrapper._ncw
 // CHECK:   [[REG4:%.*]] = load_borrow [[REG3]]
 // CHECK:   [[REG5:%.*]] = function_ref @$s15borrow_accessor9NCWrapperV2ncAA2NCVvb : $@convention(method) (@guaranteed NCWrapper) -> @guaranteed NC
-// CHECK:   [[REG6:%.*]] = apply [[REG5]]([[REG4]]) : $@convention(method) (@guaranteed NCWrapper) -> @guaranteed NC
-// CHECK:   [[REG7:%.*]] = unchecked_ownership [[REG6]]
+// CHECK:   [[REG6:%.*]] = unchecked_ownership [[REG4]]
+// CHECK:   [[REG7:%.*]] = apply [[REG5]]([[REG6]]) : $@convention(method) (@guaranteed NCWrapper) -> @guaranteed NC
 // CHECK:   [[REG9:%.*]] = copy_value [[REG7]]
 // CHECK:   [[REG10:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[REG9]]
 // CHECK:   [[REG11:%.*]] = begin_borrow [[REG10]]
