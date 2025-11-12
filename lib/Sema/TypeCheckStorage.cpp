@@ -2630,9 +2630,6 @@ static AccessorDecl *createSetterPrototype(AbstractStorageDecl *storage,
   else
     setter->setSelfAccessKind(SelfAccessKind::NonMutating);
 
-  // All mutable storage requires a setter.
-  assert(storage->requiresOpaqueAccessor(AccessorKind::Set));
-  
   // Copy availability from the accessor we'll synthesize the setter from.
   SmallVector<const Decl *, 2> asAvailableAs;
 
@@ -2999,6 +2996,11 @@ bool RequiresOpaqueModifyCoroutineRequest::evaluate(
   if (auto protoDecl = dyn_cast<ProtocolDecl>(dc))
     if (protoDecl->isObjC())
       return false;
+
+  // If a mutate accessor is present, we don't need an opaque modify coroutine.
+  if (storage->getParsedAccessor(AccessorKind::Mutate)) {
+    return false;
+  }
 
   return true;
 }

@@ -3482,6 +3482,11 @@ bool AbstractStorageDecl::requiresOpaqueSetter() const {
   if (!supportsMutation()) {
     return false;
   }
+
+  // If a mutate accessor is present, we don't need a setter.
+  if (getParsedAccessor(AccessorKind::Borrow)) {
+    return false;
+  }
   return true;
 }
 
