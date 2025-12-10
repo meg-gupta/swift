@@ -271,6 +271,10 @@ ERROR(expected_getset_in_protocol,none,
       "expected get or set in a protocol property", ())
 ERROR(expected_getreadset_in_protocol,none,
       "expected get, read, or set in a protocol property", ())
+ERROR(expected_getreadborrowsetmutate_in_protocol,none,
+      "expected get, read, borrow, set or mutate in a protocol property", ())
+ERROR(expected_getborrowsetmutate_in_protocol,none,
+      "expected get, borrow, set or mutate in a protocol property", ())
 ERROR(unexpected_getset_implementation_in_protocol,none,
       "protocol property %0 cannot have a default implementation specified "
       "here; use extension instead", (StringRef))
