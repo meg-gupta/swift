@@ -3312,6 +3312,8 @@ static AccessStrategy getOpaqueReadAccessStrategy(
     return AccessStrategy::getAccessor(AccessorKind::Read2, dispatch);
   if (storage->requiresOpaqueReadCoroutine())
     return AccessStrategy::getAccessor(AccessorKind::Read, dispatch);
+  if (storage->requiresOpaqueBorrowAccessor())
+    return AccessStrategy::getAccessor(AccessorKind::Borrow, dispatch);
   return AccessStrategy::getAccessor(AccessorKind::Get, dispatch);
 }
 
@@ -3492,14 +3494,20 @@ bool AbstractStorageDecl::requiresOpaqueReadCoroutine() const {
     return requiresCorrespondingUnderscoredCoroutineAccessor(
         AccessorKind::Read2);
 
-  return getOpaqueReadOwnership() != OpaqueReadOwnership::Owned;
+  return getOpaqueReadOwnership() == OpaqueReadOwnership::YieldingBorrow ||
+         getOpaqueReadOwnership() == OpaqueReadOwnership::OwnedOrBorrowed;
 }
 
 bool AbstractStorageDecl::requiresOpaqueRead2Coroutine() const {
   ASTContext &ctx = getASTContext();
   if (!ctx.LangOpts.hasFeature(Feature::CoroutineAccessors))
     return false;
-  return getOpaqueReadOwnership() != OpaqueReadOwnership::Owned;
+  return getOpaqueReadOwnership() == OpaqueReadOwnership::YieldingBorrow ||
+         getOpaqueReadOwnership() == OpaqueReadOwnership::OwnedOrBorrowed;
+}
+
+bool AbstractStorageDecl::requiresOpaqueBorrowAccessor() const {
+  return getOpaqueReadOwnership() == OpaqueReadOwnership::Borrow;
 }
 
 bool AbstractStorageDecl::requiresOpaqueModifyCoroutine() const {
@@ -3518,6 +3526,10 @@ bool AbstractStorageDecl::requiresOpaqueModify2Coroutine() const {
       RequiresOpaqueModifyCoroutineRequest{
           const_cast<AbstractStorageDecl *>(this), /*isUnderscored=*/false},
       false);
+}
+
+bool AbstractStorageDecl::requiresOpaqueMutateAccessor() const {
+  return getAccessor(AccessorKind::Mutate) != nullptr;
 }
 
 AccessorDecl *
@@ -3627,6 +3639,12 @@ void AbstractStorageDecl::visitExpectedOpaqueAccessors(
 
   if (requiresOpaqueModify2Coroutine())
     visit(AccessorKind::Modify2);
+
+  if (requiresOpaqueBorrowAccessor())
+    visit(AccessorKind::Borrow);
+
+  if (requiresOpaqueMutateAccessor())
+    visit(AccessorKind::Mutate);
 }
 
 void AbstractStorageDecl::visitOpaqueAccessors(

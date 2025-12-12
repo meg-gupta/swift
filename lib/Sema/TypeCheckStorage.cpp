@@ -1069,7 +1069,7 @@ OpaqueReadOwnershipRequest::evaluate(Evaluator &evaluator,
     return OpaqueReadOwnership::YieldingBorrow;
 
   if (storage->getAccessor(AccessorKind::Borrow))
-    return OpaqueReadOwnership::YieldingBorrow;
+    return OpaqueReadOwnership::Borrow;
 
   if (storage->getAttrs().hasAttribute<BorrowedAttr>())
     return usesBorrowed(DiagKind::BorrowedAttr);
