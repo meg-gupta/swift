@@ -3471,8 +3471,11 @@ bool AbstractStorageDecl::requiresOpaqueAccessor(AccessorKind kind) const {
     return requiresOpaqueModifyCoroutine();
   case AccessorKind::Modify2:
     return requiresOpaqueModify2Coroutine();
-
-  // Other accessors are never part of the opaque-accessors set.
+  case AccessorKind::Borrow:
+    return requiresOpaqueBorrowAccessor();
+  case AccessorKind::Mutate:
+    return requiresOpaqueMutateAccessor();
+    // Other accessors are never part of the opaque-accessors set.
 #define OPAQUE_ACCESSOR(ID, KEYWORD)
 #define ACCESSOR(ID, KEYWORD) case AccessorKind::ID:
 #include "swift/AST/AccessorKinds.def"

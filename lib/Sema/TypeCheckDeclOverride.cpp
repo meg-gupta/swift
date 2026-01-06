@@ -2413,10 +2413,12 @@ computeOverriddenDecls(ValueDecl *decl, bool ignoreMissingImports) {
       case AccessorKind::DistributedGet:
       case AccessorKind::Read:
       case AccessorKind::Read2:
+      case AccessorKind::Borrow:
         break;
 
       case AccessorKind::Modify:
       case AccessorKind::Modify2:
+      case AccessorKind::Mutate:
       case AccessorKind::Set:
         // For setter accessors, we need the base's setter to be
         // accessible from the overriding context, or it's not an override.
