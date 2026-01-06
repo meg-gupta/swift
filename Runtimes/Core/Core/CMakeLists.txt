@@ -44,6 +44,7 @@ add_library(swiftCore
   Bool.swift
   Borrow.swift
   BorrowingSequence.swift
+  Box.swift
   BridgeObjectiveC.swift
   BridgeStorage.swift
   BridgingBuffer.swift
