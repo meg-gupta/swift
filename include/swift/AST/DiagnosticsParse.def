@@ -320,7 +320,7 @@ ERROR(missing_reading_accessor,none,
       (unsigned, StringRef))
 ERROR(missing_borrow_accessor,none,
       "%select{variable|subscript}0 with %1 must also have "
-      "a 'borrow' accessor, getter, addressor or 'read' accessor",
+      "a 'borrow' accessor",
       (unsigned, StringRef))
 ERROR(observing_accessor_conflicts_with_accessor,none,
       "%select{'willSet'|'didSet'}0 cannot be provided together with %1",
