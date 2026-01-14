@@ -489,6 +489,15 @@ static LinkageLimit getLinkageLimit(SILDeclRef constant) {
     // at best shared linkage.
     if (fn->hasForcedStaticDispatch())
       return Limit::OnDemand;
+
+    if (auto *accessor = dyn_cast<AccessorDecl>(fn)) {
+      if (accessor->getAccessorKind() == AccessorKind::Borrow ||
+          accessor->getAccessorKind() == AccessorKind::Mutate) {
+        if (accessor->isSynthesized()) {
+          return Limit::OnDemand;
+        }
+      }
+    }
   }
   
   if (isa<DestructorDecl>(d)) {

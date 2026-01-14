@@ -765,6 +765,14 @@ static bool isEmittedOnDemand(SILModule &M, SILDeclRef constant) {
     if (fd->hasForcedStaticDispatch())
       return true;
 
+    if (auto *accessor = dyn_cast<AccessorDecl>(fd)) {
+      if (accessor->getAccessorKind() == AccessorKind::Borrow ||
+          accessor->getAccessorKind() == AccessorKind::Mutate) {
+        if (accessor->isSynthesized())
+          return true;
+      }
+    }
+
     break;
   }
   case SILDeclRef::Kind::Allocator: {

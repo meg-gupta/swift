@@ -2451,9 +2451,15 @@ synthesizeBorrowAndMutateAccessorBody(AccessorDecl *accessor, ASTContext &ctx) {
   // TODO: Handle property wrappers, property observers
   auto storage = accessor->getStorage();
 
+  ProtocolDecl *proto = llvm::dyn_cast_if_present<ProtocolDecl>(
+      accessor->getStorage()->getDeclContext()->getAsDecl());
+  auto target = (accessor->hasForcedStaticDispatch() || proto
+                     ? TargetImpl::Ordinary
+                     : TargetImpl::Implementation);
+
   // Build a reference to the storage.
   Expr *ref = buildStorageReference(
-      accessor, storage, TargetImpl::Ordinary,
+      accessor, storage, target,
       /*isUsedForGetAccess=*/true,
       /*isUsedForSetAccess=*/accessor->getAccessorKind() ==
           AccessorKind::Mutate,
@@ -2818,13 +2824,6 @@ createBorrowMutateAccessorPrototype(AbstractStorageDecl *storage,
   } else {
     accessor->setSelfAccessKind(SelfAccessKind::NonMutating);
   }
-
-  // If the storage does not provide this accessor as an opaque accessor,
-  // we can't add a dynamically-dispatched method entry for the accessor,
-  // so force it to be statically dispatched. ("final" would be inappropriate
-  // because the property can still be overridden.)
-  if (!storage->requiresOpaqueAccessor(kind))
-    accessor->setForcedStaticDispatch(true);
 
   // Make sure the coroutine is available enough to access
   // the storage.
