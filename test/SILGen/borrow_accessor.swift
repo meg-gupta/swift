@@ -87,6 +87,15 @@ public struct Wrapper {
       return 0
     }
   }
+
+  var k_ownership_modifier: Klass {
+    borrowing borrow {
+      return _k
+    }
+    mutating mutate {
+      return &_k
+    }
+  }
 }
 
 public struct SimpleWrapper<T> {
@@ -194,6 +203,15 @@ public struct GenWrapper<T> {
       return 0
     }
   }
+
+  var prop_ownership_modifier: T {
+    borrowing borrow {
+      return _prop
+    }
+    mutating mutate {
+      return &_prop
+    }
+  }
 }
 
 public struct NCS: ~Copyable {
@@ -261,6 +279,15 @@ public struct NCWrapper: ~Copyable {
   var literal: Int {
     borrow {
       return 0
+    }
+  }
+
+  var nc_ownership_modifier: NC {
+    borrowing borrow {
+      return _nc
+    }
+    mutating mutate {
+      return &_nc
     }
   }
 }
@@ -890,4 +917,22 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
 // CHECK:  [[REG9:%.*]] = mark_unresolved_non_copyable_value [assignable_but_not_consumable] [[REG8]]
 // CHECK:  return [[REG9]]
 // CHECK: }
+
+public struct SafeContainer<Element: ~Copyable >: ~Copyable {
+  var _storage: UnsafeMutableBufferPointer<Element>
+  var _count: Int
+
+  public subscript(index: Int) -> Element {
+    @_unsafeSelfDependentResult
+    borrow {
+      precondition(index >= 0 && index < _count, "Index out of bounds")
+      return _storage.baseAddress.unsafelyUnwrapped.advanced(by: index).pointee
+    }
+    @_unsafeSelfDependentResult
+    nonmutating mutate {
+      precondition(index >= 0 && index < _count, "Index out of bounds")
+      return &_storage.baseAddress.unsafelyUnwrapped.advanced(by: index).pointee
+    }
+  }
+}
 
