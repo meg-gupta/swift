@@ -277,7 +277,10 @@ LargeSILTypeMapper::getNewResults(GenericEnvironment *GenericEnv,
     if (modNonFuncTypeResultType(GenericEnv, fnType, Mod, mustTransform)) {
       // Case (2) Above
       SILResultInfo newSILResultInfo(newSILType.getASTType(),
-                                     ResultConvention::Indirect);
+                                     result.getConvention() ==
+                                             ResultConvention::Guaranteed
+                                         ? ResultConvention::GuaranteedAddress
+                                         : ResultConvention::Indirect);
       newResults.push_back(newSILResultInfo);
     } else if (containsDifferentFunctionSignature(GenericEnv, Mod, currResultTy,
                                                   newSILType)) {
@@ -1465,7 +1468,8 @@ void LoadableStorageAllocation::convertIndirectFunctionArgs() {
   }
 
   // Convert the result type to indirect if necessary:
-  if (modNonFuncTypeResultType(pass.F, pass.Mod)) {
+  if (modNonFuncTypeResultType(pass.F, pass.Mod) &&
+      !pass.F->getConventionsInContext().hasGuaranteedResult()) {
     insertIndirectReturnArgs();
   }
 }
@@ -2345,11 +2349,21 @@ static void rewriteFunction(StructLoweringState &pass,
     SILBuilderWithScope retBuilder(instr);
     assert(modNonFuncTypeResultType(pass.F, pass.Mod) &&
            "Expected a regular type");
+
+    auto retOp = instr->getOperand();
+
+    if (pass.F->getConventionsInContext().hasGuaranteedResult()) {
+      auto *load = dyn_cast<LoadInst>(retOp);
+      ASSERT(load);
+      retBuilder.createReturn(regLoc, load->getOperand());
+      instr->eraseFromParent();
+      continue;
+    }
     // Before we return an empty tuple, init return arg:
+    auto storageType = retOp->getType();
     auto *entry = pass.F->getEntryBlock();
     auto *retArg = entry->getArgument(0);
-    auto retOp = instr->getOperand();
-    auto storageType = retOp->getType();
+
     if (storageType.isAddress()) {
       // There *might* be a dealloc_stack that already released this value
       // we should create the copy *before* the epilogue's deallocations
@@ -2560,7 +2574,8 @@ void LoadableByAddress::recreateSingleApply(
   // and pass it as first parameter:
   if ((isa<ApplyInst>(applyInst) || isa<TryApplyInst>(applyInst)) &&
       modNonFuncTypeResultType(genEnv, origSILFunctionType, *currIRMod) &&
-      modifiableApply(applySite, *getIRGenModule())) {
+      modifiableApply(applySite, *getIRGenModule()) &&
+      !origSILFunctionType->hasGuaranteedResult(true)) {
     assert(allApplyRetToAllocMap.find(applyInst) !=
            allApplyRetToAllocMap.end());
     auto newAlloc = allApplyRetToAllocMap.find(applyInst)->second;
