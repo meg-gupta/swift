@@ -314,7 +314,7 @@ public struct NCWrapper: ~Copyable {
     }
   }
 
-  var if_prop: T {
+  var if_prop: NC {
     borrow {
       if Int.random(in: 1..<100) == 0 {
         return _nc
