@@ -1272,9 +1272,6 @@ NOTE(borrow_accessor_not_a_projection_note, none,
      "borrow accessors can return either stored properties or computed "
      "properties that have borrow accessors",
      ())
-ERROR(invalid_multiple_return_borrow_accessor, none,
-      "multiple return statements in borrow accessors are not yet supported",
-      ())
 
 #define UNDEFINE_DIAGNOSTIC_MACROS
 #include "DefineDiagnosticMacros.h"

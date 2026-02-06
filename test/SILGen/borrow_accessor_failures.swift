@@ -107,15 +107,6 @@ public struct Wrapper {
     }
   }
 
-  var if_klass: Klass {
-    borrow {
-      if Int.random(in: 1..<100) == 0 {
-        return _k
-      }
-      return _k // expected-error{{multiple return statements in borrow accessors are not yet supported}}
-    }
-  }
-
   var tuple_klass: (Klass, Klass) {
     borrow {
       return (_k, _k) // expected-error{{invalid return value from borrow accessor}} // expected-note{{borrow accessors can return either stored properties or computed properties that have borrow accessors}}
@@ -171,15 +162,6 @@ public struct GenWrapper<T> {
   var read_prop: T {
     borrow {
       return _w.read_prop // expected-error{{invalid return value from borrow accessor}} // expected-note{{borrow accessors can return either stored properties or computed properties that have borrow accessors}}
-    }
-  }
-
-  var if_prop: T {
-    borrow {
-      if Int.random(in: 1..<100) == 0 {
-        return _prop
-      }
-      return _prop // expected-error{{multiple return statements in borrow accessors are not yet supported}}
     }
   }
 
@@ -240,15 +222,6 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
     borrow {
       return _w.read_prop // expected-error{{invalid return value from borrow accessor}} // expected-note{{borrow accessors can return either stored properties or computed properties that have borrow accessors}}
 
-    }
-  }
-
-  var if_prop: T {
-    borrow {
-      if Int.random(in: 1..<100) == 0 {
-        return _prop
-      }
-      return _prop // expected-error{{multiple return statements in borrow accessors are not yet supported}}
     }
   }
 

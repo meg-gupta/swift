@@ -814,15 +814,6 @@ bool SILGenFunction::emitBorrowOrMutateAccessorResult(
              diag::borrow_accessor_not_a_projection_note);
     return true;
   }
-  // For now diagnose multiple return statements in borrow/mutate accessors.
-  // We need additional support for this.
-  // 1. Address phis are banned in SIL.
-  // 2. borrowed from is not inserted in SILGenCleanup.
-  if (!ReturnDest.getBlock()->getPredecessorBlocks().empty()) {
-    diagnose(getASTContext(), ret->getStartLoc(),
-             diag::invalid_multiple_return_borrow_accessor);
-    return true;
-  }
 
   SILValue result = resultMV->getValue();
   SILType selfType = F.getSelfArgument()->getType();

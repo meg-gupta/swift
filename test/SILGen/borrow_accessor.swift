@@ -26,6 +26,7 @@ public struct S {
 
 public struct Wrapper {
   var _k: Klass
+  var _otherK: Klass
   var _s: S
   var _id: Int
 
@@ -100,6 +101,15 @@ public struct Wrapper {
       return &_k
     }
   }
+
+  var if_klass: Klass {
+    borrow {
+      if Int.random(in: 1..<100) == 0 {
+        return _k
+      }
+      return _otherK
+    }
+  }
 }
 
 public struct SimpleWrapper<T> {
@@ -117,6 +127,7 @@ public struct SimpleWrapper<T> {
 
 public struct GenWrapper<T> {
   var _prop: T
+  var _otherProp: T
   var _w: SimpleWrapper<T>
   var _k: Klass
   var _s: S
@@ -220,6 +231,15 @@ public struct GenWrapper<T> {
       return &_prop
     }
   }
+
+  var if_prop: T {
+    borrow {
+      if Int.random(in: 1..<100) == 0 {
+        return _prop
+      }
+      return _otherProp
+    }
+  }
 }
 
 public struct NCS: ~Copyable {
@@ -237,6 +257,7 @@ public struct NCS: ~Copyable {
 
 public struct NCWrapper: ~Copyable {
   var _nc: NC
+  var _othernc: NC
   var _s: NCS
 
   var nc: NC {
@@ -292,6 +313,15 @@ public struct NCWrapper: ~Copyable {
       return &_nc
     }
   }
+
+  var if_prop: T {
+    borrow {
+      if Int.random(in: 1..<100) == 0 {
+        return _nc
+      }
+      return _othernc
+    }
+  }
 }
 
 public struct SimpleNCWrapper<T : ~Copyable> : ~Copyable {
@@ -309,6 +339,7 @@ public struct SimpleNCWrapper<T : ~Copyable> : ~Copyable {
 
 public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
   var _prop: T
+  var _otherProp: T
   var _w: SimpleNCWrapper<T>
   var _nc: NC
   var _ncw: NCWrapper
@@ -393,6 +424,16 @@ public struct GenNCWrapper<T : ~Copyable> : ~Copyable {
       return &self[0]
     }
   }
+  
+  var if_prop: T {
+    borrow {
+      if Int.random(in: 1..<100) == 0 {
+        return _prop
+      }
+      return _otherProp
+    }
+  }
+
 }
 
 // CHECK: sil hidden [ossa] @$s15borrow_accessor7WrapperV1sAA1SVvb : $@convention(method) (@guaranteed Wrapper) -> @guaranteed S {
