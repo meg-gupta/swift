@@ -918,6 +918,13 @@ void swift::findGuaranteedReferenceRoots(SILValue referenceValue,
       continue;
     }
 
+    if (auto *borrowedFrom = dyn_cast<BorrowedFromInst>(value)) {
+      for (auto enclosingValue : borrowedFrom->getEnclosingValues()) {
+        roots.push_back(enclosingValue);
+      }
+      continue;
+    }
+
     if (visitForwardedGuaranteedOperands(value, [&](Operand *operand) {
         worklist.pushIfNotVisited(operand->get());
       })) {
