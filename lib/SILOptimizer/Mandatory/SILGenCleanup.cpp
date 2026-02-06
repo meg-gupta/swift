@@ -148,6 +148,10 @@ bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
     return false;
   }
 
+  if (!returnBB->getSinglePredecessorBlock()) {
+    updateAllGuaranteedPhis(getPassManager(), function);
+  }
+
   SmallVector<SILValue, 8> enclosingValues;
   findGuaranteedReferenceRoots(returnInst->getOperand(),
                                /*lookThroughNestedBorrows=*/false,
@@ -161,6 +165,7 @@ bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
   // return_borrow instruction.
   for (auto enclosingValue : enclosingValues) {
     BorrowedValue borrow(enclosingValue);
+    ASSERT(borrow);
     if (!borrow.isLocalScope()) {
       continue;
     }
