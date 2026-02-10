@@ -1282,3 +1282,11 @@ Added: _$ss15EmptyCollectionVyxGSHsWP
 
 // Wrapper for SWIFT_CONCURRENCY_TRACING_SUBSYSTEM environment variable
 Added: _concurrencyTracingSubsystem
+
+// Unique type metadata accessor
+Added: _$ss6UniqueVMa
+// Unique type descriptor
+Added: _$ss6UniqueVMn
+// Unique.pointer getter
+Added: _$ss6UniqueVsRi_zrlE7pointerSpyxGvg
+
