@@ -311,7 +311,7 @@ struct AliasAnalysis {
       case let storeBorrow as StoreBorrowInst:
         precondition(endBorrow.borrow.type.isAddress)
         return memLoc.mayAlias(with: storeBorrow, self) ? .worstEffects : .noEffects
-      case let beginBorrow as BeginBorrowInst where !beginBorrow.hasPointerEscape:
+      case let beginBorrow as BeginBorrowInst where !findPointerEscapingUse(beginBorrow):
         return getBorrowEffects(of: endBorrow, on: memLoc)
       case let loadBorrow as LoadBorrowInst:
         let borrowEffects = getBorrowEffects(of: endBorrow, on: memLoc)
