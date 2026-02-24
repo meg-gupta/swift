@@ -5128,6 +5128,7 @@ public:
   TRIVIAL_ATTR_PRINTER(NoManualOwnership, no_manual_ownership)
   TRIVIAL_ATTR_PRINTER(NoRuntime, no_runtime)
   TRIVIAL_ATTR_PRINTER(NonEphemeral, non_ephemeral)
+  TRIVIAL_ATTR_PRINTER(NonDiscardableWhenThrowingOperation, non_discardable_when_throwing_operation)
   TRIVIAL_ATTR_PRINTER(NonEscapable, non_escapable)
   TRIVIAL_ATTR_PRINTER(NonMutating, non_mutating)
   TRIVIAL_ATTR_PRINTER(NonObjC, non_objc)
