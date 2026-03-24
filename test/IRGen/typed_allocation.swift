@@ -5,6 +5,7 @@
 // REQUIRES: embedded_stdlib
 // REQUIRES: swift_feature_Embedded
 // REQUIRES: swift_feature_TypedAllocation
+// REQUIRES: embedded_stdlib
 
 import Swift
 
