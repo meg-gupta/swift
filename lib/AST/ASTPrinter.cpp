@@ -6852,6 +6852,23 @@ public:
     Printer << "(";
 
     auto Fields = T->getElements();
+
+    // Compact printing for homogeneous unlabeled tuples with 5+ elements.
+    if (Options.PrintHomogeneousTuplesCompactly && Fields.size() > 4) {
+      Type FirstEltType = Fields[0].getType();
+      bool IsHomogeneous = llvm::all_of(Fields, [&](const TupleTypeElt &elt) {
+        return !elt.hasName() && 
+               elt.getType().getPointer() == FirstEltType.getPointer();
+      });
+
+      if (IsHomogeneous) {
+        Printer << Fields.size() << " of ";
+        visit(FirstEltType);
+        Printer << ")";
+        return;
+      }
+    }
+
     for (unsigned i = 0, e = Fields.size(); i != e; ++i) {
       if (i)
         Printer << ", ";
