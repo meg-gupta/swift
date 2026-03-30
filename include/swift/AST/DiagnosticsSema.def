@@ -3393,6 +3393,11 @@ NOTE(declared_protocol_conformance_here,none,
      "%0 implicitly conforms to protocol %2|"
      "%0 implicitly conforms to protocol %2 (via conformance to %3)}1 here",
      (Type, unsigned, Identifier, Identifier))
+NOTE(declared_protocol_unavailable_conformance_here,none,
+     "%select{%0 inherits unavailable conformance to protocol %2 from superclass|"
+     "%0 declares unavailable conformance to protocol %2|"
+     "%error|%error|%error}1 here",
+     (Type, unsigned, Identifier, Identifier))
 
 ERROR(witness_unavailable,none,
         "unavailable %kind0 was used to satisfy a requirement of protocol %1%select{|: %2}2",
@@ -3404,9 +3409,12 @@ GROUPED_WARNING(
     "protocol %1%select{|: %2}2",
     (const ValueDecl *, Identifier, StringRef))
 
-WARNING(unavailable_conformance,none,
-        "conformance of %0 to protocol %1 is already unavailable",
-        (Type, Identifier))
+GROUPED_WARNING(
+    unavailable_sendable_conformance, UnavailableSendableConformance, none,
+    "%0 %select{was declared with|inherits}1 an unavailable 'Sendable' conformance"
+    "%select{ in %2|}1; conforming here risks data races",
+    (Type, bool, Identifier))
+
 ERROR(redundant_conformance,none,
       "redundant conformance of %0 to protocol %1", (Type, Identifier))
 ERROR(redundant_conformance_conditional,none,

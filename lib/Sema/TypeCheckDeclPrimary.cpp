@@ -1850,6 +1850,25 @@ static void diagnoseRetroactiveConformances(
   // We better only be conforming it to protocols declared within this module.
   llvm::SmallMapVector<ProtocolDecl *, bool, 8> protocols;
   llvm::SmallPtrSet<ProtocolDecl *, 2> protocolsWithRetroactiveAttr;
+  llvm::SmallPtrSet<ProtocolDecl *, 4> unavailableProtocols;
+
+  // Collect the protocols with unavailable extensions; we shouldn't diagnose
+  // these as needing @retroactive, since they are unavailable.
+  for (auto *otherExt : extendedNominalDecl->getExtensions()) {
+    if (otherExt == ext || !otherExt->isUnavailable())
+      continue;
+    for (const auto &inherited : otherExt->getInherited().getEntries()) {
+      auto inheritedTy = inherited.getType();
+      if (inheritedTy.isNull())
+        continue;
+      if (auto *protoDecl =
+              dyn_cast_or_null<ProtocolDecl>(inheritedTy->getAnyNominal())) {
+        unavailableProtocols.insert(protoDecl);
+        for (auto *inherited : protoDecl->getInheritedProtocols())
+          unavailableProtocols.insert(inherited);
+      }
+    }
+  }
 
   for (auto *conformance : ext->getLocalConformances()) {
     auto *proto = conformance->getProtocol();
@@ -1933,9 +1952,12 @@ static void diagnoseRetroactiveConformances(
   }
 
   // Remove protocols that are reachable through a @retroactive conformance.
+  // Additionally remove protocols that have been marked unavailable, since we
+  // should not recommend @retroactive in that case.
   SmallSetVector<ProtocolDecl *, 4> externalProtocols;
   for (auto pair : protocols) {
-    if (pair.second && !protocolsWithRetroactiveAttr.count(pair.first))
+    if (pair.second && !protocolsWithRetroactiveAttr.count(pair.first) &&
+        !unavailableProtocols.count(pair.first))
       externalProtocols.insert(pair.first);
   }
 
