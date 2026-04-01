@@ -2,7 +2,7 @@
 
 // Homogeneous tuples with 5+ elements should print in compact form.
 func largeTuple(_: (Int, Int, Int, Int, Int)) {}
-largeTuple("hello") // expected-error {{cannot convert value of type 'String' to expected argument type '(5 of Int)'}}
+largeTuple("hello") // expected-error {{cannot convert value of type 'String' to expected argument type '(Int /* ... repeated 5 times ... */)'}}
 
 // Homogeneous tuples with 4 or fewer elements should print normally.
 func smallTuple(_: (Int, Int, Int, Int)) {}

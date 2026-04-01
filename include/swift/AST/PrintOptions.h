@@ -652,7 +652,8 @@ public:
   bool PrintCompatibilityFeatureChecks = false;
 
   /// Whether to print homogeneous unlabeled tuples in compact form
-  /// (e.g. `(3 of Int)` instead of `(Int, Int, Int)`).
+  /// (e.g. `(Int /* ... repeated 5 times ... */)` instead of 
+  /// `(Int, Int, Int, Int, Int)`).
   bool PrintHomogeneousTuplesCompactly = false;
 
   /// Whether to always desugar array types from `[base_type]` to `Array<base_type>`

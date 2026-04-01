@@ -6862,9 +6862,8 @@ public:
       });
 
       if (IsHomogeneous) {
-        Printer << Fields.size() << " of ";
         visit(FirstEltType);
-        Printer << ")";
+        Printer << " /* ... repeated " << Fields.size() << " times ... */)";
         return;
       }
     }
