@@ -76,6 +76,9 @@
 #include "swift/SILOptimizer/PassManager/PassManager.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
 #include "swift/SILOptimizer/Utils/OptimizerStatsUtils.h"
+
+#define DEBUG_TYPE "optimizer-stats"
+
 using namespace swift;
 
 namespace {
@@ -601,7 +604,7 @@ class NewLineInserter {
 public:
   NewLineInserter() {}
   StringRef get() {
-    StringRef result =  isNewline ? "\n" : "";
+    StringRef result = isNewline ? "\n" : "";
     isNewline = false;
     return result;
   }
@@ -766,44 +769,61 @@ bool isInlinedAtChildOfOrEqualTo(const SILDebugScope *InlinedAt,
   return false;
 }
 
-int computeLostVariables(SILFunction *F, FunctionStat &Old, FunctionStat &New) {
+// Find an Instruction that shares the same scope as the dropped debug_value
+// or has a scope that is the child of the scope of the debug_value, and has
+// an inlinedAt equal to the inlinedAt of the debug_value or its inlinedAt
+// chain contains the inlinedAt of the debug_value. If such an Instruction is
+// found, debug information is considered lost.
+int functionHasInstructionInScope(SILFunction *F,
+                                  const SILDebugScope *DbgValScope,
+                                  const SILDebugScope *OldInlinedAt) {
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (I.isMetaInstruction() || isa<UnreachableInst>(I))
+        continue;
+      auto DbgLoc = I.getDebugLocation();
+      auto Scope = DbgLoc.getScope();
+      // If the Scope is a child of, or equal to the DbgValScope and is
+      // inlined at the Var's InlinedAt location, return true to signify
+      // that the Var has been dropped.
+      if (isScopeChildOfOrEqualTo(Scope, DbgValScope) &&
+          isInlinedAtChildOfOrEqualTo(Scope->InlinedCallSite, OldInlinedAt)) {
+        // Found another instruction in the variable's scope, so there
+        // exists a break point at which the variable could be observed.
+        // Count it as lost.
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+int computeLostVariables(SILFunction *F, FunctionStat &Old, FunctionStat &New,
+                         TransformationContext &Ctx) {
+  // Transparent functions cannot be debugged. By definition, they are
+  // skipped by the debugger, and you cannot place a breakpoint in one.
+  // Dropping variables in those functions is acceptable.
+  if (F->isTransparent())
+    return 0;
+
   unsigned LostCount = 0;
-  unsigned PrevLostCount = 0;
   auto &OldSet = Old.DebugVariables;
   auto &NewSet = New.DebugVariables;
-  // Find an Instruction that shares the same scope as the dropped debug_value
-  // or has a scope that is the child of the scope of the debug_value, and has
-  // an inlinedAt equal to the inlinedAt of the debug_value or it's inlinedAt
-  // chain contains the inlinedAt of the debug_value, if such an Instruction is
-  // found, debug information is dropped.
   for (auto &Var : OldSet) {
     if (NewSet.contains(Var))
       continue;
-    auto &DbgValScope = std::get<0>(Var);
-    for (auto &BB : *F) {
-      for (auto &I : BB) {
-        if (!I.isDebugInstruction()) {
-          auto DbgLoc = I.getDebugLocation();
-          auto Scope = DbgLoc.getScope();
-          // If the Scope is a child of, or equal to the DbgValScope and is
-          // inlined at the Var's InlinedAt location, return true to signify
-          // that the Var has been dropped.
-          if (isScopeChildOfOrEqualTo(Scope, DbgValScope)) {
-            if (isInlinedAtChildOfOrEqualTo(Scope->InlinedCallSite,
-                                            Old.InlinedAts[Var])) {
-              // Found another instruction in the variable's scope, so there
-              // exists a break point at which the variable could be observed.
-              // Count it as dropped.
-              LostCount++;
-              break;
-            }
-          }
-        }
-      }
-      if (PrevLostCount != LostCount) {
-        PrevLostCount = LostCount;
-        break;
-      }
+    if (functionHasInstructionInScope(F, std::get<0>(Var),
+                                      Old.InlinedAts[Var])) {
+      // Found another instruction in the variable's scope, so there
+      // exists a break point at which the variable could be observed.
+      // Count it as dropped.
+      LostCount++;
+      LLVM_DEBUG(
+          llvm::dbgs() << Ctx.getStageName() << ": " << Ctx.getTransformId()
+                       << ": Lost Variable: " << std::get<1>(Var) << " line "
+                       << std::get<2>(Var) << " col " << std::get<3>(Var)
+                       << " in function " << F->getName() << "in scope ";
+          std::get<0>(Var)->print(F->getASTContext().SourceMgr, llvm::dbgs()));
     }
   }
   return LostCount;
@@ -869,7 +889,7 @@ void processFuncStatsChanges(SILFunction *F, FunctionStat &OldStat,
   // Compute deltas.
   double DeltaBlockCount = computeDelta(OldStat.BlockCount, NewStat.BlockCount);
   double DeltaInstCount = computeDelta(OldStat.InstCount, NewStat.InstCount);
-  int LostVariables = computeLostVariables(F, OldStat, NewStat);
+  int LostVariables = computeLostVariables(F, OldStat, NewStat, Ctx);
 
   NewLineInserter nl;
 
