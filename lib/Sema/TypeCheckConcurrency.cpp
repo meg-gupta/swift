@@ -8989,18 +8989,24 @@ namespace {
     // or will be lazy loaded from the 'fromDC' context otherwise.
     mutable std::optional<ActorIsolation> isolation;
 
+    // May be used for diagnostics where escaping to a specific cellee context.
+    const AbstractFunctionDecl *callee;
+
   public:
     MismatchedIsolatedConformances(const DeclContext *fromDC,
                                    HandleConformanceIsolationFn handleBad)
       : fromDC(const_cast<DeclContext *>(fromDC)),
-        handleBad(handleBad) { }
+        handleBad(handleBad),
+        callee(nullptr) { }
 
     MismatchedIsolatedConformances(ActorIsolation targetIsolation,
                                    const DeclContext *fromDC,
-                                   HandleConformanceIsolationFn handleBad)
+                                   HandleConformanceIsolationFn handleBad,
+                                   const AbstractFunctionDecl *callee = nullptr)
       : fromDC(const_cast<DeclContext *>(fromDC)),
         handleBad(handleBad),
-        isolation(targetIsolation) { }
+        isolation(targetIsolation),
+        callee(callee) { }
 
     /// Lazy compute the isolation of the context 'fromDC',
     /// unless the isolation was set explicitly already.
@@ -9063,7 +9069,8 @@ namespace {
           .diagnose(
               loc, diag::isolated_conformance_wrong_domain,
               firstConformance->getIsolation(), firstConformance->getType(),
-              firstConformance->getProtocol()->getName(), getIsolation())
+              firstConformance->getProtocol()->getName(),
+              getIsolation().printStringForDiagnostics(ctx, callee))
           .warnUntilLanguageMode(LanguageMode::v6);
       return true;
     }
@@ -9113,7 +9120,11 @@ bool swift::checkIsolatedConformancesForIsolationCrossing(
     ConcreteDeclRef declRef, SourceLoc loc,
     ActorIsolation targetIsolation, const DeclContext *dc,
     HandleConformanceIsolationFn handleBad) {
-  MismatchedIsolatedConformances mismatched(targetIsolation, dc, handleBad);
+  auto *calleeAFD =
+      dyn_cast<AbstractFunctionDecl>(declRef.getDecl());
+
+  MismatchedIsolatedConformances mismatched(targetIsolation, dc, handleBad,
+                                            calleeAFD);
   forEachConformance(declRef, mismatched);
   bool diagnosed = mismatched.diagnose(loc);
 

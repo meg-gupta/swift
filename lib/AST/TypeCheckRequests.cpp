@@ -1966,6 +1966,42 @@ void ActorIsolation::printForDiagnostics(llvm::raw_ostream &os,
   }
 }
 
+void ActorIsolation::printForDiagnostics(llvm::raw_ostream &os,
+                                         const AbstractFunctionDecl *callee,
+                                         StringRef openingQuotationMark,
+                                         bool asNoun) const {
+  if (callee) {
+    if (isNonisolated()) {
+      // Not actor isolated, is it @concurrent though?
+      bool isNonsendingByDefault = callee->getASTContext().LangOpts.hasFeature(
+          Feature::NonisolatedNonsendingByDefault);
+    
+      bool isConcurrent =
+        (callee->hasAsync() && !isNonsendingByDefault) || // implicitly
+          callee->getAttrs().hasAttribute<ConcurrentAttr>(); // explicitly
+
+      if (isConcurrent) {
+        os << "@concurrent";
+        return;
+      }
+    }
+  }
+
+  // fallback
+  printForDiagnostics(os, openingQuotationMark, asNoun);
+}
+
+StringRef ActorIsolation::printStringForDiagnostics(
+    ASTContext &ctx, const AbstractFunctionDecl *callee,
+    StringRef openingQuotationMark, bool asNoun) const {
+  SmallString<64> str;
+  {
+    llvm::raw_svector_ostream os(str);
+    printForDiagnostics(os, callee, openingQuotationMark, asNoun);
+  }
+  return ctx.getIdentifier(str).str();
+}
+
 void ActorIsolation::print(llvm::raw_ostream &os) const {
   switch (getKind()) {
   case Unspecified:

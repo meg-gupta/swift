@@ -348,6 +348,17 @@ public:
                            StringRef openingQuotationMark = "'",
                            bool asNoun = false) const;
 
+  /// Callee-aware variant that can print '@concurrent' instead of 'nonisolated'
+  /// when the callee explicitly (or implicitly) concurrent.
+  void printForDiagnostics(llvm::raw_ostream &os,
+                           const AbstractFunctionDecl *callee,
+                           StringRef openingQuotationMark = "'",
+                           bool asNoun = false) const;
+  StringRef printStringForDiagnostics(ASTContext &ctx,
+                                      const AbstractFunctionDecl *callee,
+                                      StringRef openingQuotationMark = "'",
+                                      bool asNoun = false) const;
+
   SWIFT_DEBUG_DUMPER(dump());
 
   // Defined out of line to prevent linker errors since libswiftBasic would
