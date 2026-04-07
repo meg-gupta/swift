@@ -201,6 +201,15 @@ llvm::cl::opt<std::string> SILStatsOutputFile(
     "sil-stats-output-file", llvm::cl::init(""),
     llvm::cl::desc("The name of the output file for optimizer counters"));
 
+/// When set, append the process PID to the output file name so that
+/// concurrent compiler processes each write to their own file instead of
+/// clobbering a shared one.  Combine with a glob when post-processing, e.g.:
+///   process-stats-lost-variables stats.csv.*
+llvm::cl::opt<bool> SILStatsPerProcessOutput(
+    "sil-stats-per-process-output", llvm::cl::init(false),
+    llvm::cl::desc("Append the PID to the stats output file name to avoid "
+                   "concurrent processes overwriting each other's output"));
+
 /// A threshold in percents for the SIL basic block counters.
 llvm::cl::opt<double> BlockCountDeltaThreshold(
     "sil-stats-block-count-delta-threshold", llvm::cl::init(1),
@@ -623,9 +632,12 @@ llvm::raw_ostream &stats_os() {
     // If there is user-defined output file name, use it.
     if (!SILStatsOutputFile.empty()) {
       // Try to open the file.
+      std::string OutputPath = SILStatsOutputFile;
+      if (SILStatsPerProcessOutput)
+        OutputPath += "." + std::to_string(llvm::sys::Process::getProcessId());
       std::error_code EC;
       auto fd_stream = std::make_unique<llvm::raw_fd_ostream>(
-          SILStatsOutputFile, EC, llvm::sys::fs::OpenFlags::OF_Text);
+          OutputPath, EC, llvm::sys::fs::OpenFlags::OF_Text);
       if (!fd_stream->has_error() && !EC) {
         stats_output_stream = {fd_stream.release(),
                                [](llvm::raw_ostream *d) { delete d; }};
