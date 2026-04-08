@@ -2872,6 +2872,12 @@ WARNING(extension_retroactive_conformance,none,
 NOTE(extension_retroactive_conformance_silence,none,
      "add '@retroactive' to silence this warning", ())
 
+WARNING(extension_retroactive_conformance_unavailable,none,
+       "extension declares a conformance of imported type %0 to imported "
+       "%select{protocols|protocol}1 %2; the owners of %3 have marked "
+       "%select{these conformances|this conformance}1 as unavailable",
+       (Identifier, bool, StringRef, Identifier))
+
 // Protocols
 ERROR(type_does_not_conform,none,
       "type %0 does not conform to protocol %1", (Type, Type))

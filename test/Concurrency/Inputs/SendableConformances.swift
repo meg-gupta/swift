@@ -30,3 +30,10 @@ public class NonSendableBase {}
 extension NonSendableBase: @unchecked Sendable {}
 
 public class NonSendableChild: NonSendableBase {}
+
+public protocol AnotherProtocol {}
+
+public class NonSendableViaComposition {}
+
+@available(*, unavailable)
+extension NonSendableViaComposition: Sendable & AnotherProtocol {}
