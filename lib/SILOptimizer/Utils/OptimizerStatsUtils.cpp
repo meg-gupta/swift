@@ -1114,7 +1114,10 @@ void OptimizerStatsAnalysis::updateModuleStats(TransformationContext &Ctx) {
 
   // Then collect some more general statistics, which do not require
   // any scanning of SILFunctions or the like.
-  NewModStat.addMemoryStat();
+  if (SILStatsModules || SILStatsDumpAll) {
+    // This is a slow operation, so only compute it when requested.
+    NewModStat.addMemoryStat();
+  }
   NewModStat.addCreatedAndDeletedInstructionsStat();
 
   // Process updates.
