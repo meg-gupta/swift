@@ -69,6 +69,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
 #include "swift/Basic/Assertions.h"
+#include "swift/Basic/SourceLoc.h"
 #include "swift/Basic/SourceManager.h"
 #include "swift/SIL/DebugUtils.h"
 #include "swift/SIL/SILVisitor.h"
@@ -296,8 +297,7 @@ struct FunctionStat {
   /// Instruction counts per SILInstruction kind.
   InstructionCounts InstCounts;
 
-  using VarID = std::tuple<const SILDebugScope *, llvm::StringRef,
-                           unsigned, unsigned>;
+  using VarID = std::tuple<const SILDebugScope *, llvm::StringRef, SourceLoc>;
   llvm::StringSet<> VarNames;
   llvm::DenseSet<FunctionStat::VarID> DebugVariables;
   llvm::DenseSet<const SILDebugScope *> VisitedScope;
@@ -450,14 +450,12 @@ struct InstCountVisitor : SILInstructionVisitor<InstCountVisitor> {
       return;
 
     llvm::StringRef UniqueName = VarNames.insert(varInfo->Name).first->getKey();
-    unsigned line = 0, col = 0;
-    if (varInfo->Loc && varInfo->Loc->getSourceLoc().isValid()) {
-      std::tie(line, col) = inst->getModule().getSourceManager()
-        .getPresumedLineAndColumnForLoc(varInfo->Loc->getSourceLoc(), 0);
-    }
+    SourceLoc loc;
+    if (varInfo->Loc)
+      loc = varInfo->Loc->getSourceLoc();
     FunctionStat::VarID key(
               varInfo->Scope ? varInfo->Scope : inst->getDebugScope(),
-              UniqueName, line, col);
+              UniqueName, loc);
     DebugVariables.insert(key);
     if (!NewFunc)
       InlinedAts.try_emplace(key, varInfo->Scope->InlinedCallSite);
@@ -831,10 +829,15 @@ int computeLostVariables(SILFunction *F, FunctionStat &Old, FunctionStat &New,
       // Count it as dropped.
       LostCount++;
       LLVM_DEBUG(
+          unsigned line = 0, col = 0;
+          if (std::get<2>(Var).isValid())
+            std::tie(line, col) =
+                F->getASTContext().SourceMgr.getPresumedLineAndColumnForLoc(
+                    std::get<2>(Var), 0);
           llvm::dbgs() << Ctx.getStageName() << ": " << Ctx.getTransformId()
                        << ": Lost Variable: " << std::get<1>(Var) << " line "
-                       << std::get<2>(Var) << " col " << std::get<3>(Var)
-                       << " in function " << F->getName() << "in scope ";
+                       << line << " col " << col << " in function "
+                       << F->getName() << " in scope ";
           std::get<0>(Var)->print(F->getASTContext().SourceMgr, llvm::dbgs()));
     }
   }
