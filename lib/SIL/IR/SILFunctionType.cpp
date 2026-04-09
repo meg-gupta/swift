@@ -1949,7 +1949,7 @@ private:
 
     // If the function has nonisolated(nonsending) isolation, insert the
     // implicit isolation parameter.
-    if (IsolationInfo && IsolationInfo->isCallerIsolationInheriting() &&
+    if (IsolationInfo && IsolationInfo->isNonisolatedNonsending() &&
         Convs.hasCallerIsolationParameter()) {
       addParameter(-1, CanType(TC.Context.TheImplicitActorType),
                    ParameterConvention::Direct_Guaranteed,
@@ -2657,7 +2657,7 @@ swift::getSILFunctionTypeActorIsolation(CanAnyFunctionType substFnInterfaceType,
       if (auto *nonisolatedAttr =
               decl->getAttrs().getAttribute<NonisolatedAttr>()) {
         if (nonisolatedAttr->isNonSending())
-          return ActorIsolation::forCallerIsolationInheriting();
+          return ActorIsolation::forNonisolatedNonsending();
       }
 
       if (decl->getAttrs().hasAttribute<ConcurrentAttr>()) {
@@ -2676,7 +2676,7 @@ swift::getSILFunctionTypeActorIsolation(CanAnyFunctionType substFnInterfaceType,
       substFnInterfaceType->getExtInfo().getIsolation().isNonIsolatedCaller()) {
     // If our function type is a nonisolated caller and we can not infer from
     // our constant, we must be caller isolation inheriting.
-    return ActorIsolation::forCallerIsolationInheriting();
+    return ActorIsolation::forNonisolatedNonsending();
   }
 
   return {};
@@ -3127,7 +3127,7 @@ static CanSILFunctionType getSILFunctionType(
   }
 
   bool isNonisolatedNonsending =
-      actorIsolation && actorIsolation->isCallerIsolationInheriting() &&
+      actorIsolation && actorIsolation->isNonisolatedNonsending() &&
       conventions.hasCallerIsolationParameter();
 
   auto silExtInfo =

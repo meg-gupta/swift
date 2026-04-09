@@ -538,7 +538,7 @@ static bool usesFeatureAsyncExecutionBehaviorAttributes(Decl *decl) {
 
   // The declaration is going to be printed with `nonisolated(nonsending)`
   // attribute.
-  if (getActorIsolation(VD).isCallerIsolationInheriting())
+  if (getActorIsolation(VD).isNonisolatedNonsending())
     return true;
 
   // Check if any parameters that have `nonisolated(nonsending)` attribute.

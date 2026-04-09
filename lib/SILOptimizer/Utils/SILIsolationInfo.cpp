@@ -901,7 +901,7 @@ SILIsolationInfo SILIsolationInfo::get(SILInstruction *inst) {
   /// is initialized so they cannot into another isolation domain.
   if (auto *mi = dyn_cast<MetatypeInst>(inst)) {
     auto funcIsolation = mi->getFunction()->getActorIsolation();
-    if (funcIsolation.isCallerIsolationInheriting()) {
+    if (funcIsolation.isNonisolatedNonsending()) {
       return SILIsolationInfo::getTaskIsolated(mi)
           .withNonisolatedNonsendingTaskIsolated(true);
     }
@@ -1014,7 +1014,7 @@ SILIsolationInfo SILIsolationInfo::get(SILArgument *arg) {
           func->maybeGetIsolatedArgument())) {
     // See if the function is nonisolated(nonsending). In such a case, return
     // task isolated.
-    if (func->getActorIsolation().isCallerIsolationInheriting()) {
+    if (func->getActorIsolation().isNonisolatedNonsending()) {
       return SILIsolationInfo::getTaskIsolated(fArg)
           .withNonisolatedNonsendingTaskIsolated(true)
           .withUnsafeNonIsolated(isClosureCapturedNonisolatedUnsafe);
@@ -1330,7 +1330,7 @@ void SILIsolationInfo::printActorIsolationForDiagnostics(
   // @concurrent for nonisolated and nonisolated for caller isolation inherited.
   if (fn->isAsync() && fn->getASTContext().LangOpts.hasFeature(
                            Feature::NonisolatedNonsendingByDefault)) {
-    if (iso.isCallerIsolationInheriting()) {
+    if (iso.isNonisolatedNonsending()) {
       os << "nonisolated";
       return;
     }

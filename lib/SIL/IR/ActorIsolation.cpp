@@ -53,7 +53,7 @@ std::optional<ActorIsolation> ActorIsolation::forSILString(SILModule &mod,
                   .Case("global_actor", ActorIsolation::GlobalActor)
                   .Case("global_actor_unsafe", ActorIsolation::GlobalActor)
                   .Case("caller_isolation_inheriting",
-                        ActorIsolation::CallerIsolationInheriting)
+                        ActorIsolation::NonisolatedNonsending)
                   .Default(std::nullopt);
   if (kind == std::nullopt)
     return std::nullopt;

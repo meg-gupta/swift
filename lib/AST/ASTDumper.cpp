@@ -1371,7 +1371,7 @@ namespace {
         printFlag(true, "dynamically_isolated", CapturesColor);
         break;
 
-      case ActorIsolation::CallerIsolationInheriting:
+      case ActorIsolation::NonisolatedNonsending:
         printFlag(true, "isolated_to_caller_isolation", CapturesColor);
         break;
 

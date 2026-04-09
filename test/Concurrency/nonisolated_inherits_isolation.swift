@@ -167,7 +167,7 @@ extension MainActorKlass {
 // isolation which is safe since they are type checked as something that cannot
 // access any state that is outside of the current actor that c is reachable from.
 @MainActor
-func validateNonisolatedOnClassMeansCallerIsolationInheritingOnFuncDecl(
+func validateNonisolatedOnClassMeansNonisolatedNonsendingOnFuncDecl(
   c: NonIsolatedNonSendableKlass
 ) async {
   await c.unspecifiedMethod() // expected-disabled-error {{sending 'c' risks causing data races}}

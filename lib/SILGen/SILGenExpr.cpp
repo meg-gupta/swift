@@ -2028,7 +2028,7 @@ RValueEmitter::emitFunctionCvtToExecutionCaller(FunctionConversionExpr *e,
     return RValue();
 
   auto *decl = dyn_cast<FuncDecl>(declRef->getDecl());
-  if (!decl || !getActorIsolation(decl).isCallerIsolationInheriting())
+  if (!decl || !getActorIsolation(decl).isNonisolatedNonsending())
     return RValue();
 
   // Ok, we found our target.
@@ -2085,7 +2085,7 @@ RValue RValueEmitter::emitFunctionCvtFromExecutionCallerToGlobalActor(
   if (!declRef)
     return RValue();
   auto *decl = dyn_cast<FuncDecl>(declRef->getDecl());
-  if (!decl || !getActorIsolation(decl).isCallerIsolationInheriting())
+  if (!decl || !getActorIsolation(decl).isNonisolatedNonsending())
     return RValue();
 
   // Make sure that subCvt/declRefType only differ by isolation and sendability.
@@ -7508,7 +7508,7 @@ RValue RValueEmitter::visitCurrentContextIsolationExpr(
 
   auto isolation = getRealActorIsolationOfContext(SGF.FunctionDC);
 
-  if (isolation == ActorIsolation::CallerIsolationInheriting) {
+  if (isolation == ActorIsolation::NonisolatedNonsending) {
     auto *isolatedArg = SGF.F.maybeGetIsolatedArgument();
     assert(isolatedArg &&
            "Caller Isolation Inheriting without isolated parameter");

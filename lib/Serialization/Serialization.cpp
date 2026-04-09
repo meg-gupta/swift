@@ -1677,7 +1677,7 @@ getRawStableActorIsolationKind(swift::ActorIsolation::Kind kind) {
   CASE(Unspecified)
   CASE(ActorInstance)
   CASE(Nonisolated)
-  CASE(CallerIsolationInheriting)
+  CASE(NonisolatedNonsending)
   CASE(NonisolatedUnsafe)
   CASE(GlobalActor)
   CASE(Erased)
@@ -2057,7 +2057,7 @@ void Serializer::writeLocalNormalProtocolConformance(
   case swift::ActorIsolation::ActorInstance:
   case swift::ActorIsolation::NonisolatedUnsafe:
   case swift::ActorIsolation::Erased:
-  case swift::ActorIsolation::CallerIsolationInheriting:
+  case swift::ActorIsolation::NonisolatedNonsending:
     llvm_unreachable("Conformances cannot have this kind of isolation");
   }
 

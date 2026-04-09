@@ -509,7 +509,7 @@ getActualActorIsolationKind(uint8_t raw) {
   CASE(Unspecified)
   CASE(ActorInstance)
   CASE(Nonisolated)
-  CASE(CallerIsolationInheriting)
+  CASE(NonisolatedNonsending)
   CASE(NonisolatedUnsafe)
   CASE(GlobalActor)
   CASE(Erased)
@@ -4347,8 +4347,8 @@ public:
         isolation = ActorIsolation::forUnspecified();
         break;
 
-      case ActorIsolation::CallerIsolationInheriting:
-        isolation = ActorIsolation::forCallerIsolationInheriting();
+      case ActorIsolation::NonisolatedNonsending:
+        isolation = ActorIsolation::forNonisolatedNonsending();
         break;
 
       case ActorIsolation::Erased:
