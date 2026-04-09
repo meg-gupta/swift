@@ -6858,7 +6858,7 @@ public:
       Type FirstEltType = Fields[0].getType();
       bool IsHomogeneous = llvm::all_of(Fields, [&](const TupleTypeElt &elt) {
         return !elt.hasName() && 
-               elt.getType().getPointer() == FirstEltType.getPointer();
+               elt.getType()->isEqual(FirstEltType);
       });
 
       if (IsHomogeneous) {
