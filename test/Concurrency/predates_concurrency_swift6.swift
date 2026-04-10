@@ -366,7 +366,7 @@ do {
     func testMethod() {
       f {
         self.onMain()
-        // expected-warning@-1 {{call to main actor-isolated instance method 'onMain()' in a synchronous nonisolated context}}
+        // expected-warning@-1 {{call to main actor-isolated instance method 'onMain()' in a synchronous @concurrent context}}
       }
     }
   }

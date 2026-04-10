@@ -96,7 +96,7 @@ public actor MyActor: MyProto {
   func g(ns1: NS1) async {
     await nonisolatedAsyncFunc1(ns1)
     // expected-tns-ni-warning @-1 {{sending 'ns1' risks causing data races}}
-    // expected-tns-ni-note @-2 {{sending 'self'-isolated 'ns1' to nonisolated global function 'nonisolatedAsyncFunc1' risks causing data races between nonisolated and 'self'-isolated uses}}
+    // expected-tns-ni-note @-2 {{sending 'self'-isolated 'ns1' to @concurrent global function 'nonisolatedAsyncFunc1' risks causing data races between @concurrent and 'self'-isolated uses}}
     _ = await nonisolatedAsyncFunc2()
   }
 }
@@ -190,19 +190,19 @@ class Sub : Super {
   // case of that being disabled, we cannot do this since we will hop off the
   // actor.
   override nonisolated func bar(x : () -> ()) async {}
-  // expected-targeted-and-ni-warning@-1 {{non-Sendable parameter type '() -> ()' cannot be sent from caller of superclass instance method 'bar(x:)' into nonisolated override}}
+  // expected-targeted-and-ni-warning@-1 {{non-Sendable parameter type '() -> ()' cannot be sent from caller of superclass instance method 'bar(x:)' into @concurrent override}}
 
   override nonisolated func foo2<T>(x: T) async {}
 
   // See comment above about why nonisolated overrides of superclass are allowed
   // when is enabled NonisolatedNonsendingByDefault.
   override nonisolated func bar2<T>(x: T) async {}
-  // expected-targeted-and-ni-warning @-1 {{non-Sendable parameter type 'T' cannot be sent from caller of superclass instance method 'bar2(x:)' into nonisolated override}}
+  // expected-targeted-and-ni-warning @-1 {{non-Sendable parameter type 'T' cannot be sent from caller of superclass instance method 'bar2(x:)' into @concurrent override}}
 
   // See comment above about why nonisolated overrides of superclass are allowed
   // when is enabled NonisolatedNonsendingByDefault.
   override nonisolated func bar3<T>(x: T) async {}
-  // expected-targeted-and-ni-warning @-1 {{non-Sendable parameter type 'T' cannot be sent from caller of superclass instance method 'bar3(x:)' into nonisolated override}}
+  // expected-targeted-and-ni-warning @-1 {{non-Sendable parameter type 'T' cannot be sent from caller of superclass instance method 'bar3(x:)' into @concurrent override}}
 }
 
 @available(SwiftStdlib 5.1, *)
@@ -245,8 +245,8 @@ class SubWUnsafeSubscript : SuperWUnsafeSubscript {
   // actor.
   override nonisolated subscript<T>(x : T) -> Int {
     get async {
-      // expected-targeted-and-ni-warning@-2{{non-Sendable parameter type 'T' cannot be sent from caller of superclass subscript 'subscript(_:)' into nonisolated override}}
-      // expected-targeted-and-ni-warning@-2{{non-Sendable parameter type 'T' cannot be sent from caller of superclass getter for subscript 'subscript(_:)' into nonisolated override}}
+      // expected-targeted-and-ni-warning@-2{{non-Sendable parameter type 'T' cannot be sent from caller of superclass subscript 'subscript(_:)' into @concurrent override}}
+      // expected-targeted-and-ni-warning@-2{{non-Sendable parameter type 'T' cannot be sent from caller of superclass getter for subscript 'subscript(_:)' into @concurrent override}}
       // there really shouldn't be two warnings produced here, see rdar://110846040 (Sendable diagnostics reported twice for subscript getters)
       return 0
     }
@@ -367,12 +367,12 @@ func callNonisolatedAsyncClosure(
 ) async {
   await g(ns)
   // expected-tns-ni-warning @-1 {{sending 'ns' risks causing data races}}
-  // expected-tns-ni-note @-2 {{sending main actor-isolated 'ns' to nonisolated callee risks causing data races between nonisolated and main actor-isolated uses}}
+  // expected-tns-ni-note @-2 {{sending main actor-isolated 'ns' to @concurrent callee risks causing data races between @concurrent and main actor-isolated uses}}
 
   let f: (NonSendable) async -> () = globalSendable // okay
   await f(ns)
   // expected-tns-ni-warning @-1 {{sending 'ns' risks causing data races}}
-  // expected-tns-ni-note @-2 {{sending main actor-isolated 'ns' to nonisolated callee risks causing data races between nonisolated and main actor-isolated uses}}
+  // expected-tns-ni-note @-2 {{sending main actor-isolated 'ns' to @concurrent callee risks causing data races between @concurrent and main actor-isolated uses}}
 }
 #endif
 

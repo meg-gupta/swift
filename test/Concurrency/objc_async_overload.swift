@@ -56,7 +56,7 @@ extension Delegate {
   func handle(_ req: Request, with delegate: Delegate) {
     delegate.makeRequest1(req) {
       self.finish()
-      // expected-warning@-1 {{call to main actor-isolated instance method 'finish()' in a synchronous nonisolated context}}
+      // expected-warning@-1 {{call to main actor-isolated instance method 'finish()' in a synchronous @concurrent context}}
     }
   }
 }

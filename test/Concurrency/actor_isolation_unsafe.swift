@@ -69,9 +69,9 @@ struct S5_P2: P2 {
 }
 
 nonisolated func testP2(x: S5_P2, p2: P2) {
-  p2.f() // expected-warning{{call to main actor-isolated instance method 'f()' in a synchronous nonisolated context}}
+  p2.f() // expected-warning{{call to main actor-isolated instance method 'f()' in a synchronous @concurrent context}}
   p2.g() // OKAY
-  x.f() // expected-warning{{call to main actor-isolated instance method 'f()' in a synchronous nonisolated context}}
+  x.f() // expected-warning{{call to main actor-isolated instance method 'f()' in a synchronous @concurrent context}}
   x.g() // OKAY
 }
 
@@ -102,7 +102,7 @@ class C2: C1 {
 
 class C3: C1 {
   nonisolated override func method() {
-    globalSome() // expected-warning{{call to global actor 'SomeGlobalActor'-isolated global function 'globalSome()' in a synchronous nonisolated context}}
+    globalSome() // expected-warning{{call to global actor 'SomeGlobalActor'-isolated global function 'globalSome()' in a synchronous @concurrent context}}
   }
 }
 

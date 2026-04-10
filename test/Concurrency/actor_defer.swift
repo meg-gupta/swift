@@ -155,7 +155,7 @@ actor Actor {
 
   func testGlobalActor_task_negative() {
     Task {
-      // expected-error @+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous nonisolated context}}
+      // expected-error @+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous @concurrent context}}
       defer { requiresMainActor() }
       doSomething()
     }
@@ -195,7 +195,7 @@ func testGlobalActor_inTask_positive() {
 @available(SwiftStdlib 5.1, *)
 func testGlobalActor_inTask_negative() {
   Task {
-    // expected-error @+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous nonisolated context}}
+    // expected-error @+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous @concurrent context}}
     defer { requiresMainActor() }
     doSomething()
   }

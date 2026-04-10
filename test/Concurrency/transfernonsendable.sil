@@ -380,7 +380,7 @@ bb0:
   // Double check we actually error without @sil_sending
   %2 = function_ref @constructNonSendableKlassAsync : $@convention(thin) @async () -> @owned NonSendableKlass
   %3 = apply [caller_isolation=nonisolated] [callee_isolation=global_actor] %2() : $@convention(thin) @async () -> @owned NonSendableKlass
-  // expected-warning @-1 {{non-Sendable 'NonSendableKlass'-typed result can not be returned from global actor '<null>'-isolated function to nonisolated context}}
+  // expected-warning @-1 {{non-Sendable 'NonSendableKlass'-typed result can not be returned from global actor '<null>'-isolated function to @concurrent context}}
 
   apply [caller_isolation=nonisolated] [callee_isolation=actor_instance] %useValue(%3) : $@convention(thin) @async (@guaranteed NonSendableKlass) -> ()
   // expected-warning @-1 {{sending value of non-Sendable type 'NonSendableKlass' risks causing data races}}

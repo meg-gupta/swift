@@ -135,6 +135,6 @@ struct S2: P {
 
 extension S2: W {
  nonisolated func mainActorWitness() {
-   globalFn() // expected-error {{call to main actor-isolated global function 'globalFn()' in a synchronous nonisolated context}}
+   globalFn() // expected-error {{call to main actor-isolated global function 'globalFn()' in a synchronous @concurrent context}}
  }
 }

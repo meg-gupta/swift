@@ -27,5 +27,5 @@ class Sub: Super {
   nonisolated override func g1(_: NotSendable) { } // okay, synchronous
 
   nonisolated override func g2(_: NotSendable) async { }
-  // expected-warning@-1{{non-Sendable parameter type 'NotSendable' cannot be sent from caller of superclass instance method 'g2' into nonisolated override}}
+  // expected-warning@-1{{non-Sendable parameter type 'NotSendable' cannot be sent from caller of superclass instance method 'g2' into @concurrent override}}
 }

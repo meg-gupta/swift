@@ -62,7 +62,7 @@ struct TestDerivedCodable : @preconcurrency Codable {
 }
 
 nonisolated func testConformancesFromNonisolated(tdc: TestDerivedCodable) {
-  let _: any P = CExplicit() // expected-error{{global actor 'SomeGlobalActor'-isolated conformance of 'CExplicit' to 'P' cannot be used in nonisolated context}}
+  let _: any P = CExplicit() // expected-error{{global actor 'SomeGlobalActor'-isolated conformance of 'CExplicit' to 'P' cannot be used in @concurrent context}}
 
   let _: any P = CNonIsolated()
 

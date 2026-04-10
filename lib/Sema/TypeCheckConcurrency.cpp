@@ -8989,18 +8989,24 @@ namespace {
     // or will be lazy loaded from the 'fromDC' context otherwise.
     mutable std::optional<ActorIsolation> isolation;
 
+    /// Whether this is checking an isolation crossing (async call).
+    /// When true, nonisolated isolation is printed as '@concurrent'.
+    bool isCrossingCheck;
+
   public:
     MismatchedIsolatedConformances(const DeclContext *fromDC,
                                    HandleConformanceIsolationFn handleBad)
       : fromDC(const_cast<DeclContext *>(fromDC)),
-        handleBad(handleBad) { }
+        handleBad(handleBad),
+        isCrossingCheck(false) { }
 
     MismatchedIsolatedConformances(ActorIsolation targetIsolation,
                                    const DeclContext *fromDC,
                                    HandleConformanceIsolationFn handleBad)
       : fromDC(const_cast<DeclContext *>(fromDC)),
         handleBad(handleBad),
-        isolation(targetIsolation) { }
+        isolation(targetIsolation),
+        isCrossingCheck(true) { }
 
     /// Lazy compute the isolation of the context 'fromDC',
     /// unless the isolation was set explicitly already.
@@ -9064,7 +9070,9 @@ namespace {
               loc, diag::isolated_conformance_wrong_domain,
               firstConformance->getIsolation(), firstConformance->getType(),
               firstConformance->getProtocol()->getName(),
-              getIsolation().printStringForDiagnostics(ctx))
+              (isCrossingCheck && getIsolation().isNonisolated())
+                  ? StringRef("@concurrent")
+                  : getIsolation().printStringForDiagnostics(ctx))
           .warnUntilLanguageMode(LanguageMode::v6);
       return true;
     }

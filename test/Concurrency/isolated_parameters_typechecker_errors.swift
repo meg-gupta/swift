@@ -102,7 +102,7 @@ func testIsolatedParamCaptures(a: isolated A) async {
   }
 
   let _ = { @Sendable in
-    a.f() // expected-error {{call to actor-isolated instance method 'f()' in a synchronous nonisolated context}}
+    a.f() // expected-error {{call to actor-isolated instance method 'f()' in a synchronous @concurrent context}}
   }
 }
 
