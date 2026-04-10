@@ -62,13 +62,9 @@ Include debug information in the builds. Useful for debugging the toolchain
 itself.
 Note: This significantly increases build time and disk usage.
 
-.PARAMETER CDebugFormat
-The debug information format for C/C++ code. Valid values: dwarf, codeview.
-Default: dwarf
-
-.PARAMETER SwiftDebugFormat
-The debug information format for Swift code. Valid values: dwarf, codeview.
-Default: dwarf
+.PARAMETER DebugFormat
+The debug information format for. Valid values: dwarf, codeview.
+Default: codeview
 
 .PARAMETER Android
 Build Android SDKs. Requires Android NDK to be available.
@@ -179,9 +175,7 @@ param
   # Debug Information
   [switch] $DebugInfo,
   [ValidateSet("codeview", "dwarf")]
-  [string] $CDebugFormat = "dwarf",
-  [ValidateSet("codeview", "dwarf")]
-  [string] $SwiftDebugFormat = "dwarf",
+  [string] $DebugFormat = "codeview",
 
   # Android SDK Options
   [switch] $Android = $false,
@@ -1487,7 +1481,7 @@ function Build-CMakeProject {
           Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
 
           if ($DebugInfo) {
-            $ASMDebugFlags = if ($CDebugFormat -eq "dwarf") {
+            $ASMDebugFlags = if ($DebugFormat -eq "dwarf") {
               if ($UseGNUDriver) { @("-gdwarf") } else { @("-clang:-gdwarf") }
             } else {
               if ($UseGNUDriver) { @("-gcodeview") } else { @("-clang:-gcodeview") }
@@ -1538,7 +1532,7 @@ function Build-CMakeProject {
 
           if ($DebugInfo) {
             if ($UsePinnedCompilers.Contains("C") -or $UseBuiltCompilers.Contains("C")) {
-              if ($CDebugFormat -eq "dwarf") {
+              if ($DebugFormat -eq "dwarf") {
                 $CFLAGS += if ($UseGNUDriver) {
                   @("-gdwarf")
                 } else {
@@ -1578,7 +1572,7 @@ function Build-CMakeProject {
 
           if ($DebugInfo) {
             if ($UsePinnedCompilers.Contains("CXX") -or $UseBuiltCompilers.Contains("CXX")) {
-              if ($CDebugFormat -eq "dwarf") {
+              if ($DebugFormat -eq "dwarf") {
                 $CXXFLAGS += if ($UseGNUDriver) {
                   @("-gdwarf")
                 } else {
@@ -1616,7 +1610,7 @@ function Build-CMakeProject {
           }
 
           $SwiftFlags += if ($DebugInfo) {
-            if ($SwiftDebugFormat -eq "dwarf") {
+            if ($DebugFormat -eq "dwarf") {
               @("-g", "-debug-info-format=dwarf", "-use-ld=lld-link", "-Xlinker", "/DEBUG:DWARF")
             } else {
               @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
@@ -1663,7 +1657,7 @@ function Build-CMakeProject {
             # `lld-link.exe` argument, not `link.exe`, so this can only be enabled when we use
             # `lld-link.exe` for linking.
             # TODO: Investigate supporting fission with PE/COFF, this should avoid this warning.
-            if ($SwiftDebugFormat -eq "dwarf" -and -not ($UseMSVCCompilers.Contains("C") -or $UseMSVCCompilers.Contains("CXX"))) {
+            if ($DebugFormat -eq "dwarf" -and -not ($UseMSVCCompilers.Contains("C") -or $UseMSVCCompilers.Contains("CXX"))) {
               Add-LinkerFlagsDefine $Defines @("/IGNORE:longsections")
             }
           }
@@ -1942,7 +1936,7 @@ function Build-SPMProject {
       "-c", $Configuration
     )
     if ($DebugInfo) {
-      if ($Platform.OS -eq [OS]::Windows -and $SwiftDebugFormat -eq "codeview") {
+      if ($Platform.OS -eq [OS]::Windows -and $DebugFormat -eq "codeview") {
         $Arguments += @("-debug-info-format", "codeview")
       } else {
         $Arguments += @("-debug-info-format", "dwarf")
