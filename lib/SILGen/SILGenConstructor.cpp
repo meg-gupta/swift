@@ -645,7 +645,7 @@ static bool ctorHopsInjectedByDefiniteInit(ConstructorDecl *ctor,
     llvm_unreachable("constructor cannot have erased isolation");
 
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::GlobalActor:
   case ActorIsolation::NonisolatedNonsending:
@@ -1624,7 +1624,7 @@ void SILGenFunction::emitMemberInitializer(DeclContext *dc, VarDecl *selfDecl,
     switch (requiredIsolation) {
     // 'nonisolated' expressions can be evaluated from anywhere
     case ActorIsolation::Unspecified:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::NonisolatedNonsending:
       break;

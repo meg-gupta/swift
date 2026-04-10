@@ -60,7 +60,7 @@ public:
     /// The declaration is explicitly specified to be not isolated to any actor,
     /// meaning that it can be used from any actor but is also unable to
     /// refer to the isolated state of any given actor.
-    Nonisolated,
+    NonisolatedConcurrent,
     /// The declaration is explicitly specified to be not isolated and with the
     /// "unsafe" annotation, which means that we do not enforce isolation.
     NonisolatedUnsafe,
@@ -71,6 +71,8 @@ public:
     /// an isolated(any) function.  This is not possible for declarations.
     Erased,
     /// Inherits isolation from the caller of the given function.
+    /// This may be expressed explicitly in source, inferred,
+    /// or enabled "by default" for nonisolated functions using an upcoming feature.
     ///
     /// DISCUSSION: This is used for nonisolated asynchronous functions that we
     /// want to inherit from their context the context's actor isolation.
@@ -164,7 +166,7 @@ public:
   }
 
   static ActorIsolation forNonisolated(bool unsafe) {
-    return ActorIsolation(unsafe ? NonisolatedUnsafe : Nonisolated);
+    return ActorIsolation(unsafe ? NonisolatedUnsafe : NonisolatedConcurrent);
   }
 
   static ActorIsolation forNonisolatedNonsending() {
@@ -219,7 +221,7 @@ public:
   bool isUnspecified() const { return kind == Unspecified; }
 
   bool isNonisolated() const {
-    return (kind == Nonisolated) || (kind == NonisolatedUnsafe);
+    return (kind == NonisolatedConcurrent) || (kind == NonisolatedUnsafe);
   }
 
   bool isNonisolatedUnsafe() const { return kind == NonisolatedUnsafe; }
@@ -253,7 +255,7 @@ public:
       return true;
 
     case Unspecified:
-    case Nonisolated:
+    case NonisolatedConcurrent:
     case NonisolatedUnsafe:
     case NonisolatedNonsending:
       return false;

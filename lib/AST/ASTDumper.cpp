@@ -1363,7 +1363,7 @@ namespace {
         printFlag(true, "nonisolated(unsafe)", CapturesColor);
         break;
 
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
         printFlag(true, "nonisolated", CapturesColor);
         break;
 

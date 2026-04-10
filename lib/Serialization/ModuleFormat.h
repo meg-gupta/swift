@@ -578,7 +578,7 @@ using DefaultArgumentField = BCFixed<4>;
 enum class ActorIsolation : uint8_t {
   Unspecified = 0,
   ActorInstance,
-  Nonisolated,
+  NonisolatedConcurrent,
   NonisolatedUnsafe,
   GlobalActor,
   GlobalActorUnsafe,

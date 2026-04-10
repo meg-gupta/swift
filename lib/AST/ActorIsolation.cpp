@@ -170,7 +170,7 @@ bool ActorIsolation::isEqual(const ActorIsolation &lhs,
     return false;
 
   switch (lhs.getKind()) {
-  case Nonisolated:
+  case NonisolatedConcurrent:
   case NonisolatedUnsafe:
   case Unspecified:
     return true;

@@ -108,7 +108,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
           // the instance properties of the class.
           return false;
 
-        case ActorIsolation::Nonisolated:
+        case ActorIsolation::NonisolatedConcurrent:
         case ActorIsolation::NonisolatedUnsafe:
         case ActorIsolation::Unspecified:
         case ActorIsolation::NonisolatedNonsending:
@@ -166,7 +166,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
     auto actorIsolation = getActorIsolation(funcDecl);
     switch (actorIsolation.getKind()) {
     case ActorIsolation::Unspecified:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       break;
 
@@ -208,7 +208,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
     auto actorIsolation = closureExpr->getActorIsolation();
     switch (actorIsolation.getKind()) {
     case ActorIsolation::Unspecified:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       break;
 
@@ -651,7 +651,7 @@ SILGenFunction::emitClosureIsolation(SILLocation loc, SILDeclRef constant,
   auto isolation = getClosureIsolationInfo(constant);
   switch (isolation) {
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
     return emitNonIsolatedIsolation(loc);
@@ -732,7 +732,7 @@ SILGenFunction::emitExecutor(SILLocation loc, ActorIsolation isolation,
                              std::optional<ManagedValue> maybeSelf) {
   switch (isolation.getKind()) {
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
     return std::nullopt;
@@ -764,7 +764,7 @@ void SILGenFunction::emitHopToActorValue(SILLocation loc, ManagedValue actor) {
       getActorIsolationOfContext(FunctionDC, [](AbstractClosureExpr *CE) {
         return CE->getActorIsolation();
       });
-  if (isolation != ActorIsolation::Nonisolated &&
+  if (isolation != ActorIsolation::NonisolatedConcurrent &&
       isolation != ActorIsolation::NonisolatedUnsafe &&
       isolation != ActorIsolation::Unspecified) {
     // TODO: Explicit hop with no hop-back should only be allowed in nonisolated

@@ -1901,7 +1901,7 @@ bool ActorIsolation::requiresSubstitution() const {
   switch (kind) {
   case NonisolatedNonsending:
   case ActorInstance:
-  case Nonisolated:
+  case NonisolatedConcurrent:
   case NonisolatedUnsafe:
   case Unspecified:
     return false;
@@ -1916,7 +1916,7 @@ ActorIsolation ActorIsolation::subst(SubstitutionMap subs) const {
   switch (kind) {
   case ActorInstance:
   case NonisolatedNonsending:
-  case Nonisolated:
+  case NonisolatedConcurrent:
   case NonisolatedUnsafe:
   case Unspecified:
     return *this;
@@ -1955,7 +1955,10 @@ void ActorIsolation::printForDiagnostics(llvm::raw_ostream &os,
     os << "@isolated(any)";
     break;
 
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
+    os << "@concurrent";
+    break;
+
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::Unspecified:
     os << "nonisolated";
@@ -2014,9 +2017,9 @@ void ActorIsolation::print(llvm::raw_ostream &os) const {
     }
     return;
   case NonisolatedNonsending:
-    os << "caller_isolation_inheriting";
+    os << "nonisolated(nonsending)";
     return;
-  case Nonisolated:
+  case NonisolatedConcurrent:
     os << "nonisolated";
     return;
   case NonisolatedUnsafe:
@@ -2041,9 +2044,9 @@ void ActorIsolation::printForSIL(llvm::raw_ostream &os) const {
     os << "actor_instance";
     return;
   case NonisolatedNonsending:
-    os << "caller_isolation_inheriting";
+    os << "nonisolated(nonsending)";
     return;
-  case Nonisolated:
+  case NonisolatedConcurrent:
     os << "nonisolated";
     return;
   case NonisolatedUnsafe:
@@ -2103,7 +2106,7 @@ void swift::simple_display(
       out << "isolated to isolation of caller";
       break;
 
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       out << "nonisolated";
       if (state == ActorIsolation::NonisolatedUnsafe) {

@@ -128,7 +128,7 @@ static bool isolatedConstructorRequiresFlowIsolation(ActorIsolation typeIso,
   // Otherwise, if it's an actor instance, then it depends on async-ness.
   switch (typeIso.getKind()) {
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
     return false;
 
@@ -561,7 +561,7 @@ static bool varIsSafeAcrossActors(const ModuleDecl *fromModule, VarDecl *var,
   }
 
   switch (varIsolation) {
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::Unspecified:
     // if nonisolated, it's OK
@@ -1825,7 +1825,7 @@ static bool wasLegacyEscapingUseRestriction(AbstractFunctionDecl *fn) {
     case ActorIsolation::ActorInstance:
       // Isolated deinits did not exist before
       return false;
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::Unspecified:
       assert(!fn->hasAsync());
@@ -1838,7 +1838,7 @@ static bool wasLegacyEscapingUseRestriction(AbstractFunctionDecl *fn) {
     }
   } else if (auto *ctor = dyn_cast<ConstructorDecl>(fn)) {
     switch (isolationKind) {
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::GlobalActor:
       // convenience inits did not have the restriction.
@@ -2020,7 +2020,7 @@ static ActorIsolation getInnermostIsolatedContext(
               getActorIsolationOfContext(mutableDC, getClosureActorIsolation)) {
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::ActorInstance:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::Unspecified:
     return isolation;
@@ -2364,7 +2364,7 @@ namespace {
           case ActorIsolation::ActorInstance:
           case ActorIsolation::NonisolatedNonsending:
           case ActorIsolation::GlobalActor:
-          case ActorIsolation::Nonisolated:
+          case ActorIsolation::NonisolatedConcurrent:
           case ActorIsolation::NonisolatedUnsafe:
               return false;
 
@@ -2839,7 +2839,7 @@ namespace {
         // new refinement.
         auto isolation = requiredIsolation.find(dc);
         if (isolation == requiredIsolation.end() ||
-            isolation->second == ActorIsolation::Nonisolated) {
+            isolation->second == ActorIsolation::NonisolatedConcurrent) {
           requiredIsolation[dc] = refinedIsolation;
         } else if (isolation->second != refinedIsolation) {
           ctx.Diags.diagnose(requiredIsolationLoc,
@@ -2871,7 +2871,7 @@ namespace {
       // Nonisolated is okay from any caller isolation because
       // default arguments cannot have any async calls.
       case ActorIsolation::Unspecified:
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         return;
 
@@ -3539,7 +3539,7 @@ namespace {
           auto isolation = getClosureActorIsolation(closure);
           switch (isolation) {
           case ActorIsolation::Unspecified:
-          case ActorIsolation::Nonisolated:
+          case ActorIsolation::NonisolatedConcurrent:
           case ActorIsolation::NonisolatedNonsending:
           case ActorIsolation::NonisolatedUnsafe:
             if (closure->isSendable()) {
@@ -3600,7 +3600,7 @@ namespace {
         switch (auto isolation =
                     getActorIsolationOfContext(dc, getClosureActorIsolation)) {
         case ActorIsolation::NonisolatedNonsending:
-        case ActorIsolation::Nonisolated:
+        case ActorIsolation::NonisolatedConcurrent:
         case ActorIsolation::NonisolatedUnsafe:
         case ActorIsolation::Unspecified:
           // Local functions can capture an isolated parameter.
@@ -4326,7 +4326,7 @@ namespace {
         llvm_unreachable("context cannot have erased isolation");
 
       case ActorIsolation::Unspecified:
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         actorExpr = new (ctx) NilLiteralExpr(loc, /*implicit=*/false);
         break;
@@ -4471,7 +4471,7 @@ namespace {
           auto isolation = getActorIsolationForReference(
               decl, getDeclContext());
           switch (isolation) {
-          case ActorIsolation::Nonisolated:
+          case ActorIsolation::NonisolatedConcurrent:
           case ActorIsolation::NonisolatedNonsending:
           case ActorIsolation::NonisolatedUnsafe:
           case ActorIsolation::Unspecified:
@@ -4691,7 +4691,7 @@ namespace {
             break;
 
           case ActorIsolation::Unspecified:
-          case ActorIsolation::Nonisolated:
+          case ActorIsolation::NonisolatedConcurrent:
           case ActorIsolation::NonisolatedNonsending:
           case ActorIsolation::NonisolatedUnsafe:
             refKind = ReferencedActor::NonIsolatedContext;
@@ -4806,7 +4806,7 @@ computeClosureIsolationFromParent(DeclContext *closure,
   // We must have parent isolation determined to get here.
   switch (parentIsolation) {
   case ActorIsolation::NonisolatedNonsending:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::Unspecified:
     return ActorIsolation::forNonisolated(
@@ -5326,7 +5326,7 @@ getIsolationFromWitnessedRequirements(ValueDecl *value) {
       case ActorIsolation::GlobalActor:
         break;
 
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         if (!explicitNonisolatedIsSpecial(requirement->getDeclContext()))
           continue;
@@ -5355,7 +5355,7 @@ getIsolationFromWitnessedRequirements(ValueDecl *value) {
         llvm_unreachable("protocol requirements cannot be actor instances");
 
       case ActorIsolation::NonisolatedNonsending:
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         // We only need one nonisolated.
         if (sawActorIndependent)
@@ -5436,7 +5436,7 @@ getIsolationFromConformances(NominalTypeDecl *nominal) {
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:
       break;
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
       if (inferredIsolation.source.kind == IsolationSource::Kind::Explicit &&
           explicitNonisolatedIsSpecial(nominal)) {
         if (!foundIsolation) {
@@ -5484,7 +5484,7 @@ getIsolationFromInheritedProtocols(ProtocolDecl *protocol) {
     switch (auto protoIsolation = getActorIsolation(decl)) {
     case ActorIsolation::ActorInstance:
     case ActorIsolation::Unspecified:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:
       return;
@@ -5559,7 +5559,7 @@ getIsolationFromWrappers(NominalTypeDecl *nominal) {
     switch (isolation) {
     case ActorIsolation::ActorInstance:
     case ActorIsolation::Unspecified:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:
       break;
@@ -5758,7 +5758,7 @@ static bool checkClassGlobalActorIsolation(
   auto superIsolation = getActorIsolation(superclassDecl);
   switch (superIsolation) {
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe: {
     return false;
@@ -5981,7 +5981,7 @@ static void addAttributesForActorIsolation(ValueDecl *value,
         /*atLoc=*/{}, /*range=*/{}, NonIsolatedModifier::NonSending,
         /*implicit=*/true));
     break;
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe: {
     value->addAttribute(NonisolatedAttr::createImplicit(
         ctx, isolation == ActorIsolation::NonisolatedUnsafe
@@ -6323,7 +6323,7 @@ static bool shouldSelfIsolationOverrideDefault(
     // Unspecified isolation never overrides.
     return false;
 
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::NonisolatedNonsending:
     // Explicit nonisolated used to overwrite default isolation all the time,
@@ -6484,7 +6484,7 @@ static InferredActorIsolation computeActorIsolation(Evaluator &evaluator,
     // Add an implicit attribute to capture the actor isolation that was
     // inferred, so that (e.g.) it will be printed and serialized.
     switch (inferred) {
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       // Stored properties cannot be non-isolated, so don't infer it.
       if (auto var = dyn_cast<VarDecl>(value)) {
@@ -6822,7 +6822,7 @@ bool HasIsolatedSelfRequest::evaluate(
   // isolation.
   if (auto var = dyn_cast<VarDecl>(value)) {
     switch (auto isolation = getActorIsolationFromWrappedProperty(var)) {
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::Unspecified:
@@ -7463,7 +7463,7 @@ bool swift::checkSendableConformance(
   switch (getActorIsolation(nominal)) {
   case ActorIsolation::Unspecified:
   case ActorIsolation::ActorInstance:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
     break;
@@ -7990,7 +7990,7 @@ AnyFunctionType *swift::adjustFunctionTypeForConcurrency(
       funcIsolation = FunctionTypeIsolation::forNonIsolatedCaller();
       break;
 
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::Unspecified:
       assert(fnType->getIsolation().isNonIsolated());
@@ -8302,7 +8302,7 @@ bool swift::isAccessibleAcrossActors(
   if (isa<ConstructorDecl>(value) || isa<EnumElementDecl>(value)) {
     switch (isolation) {
     case ActorIsolation::ActorInstance:
-    case ActorIsolation::Nonisolated:
+    case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:
     case ActorIsolation::Unspecified:

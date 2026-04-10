@@ -1676,7 +1676,7 @@ getRawStableActorIsolationKind(swift::ActorIsolation::Kind kind) {
     return static_cast<uint8_t>(serialization::ActorIsolation::X);
   CASE(Unspecified)
   CASE(ActorInstance)
-  CASE(Nonisolated)
+  CASE(NonisolatedConcurrent)
   CASE(NonisolatedNonsending)
   CASE(NonisolatedUnsafe)
   CASE(GlobalActor)
@@ -2047,7 +2047,7 @@ void Serializer::writeLocalNormalProtocolConformance(
   Type globalActorType;
   switch (auto isolation = conformance->getIsolation()) {
   case swift::ActorIsolation::Unspecified:
-  case swift::ActorIsolation::Nonisolated:
+  case swift::ActorIsolation::NonisolatedConcurrent:
     break;
 
   case swift::ActorIsolation::GlobalActor:

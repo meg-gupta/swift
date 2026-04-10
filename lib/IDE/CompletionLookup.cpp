@@ -768,7 +768,7 @@ void CompletionLookup::analyzeActorIsolation(
     implicitlyAsync = true;
     break;
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
     return;

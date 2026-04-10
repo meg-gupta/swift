@@ -1065,7 +1065,7 @@ void LifetimeChecker::injectActorHops() {
     llvm_unreachable("constructor cannot have erased isolation");
 
   case ActorIsolation::Unspecified:
-  case ActorIsolation::Nonisolated:
+  case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
   case ActorIsolation::GlobalActor:

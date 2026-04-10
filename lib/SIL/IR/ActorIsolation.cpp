@@ -48,11 +48,13 @@ std::optional<ActorIsolation> ActorIsolation::forSILString(SILModule &mod,
   auto kind = llvm::StringSwitch<std::optional<ActorIsolation::Kind>>(string)
                   .Case("unspecified", ActorIsolation::Unspecified)
                   .Case("actor_instance", ActorIsolation::ActorInstance)
-                  .Case("nonisolated", ActorIsolation::Nonisolated)
+                  .Case("nonisolated", ActorIsolation::NonisolatedConcurrent)
                   .Case("nonisolated_unsafe", ActorIsolation::NonisolatedUnsafe)
                   .Case("global_actor", ActorIsolation::GlobalActor)
                   .Case("global_actor_unsafe", ActorIsolation::GlobalActor)
                   .Case("caller_isolation_inheriting",
+                        ActorIsolation::NonisolatedNonsending)
+                  .Case("nonisolated(nonsending)",
                         ActorIsolation::NonisolatedNonsending)
                   .Default(std::nullopt);
   if (kind == std::nullopt)

@@ -1716,7 +1716,7 @@ void SILGenFunction::emitNativeToForeignThunk(SILDeclRef thunk) {
     auto value = [&]() -> SILValue {
       switch (isolation->getKind()) {
       case ActorIsolation::Unspecified:
-      case ActorIsolation::Nonisolated:
+      case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
       case ActorIsolation::NonisolatedNonsending:
         return emitNonIsolatedIsolation(loc).getValue();
