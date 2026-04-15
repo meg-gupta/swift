@@ -1403,7 +1403,7 @@ void ConformanceIsolationRequest::cacheResult(ActorIsolation result) const {
   auto conformance = std::get<0>(getStorage());
 
   // Common case: conformance is nonisolated.
-  if (result.isNonisolated()) {
+  if (result.isAnyNonisolated()) {
     conformance->setComputedNonnisolated();
     return;
   }

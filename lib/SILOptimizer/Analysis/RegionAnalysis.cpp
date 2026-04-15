@@ -2985,7 +2985,7 @@ public:
         // locations (which is how we grab our AST information).
         !(applyExpr && applyExpr->getIsolationCrossing()
                            ->getCalleeIsolation()
-                           .isNonisolated());
+                           .isAnyNonisolated());
 
     for (auto result : applyResults) {
       if (auto lookupResult = tryToTrackValue(result)) {

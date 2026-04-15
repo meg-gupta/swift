@@ -553,7 +553,7 @@ static bool varIsSafeAcrossActors(const ModuleDecl *fromModule, VarDecl *var,
     if (dyn_cast_or_null<StructDecl>(var->getDeclContext()->getAsDecl()) &&
         !var->isStatic() && var->hasStorage() &&
         var->getTypeInContext()->isSendableType()) {
-      if (accessWithinModule || varIsolation.isNonisolated())
+      if (accessWithinModule || varIsolation.isAnyNonisolated())
         return true;
     }
     // Otherwise, must be immutable.
@@ -2936,7 +2936,7 @@ namespace {
         // Note that only 'nonisolated(unsafe)' can be applied to local
         // variables.
         if (isa<VarDecl>(decl) &&
-            getActorIsolation(decl).isNonisolated())
+            getActorIsolation(decl).isAnyNonisolated())
           continue;
 
         auto *context = localFunc.getAsDeclContext();
@@ -3442,7 +3442,7 @@ namespace {
             if (auto *closure = dyn_cast<ClosureExpr>(call->getFn())) {
               if (auto closureTy = closure->getType()->getAs<FunctionType>()) {
                 if (closureTy->isAsync() &&
-                    closure->getActorIsolation().isNonisolated())
+                    closure->getActorIsolation().isAnyNonisolated())
                   closure->setActorIsolation(
                       ActorIsolation::forNonisolatedNonsending());
               }
@@ -4064,7 +4064,7 @@ namespace {
             const_cast<Expr *>(arg->findOriginalValue()), paramIdx);
 
         if (getContextIsolation() != calleeIsolation) {
-          if (calleeIsolation.isNonisolated()) {
+          if (calleeIsolation.isAnyNonisolated()) {
             mayExitToNonisolated = true;
           } else {
             unsatisfiedIsolation = calleeIsolation;
@@ -4923,7 +4923,7 @@ ActorIsolationChecker::determineClosureIsolation(AbstractClosureExpr *closure,
     // global actor, nonisolated/@concurrent attributes and doesn't have
     // isolated parameters. If our closure is nonisolated and we have a
     // conversion to nonisolated(nonsending), then we should respect that.
-    if (isIsolationBoundary || normalIsolation.isNonisolated()) {
+    if (isIsolationBoundary || normalIsolation.isAnyNonisolated()) {
       if (auto *fce = dyn_cast_or_null<FunctionConversionExpr>(context)) {
         auto expectedIsolation =
             fce->getType()->castTo<FunctionType>()->getIsolation();
@@ -5457,7 +5457,7 @@ getIsolationFromConformances(NominalTypeDecl *nominal) {
       // If we encountered an explicit globally isolated conformance, allow it
       // to override the _nonisolated_ isolation.
       if (!foundIsolation ||
-          (foundIsolation->isolation.isNonisolated() &&
+          (foundIsolation->isolation.isAnyNonisolated() &&
            conformance->getSourceKind() == ConformanceEntryKind::Explicit)) {
         foundIsolation = {protoIsolation,
                           IsolationSource(proto, IsolationSource::Conformance)};
@@ -6470,7 +6470,7 @@ static InferredActorIsolation computeActorIsolation(Evaluator &evaluator,
     // When `NonisolatedNonsendingByDefault` feature is enabled and the value is
     // asynchronous `nonisolated` always means `nonisolated(nonsending)`.
     if (ctx.LangOpts.hasFeature(Feature::NonisolatedNonsendingByDefault) &&
-        inferred.isNonisolated() && value->isAsync()) {
+        inferred.isAnyNonisolated() && value->isAsync()) {
       // Either current module or async variant of an ObjC API.
       if (value->getModuleContext() == ctx.MainModule ||
           (value->hasClangNode() &&
@@ -7260,7 +7260,7 @@ static bool checkSendableInstanceStorage(
       // 'nonisolated' properties are always okay in 'Sendable' types because
       // they can be accessed from anywhere. Note that 'nonisolated' without
       // '(unsafe)' can only be applied to immutable, 'Sendable' properties.
-      if (isolation.isNonisolated())
+      if (isolation.isAnyNonisolated())
         return false;
 
       // Classes with mutable properties are Sendable if property is
@@ -7287,7 +7287,7 @@ static bool checkSendableInstanceStorage(
           return true;
         }
 
-        if (!(isolation.isNonisolated() || isolation.isUnspecified())) {
+        if (!(isolation.isAnyNonisolated() || isolation.isUnspecified())) {
           return false; // skip sendable check on actor-isolated properties
         }
       }
@@ -8217,7 +8217,7 @@ ActorIsolation swift::getActorIsolationForReference(ValueDecl *decl,
       return ActorIsolation::forNonisolated(/*unsafe*/false);
 
     if (var->isLet() && isStoredProperty(var) &&
-        declIsolation.isNonisolated()) {
+        declIsolation.isAnyNonisolated()) {
       if (auto nominal = var->getDeclContext()->getSelfNominalTypeDecl()) {
         if (nominal->isAnyActor())
           return ActorIsolation::forActorInstanceSelf(decl);
@@ -8904,7 +8904,7 @@ ActorIsolation swift::inferConformanceIsolation(
         // implicitly nonisolated (i.e. via primary declaration conforming to
         // a `Sendable` protocol) and that gives us a hint that conformance
         // should be nonisolated as well.
-        if ((nominalIsolation.isNonisolated() ||
+        if ((nominalIsolation.isAnyNonisolated() ||
              nominalIsolation.isUnspecified()) &&
             !hasKnownIsolatedWitness)
           return nominalIsolation;
@@ -9070,7 +9070,7 @@ namespace {
               loc, diag::isolated_conformance_wrong_domain,
               firstConformance->getIsolation(), firstConformance->getType(),
               firstConformance->getProtocol()->getName(),
-              (isCrossingCheck && getIsolation().isNonisolated())
+              (isCrossingCheck && getIsolation().isAnyNonisolated())
                   ? StringRef("@concurrent")
                   : getIsolation().printStringForDiagnostics(ctx))
           .warnUntilLanguageMode(LanguageMode::v6);

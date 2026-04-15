@@ -370,7 +370,7 @@ static SILIsolationInfo computeIsolationForClassField(SILValue queriedValue,
   // since we just want to squelch the error but still have it be isolated in
   // its normal way. This provides more information since we know what the
   // underlying isolation /would/ have been.
-  if (varIsolation.isNonisolated() && !varIsolation.isNonisolatedUnsafe())
+  if (varIsolation.isAnyNonisolated() && !varIsolation.isNonisolatedUnsafe())
     return SILIsolationInfo::getDisconnected(false /*nonisolated unsafe*/);
 
   // Ok, we know that we do not have any overriding isolation from the var
@@ -932,7 +932,7 @@ SILIsolationInfo SILIsolationInfo::get(SILInstruction *inst) {
   // caused by the actor instances not matching.
   if (ApplyExpr *apply = inst->getLoc().getAsASTNode<ApplyExpr>()) {
     if (auto crossing = apply->getIsolationCrossing()) {
-      if (crossing->getCalleeIsolation().isNonisolated()) {
+      if (crossing->getCalleeIsolation().isAnyNonisolated()) {
         return SILIsolationInfo::getDisconnected(false /*nonisolated(unsafe)*/);
       }
     }
@@ -1335,7 +1335,7 @@ void SILIsolationInfo::printActorIsolationForDiagnostics(
       return;
     }
 
-    if (iso.isNonisolated()) {
+    if (iso.isAnyNonisolated()) {
       os << "@concurrent";
       return;
     }

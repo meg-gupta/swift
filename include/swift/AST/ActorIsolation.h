@@ -224,10 +224,22 @@ public:
 
   bool isUnspecified() const { return kind == Unspecified; }
 
-  bool isNonisolated() const {
-    return (kind == NonisolatedConcurrent) || (kind == NonisolatedUnsafe);
+  /// Returns true if any kind of nonisolated isolation,
+  /// including 'nonisolated', '@concurrent', 'nonsending' or even 'unsafe'.
+  bool isAnyNonisolated() const {
+    return (kind == Nonisolated) ||
+      (kind == NonisolatedConcurrent) ||
+      (kind == NonisolatedNonsending) ||
+      (kind == NonisolatedUnsafe);
   }
 
+  /// Returns true if specifically 'nonisolated'.
+  bool isNonisolated() const { return kind == Nonisolated; }
+  /// Returns true if specifically '@concurrent'.
+  bool isNonisolatedConcurrent() const { return kind == NonisolatedConcurrent; }
+  /// Returns true if specifically 'nonisolated(nonsending)'.
+  bool isNonisolatedNonsending() const { return kind == NonisolatedNonsending; }
+  /// Returns true if specifically 'nonisolated(unsafe)'.
   bool isNonisolatedUnsafe() const { return kind == NonisolatedUnsafe; }
 
   /// Retrieve the parameter to which actor-instance isolation applies.
