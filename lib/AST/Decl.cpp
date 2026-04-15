@@ -9439,7 +9439,7 @@ void ParamDecl::setTypeRepr(TypeRepr *repr) {
       }
 
       if (auto *callerIsolated =
-              dyn_cast<CallerIsolatedTypeRepr>(unwrappedType)) {
+              dyn_cast<NonisolatedNonsendingTypeRepr>(unwrappedType)) {
         unwrappedType = callerIsolated->getBase();
         continue;
       }

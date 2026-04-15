@@ -4887,7 +4887,7 @@ public:
     printFoot();
   }
 
-  void visitCallerIsolatedTypeRepr(CallerIsolatedTypeRepr *T, Label label) {
+  void visitNonisolatedNonsendingTypeRepr(NonisolatedNonsendingTypeRepr *T, Label label) {
     printCommon("caller_isolated", label);
     printRec(T->getBase(), Label::optional("base"));
     printFoot();
