@@ -57,10 +57,21 @@ public:
     /// For example, a mutable stored property or synchronous function within
     /// the actor is isolated to the instance of that actor.
     ActorInstance,
-    /// The declaration is explicitly specified to be not isolated to any actor,
+    /// The declaration is explicitly 'nonisolated',
     /// meaning that it can be used from any actor but is also unable to
-    /// refer to the isolated state of any given actor.
+    /// refer to the isolated state. Synchronous functions may be nonisolated.
+    Nonisolated,
+    /// The declaration is explicitly '@concurrent' to be not isolated to any actor,
+    /// meaning that it can be used from any actor but is also unable to
+    /// refer to the isolated state of any given actor. Only async functions may be '@concurrent'.
     NonisolatedConcurrent,
+    /// Inherits isolation from the caller of the given function.
+    /// This may be expressed explicitly in source, inferred,
+    /// or enabled "by default" for nonisolated functions using an upcoming feature.
+    ///
+    /// DISCUSSION: This is used for nonisolated asynchronous functions that we
+    /// want to inherit from their context the context's actor isolation.
+    NonisolatedNonsending,
     /// The declaration is explicitly specified to be not isolated and with the
     /// "unsafe" annotation, which means that we do not enforce isolation.
     NonisolatedUnsafe,
@@ -70,13 +81,6 @@ public:
     /// The actor isolation iss statically erased, as for a call to
     /// an isolated(any) function.  This is not possible for declarations.
     Erased,
-    /// Inherits isolation from the caller of the given function.
-    /// This may be expressed explicitly in source, inferred,
-    /// or enabled "by default" for nonisolated functions using an upcoming feature.
-    ///
-    /// DISCUSSION: This is used for nonisolated asynchronous functions that we
-    /// want to inherit from their context the context's actor isolation.
-    NonisolatedNonsending,
   };
 
 private:
