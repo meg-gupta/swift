@@ -1359,12 +1359,17 @@ namespace {
       case ActorIsolation::Unspecified:
         printFlag(true, "unspecified_isolation", CapturesColor);
         break;
+
       case ActorIsolation::NonisolatedUnsafe:
         printFlag(true, "nonisolated(unsafe)", CapturesColor);
         break;
 
-      case ActorIsolation::NonisolatedConcurrent:
+      case ActorIsolation::Nonisolated:
         printFlag(true, "nonisolated", CapturesColor);
+        break;
+
+      case ActorIsolation::NonisolatedConcurrent:
+        printFlag(true, "nonisolated_concurrent", CapturesColor);
         break;
 
       case ActorIsolation::Erased:

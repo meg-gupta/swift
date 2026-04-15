@@ -100,6 +100,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
     llvm_unreachable("variable cannot have erased isolation");
 
   case ActorIsolation::GlobalActor:
+  case ActorIsolation::Nonisolated:
   case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:

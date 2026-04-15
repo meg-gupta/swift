@@ -584,8 +584,9 @@ enum class ActorIsolation : uint8_t {
   GlobalActorUnsafe,
   Erased,
   NonisolatedNonsending,
+  Nonisolated,
 };
-using ActorIsolationField = BCFixed<3>;
+using ActorIsolationField = BCFixed<4>;
 
 // These IDs must \em not be renumbered or reordered without incrementing
 // the module version.

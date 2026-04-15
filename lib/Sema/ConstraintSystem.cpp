@@ -5216,6 +5216,7 @@ ConstraintSystem::inferKeyPathLiteralCapability(KeyPathExpr *keyPath) {
       // Shared switch logic for actor isolation.
       switch (getActorIsolation(choice.getDecl())) {
       case ActorIsolation::Unspecified:
+      case ActorIsolation::Nonisolated:
       case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedNonsending:
       case ActorIsolation::NonisolatedUnsafe:

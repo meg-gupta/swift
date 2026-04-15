@@ -108,6 +108,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
           // the instance properties of the class.
           return false;
 
+        case ActorIsolation::Nonisolated:
         case ActorIsolation::NonisolatedConcurrent:
         case ActorIsolation::NonisolatedUnsafe:
         case ActorIsolation::Unspecified:
@@ -166,6 +167,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
     auto actorIsolation = getActorIsolation(funcDecl);
     switch (actorIsolation.getKind()) {
     case ActorIsolation::Unspecified:
+    case ActorIsolation::Nonisolated:
     case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       break;
@@ -208,6 +210,7 @@ void SILGenFunction::emitExpectedExecutorProlog() {
     auto actorIsolation = closureExpr->getActorIsolation();
     switch (actorIsolation.getKind()) {
     case ActorIsolation::Unspecified:
+    case ActorIsolation::Nonisolated:
     case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       break;
@@ -651,6 +654,7 @@ SILGenFunction::emitClosureIsolation(SILLocation loc, SILDeclRef constant,
   auto isolation = getClosureIsolationInfo(constant);
   switch (isolation) {
   case ActorIsolation::Unspecified:
+  case ActorIsolation::Nonisolated:
   case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:
@@ -732,6 +736,7 @@ SILGenFunction::emitExecutor(SILLocation loc, ActorIsolation isolation,
                              std::optional<ManagedValue> maybeSelf) {
   switch (isolation.getKind()) {
   case ActorIsolation::Unspecified:
+  case ActorIsolation::Nonisolated:
   case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedNonsending:
   case ActorIsolation::NonisolatedUnsafe:

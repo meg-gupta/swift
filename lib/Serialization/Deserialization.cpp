@@ -508,6 +508,7 @@ getActualActorIsolationKind(uint8_t raw) {
     return swift::ActorIsolation::Kind::X;
   CASE(Unspecified)
   CASE(ActorInstance)
+  CASE(Nonisolated)
   CASE(NonisolatedConcurrent)
   CASE(NonisolatedNonsending)
   CASE(NonisolatedUnsafe)
@@ -4342,6 +4343,7 @@ public:
       ActorIsolation isolation;
       switch (isoKind) {
       case ActorIsolation::Unspecified:
+      case ActorIsolation::Nonisolated:
       case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         isolation = ActorIsolation::forUnspecified();

@@ -52,7 +52,7 @@ public:
   enum Kind : uint8_t {
     /// The actor isolation has not been specified. It is assumed to be
     /// unsafe to interact with this declaration from any actor.
-    Unspecified = 0,
+    Unspecified = 0, // TODO: Can we collapse this with Nonisolated or is it actually different?
     /// The declaration is isolated to the instance of an actor.
     /// For example, a mutable stored property or synchronous function within
     /// the actor is isolated to the instance of that actor.
@@ -225,7 +225,8 @@ public:
   bool isUnspecified() const { return kind == Unspecified; }
 
   /// Returns true if any kind of nonisolated isolation,
-  /// including 'nonisolated', '@concurrent', 'nonsending' or even 'unsafe'.
+  /// including 'nonisolated', '@concurrent', 'nonisolated(nonsending)',
+  /// or even 'nonisolated(unsafe)'.
   bool isAnyNonisolated() const {
     return (kind == Nonisolated) ||
       (kind == NonisolatedConcurrent) ||
@@ -271,9 +272,10 @@ public:
       return true;
 
     case Unspecified:
+    case Nonisolated:
     case NonisolatedConcurrent:
-    case NonisolatedUnsafe:
     case NonisolatedNonsending:
+    case NonisolatedUnsafe:
       return false;
     }
   }
@@ -297,10 +299,6 @@ public:
   bool isMainActor() const;
 
   bool isDistributedActor() const;
-
-  bool isNonisolatedNonsending() const {
-    return getKind() == NonisolatedNonsending;
-  }
 
   Type getGlobalActor() const {
     assert(isGlobalActor());

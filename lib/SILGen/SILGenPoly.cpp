@@ -7168,6 +7168,7 @@ SILGenFunction::emitVTableThunk(SILDeclRef base,
     auto arg = [&]() -> SILValue {
       switch (baseIsolation) {
       case ActorIsolation::Unspecified:
+      case ActorIsolation::Nonisolated:
       case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         return emitNonIsolatedIsolation(loc).getValue();
@@ -7183,6 +7184,7 @@ SILGenFunction::emitVTableThunk(SILDeclRef base,
         auto derivedIsolation = getDerivedIsolation();
         switch (derivedIsolation) {
         case ActorIsolation::Unspecified:
+        case ActorIsolation::Nonisolated:
         case ActorIsolation::NonisolatedConcurrent:
         case ActorIsolation::NonisolatedUnsafe:
           return emitNonIsolatedIsolation(loc).getValue();
@@ -7678,6 +7680,7 @@ void SILGenFunction::emitProtocolWitness(
     auto arg = [&]() -> SILValue {
       switch (reqtIsolation) {
       case ActorIsolation::Unspecified:
+      case ActorIsolation::Nonisolated:
       case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedUnsafe:
         return emitNonIsolatedIsolation(loc).getValue();
@@ -7693,6 +7696,7 @@ void SILGenFunction::emitProtocolWitness(
         auto witnessIsolation = getWitnessIsolation();
         switch (witnessIsolation) {
         case ActorIsolation::Unspecified:
+        case ActorIsolation::Nonisolated:
         case ActorIsolation::NonisolatedConcurrent:
         case ActorIsolation::NonisolatedUnsafe:
           return emitNonIsolatedIsolation(loc).getValue();

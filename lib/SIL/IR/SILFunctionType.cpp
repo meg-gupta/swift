@@ -1437,7 +1437,7 @@ public:
 
   ConventionsKind getKind() const { return kind; }
 
-  bool hasCallerIsolationParameter() const {
+  bool hasNonisolatedNonsendingActorParameter() const {
     return kind == ConventionsKind::Default ||
            kind == ConventionsKind::Deallocator;
   }
@@ -1950,7 +1950,7 @@ private:
     // If the function has nonisolated(nonsending) isolation, insert the
     // implicit isolation parameter.
     if (IsolationInfo && IsolationInfo->isNonisolatedNonsending() &&
-        Convs.hasCallerIsolationParameter()) {
+        Convs.hasNonisolatedNonsendingActorParameter()) {
       addParameter(-1, CanType(TC.Context.TheImplicitActorType),
                    ParameterConvention::Direct_Guaranteed,
                    ParameterTypeFlags().withIsolated(true),

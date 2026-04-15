@@ -3190,6 +3190,7 @@ done:
         llvm_unreachable("default arg cannot have erased isolation");
 
       case ActorIsolation::Unspecified:
+      case ActorIsolation::Nonisolated:
       case ActorIsolation::NonisolatedConcurrent:
       case ActorIsolation::NonisolatedNonsending:
       case ActorIsolation::NonisolatedUnsafe:
@@ -6237,6 +6238,7 @@ RValue SILGenFunction::emitApply(
       break;
 
     case ActorIsolation::Unspecified:
+    case ActorIsolation::Nonisolated:
     case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedNonsending:
     case ActorIsolation::NonisolatedUnsafe:

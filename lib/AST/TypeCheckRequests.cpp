@@ -1955,6 +1955,10 @@ void ActorIsolation::printForDiagnostics(llvm::raw_ostream &os,
     os << "@isolated(any)";
     break;
 
+  case ActorIsolation::Nonisolated:
+    os << "nonisolated";
+    break;
+
   case ActorIsolation::NonisolatedConcurrent:
     os << "@concurrent";
     break;
@@ -1990,11 +1994,14 @@ void ActorIsolation::print(llvm::raw_ostream &os) const {
       os << ". name: '" << vd->getBaseIdentifier() << "'";
     }
     return;
+  case Nonisolated:
+    os << "nonisolated";
+    return;
   case NonisolatedNonsending:
     os << "nonisolated(nonsending)";
     return;
   case NonisolatedConcurrent:
-    os << "nonisolated";
+    os << "@concurrent";
     return;
   case NonisolatedUnsafe:
     os << "nonisolated_unsafe";
@@ -2017,11 +2024,14 @@ void ActorIsolation::printForSIL(llvm::raw_ostream &os) const {
   case ActorInstance:
     os << "actor_instance";
     return;
+  case Nonisolated:
+    os << "nonisolated";
+    return;
   case NonisolatedNonsending:
     os << "nonisolated(nonsending)";
     return;
   case NonisolatedConcurrent:
-    os << "nonisolated";
+    os << "@concurrent";
     return;
   case NonisolatedUnsafe:
     os << "nonisolated_unsafe";
@@ -2080,6 +2090,7 @@ void swift::simple_display(
       out << "isolated to isolation of caller";
       break;
 
+    case ActorIsolation::Nonisolated:
     case ActorIsolation::NonisolatedConcurrent:
     case ActorIsolation::NonisolatedUnsafe:
       out << "nonisolated";
