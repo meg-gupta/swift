@@ -107,7 +107,7 @@ nonisolated struct S1: GloballyIsolated {
   @P nonisolated var y = 0 // okay
   nonisolated lazy var z = 1 // okay
   func f() {
-    // expected-error@+1 {{call to main actor-isolated global function 'requireMain()' in a synchronous @concurrent context}}
+    // expected-error@+1 {{call to main actor-isolated global function 'requireMain()' in a synchronous nonisolated context}}
     requireMain()
   }
 }
@@ -281,7 +281,7 @@ nonisolated class K2: GloballyIsolatedWithRequirements {
     _ = t.x // expected-error {{main actor-isolated property 'x' can not be referenced from a nonisolated context}}
 
     s.test() // okay
-    t.test() // expected-error {{call to main actor-isolated instance method 'test()' in a synchronous @concurrent context}}
+    t.test() // expected-error {{call to main actor-isolated instance method 'test()' in a synchronous nonisolated context}}
   }
 }
 

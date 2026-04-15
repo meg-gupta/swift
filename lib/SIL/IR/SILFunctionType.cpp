@@ -2661,7 +2661,7 @@ swift::getSILFunctionTypeActorIsolation(CanAnyFunctionType substFnInterfaceType,
       }
 
       if (decl->getAttrs().hasAttribute<ConcurrentAttr>()) {
-        return ActorIsolation::forNonisolated(false /*unsafe*/);
+        return ActorIsolation::forNonisolatedConcurrent();
       }
     }
 
@@ -3128,7 +3128,7 @@ static CanSILFunctionType getSILFunctionType(
 
   bool isNonisolatedNonsending =
       actorIsolation && actorIsolation->isNonisolatedNonsending() &&
-      conventions.hasCallerIsolationParameter();
+      conventions.hasNonisolatedNonsendingActorParameter();
 
   auto silExtInfo =
       extInfoBuilder.withClangFunctionType(clangType)

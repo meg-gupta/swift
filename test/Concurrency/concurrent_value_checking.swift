@@ -243,7 +243,7 @@ actor ANI {
 }
 
 func testANI(ani: ANI) async {
-  _ = ani.nc // expected-warning{{non-Sendable type 'NC' of property 'nc' cannot exit @concurrent context}}
+  _ = ani.nc // expected-warning{{non-Sendable type 'NC' of property 'nc' cannot exit nonisolated context}}
 }
 
 // ----------------------------------------------------------------------

@@ -36,8 +36,8 @@ actor ActorWithSynchronousNonIsolatedInit {
     // TODO: This should say actor isolated.
     let _ = { @MainActor in
       print(newK) // expected-error {{sending 'newK' risks causing data races}}
-      // expected-ni-note @-1 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later @concurrent uses}}
-      // expected-ni-ns-note @-2 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-ni-note @-1 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
+      // expected-ni-ns-note @-2 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
     }
   }
 
@@ -48,7 +48,7 @@ actor ActorWithSynchronousNonIsolatedInit {
 
     let _ = { @MainActor in
       print(newK) // expected-error {{sending 'newK' risks causing data races}}
-      // expected-note @-1 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-note @-1 {{'self'-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
     }
   }
 
@@ -123,7 +123,7 @@ class ClassWithSynchronousNonIsolatedInit {
 
     let _ = { @MainActor in
       print(newK) // expected-error {{sending 'newK' risks causing data races}}
-      // expected-note @-1 {{task-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-note @-1 {{task-isolated 'newK' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
     }
   }
 

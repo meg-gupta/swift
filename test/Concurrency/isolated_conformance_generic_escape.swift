@@ -51,7 +51,7 @@ nonisolated(nonsending) func callDoSomethingNonisolatedNonsending(_ p: some MyPr
 // When the conformance is concrete (not generic), the error is caught at the
 // forwarding call site inside the nonisolated(nonsending) function body.
 nonisolated(nonsending) func nonsendingForwardToConcurrent(_ p: MyClass) async {
-  // expected-error@+1{{main actor-isolated conformance of 'MyClass' to 'MyProtocol' cannot be used in @concurrent context}}
+  // expected-error@+1{{main actor-isolated conformance of 'MyClass' to 'MyProtocol' cannot be used in nonisolated context}}
   await callDoSomethingConcurrent(p)
 }
 
@@ -171,7 +171,7 @@ func callDoSomethingFromMainActor(_ p: some MyProtocol) async {
 @MainActor
 func test() async {
   // @concurrent async - don't allow changing execution context, would allow synchronous call on actor
-  // expected-error@+1{{main actor-isolated conformance of 'MyClass' to 'MyProtocol' cannot be used in @concurrent context}}
+  // expected-error@+1{{main actor-isolated conformance of 'MyClass' to 'MyProtocol' cannot be used in nonisolated context}}
   await callDoSomethingConcurrent(MyClass())
 
   // nonisolated(nonsending) — inherits caller's isolation, this is allowed

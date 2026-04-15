@@ -170,7 +170,7 @@ do {
     // expected-note@-1 {{global actor 'GlobalActor'-isolated property 'prop' cannot satisfy main actor-isolated requirement}}
 
     @MainActor func test() {}
-    // expected-note@-1 {{main actor-isolated instance method 'test()' cannot satisfy @concurrent requirement}}
+    // expected-note@-1 {{main actor-isolated instance method 'test()' cannot satisfy nonisolated requirement}}
   }
 }
 

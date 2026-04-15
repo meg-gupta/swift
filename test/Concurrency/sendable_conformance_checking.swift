@@ -36,7 +36,7 @@ actor A2: IsolatedWithNotSendableRequirements {
   nonisolated var prop: NotSendable { NotSendable() }
 
   nonisolated func fAsync() async -> NotSendable { NotSendable() }
-  // expected-warning@-1{{non-Sendable type 'NotSendable' cannot be returned from @concurrent implementation to caller of protocol requirement 'fAsync()'}}
+  // expected-warning@-1{{non-Sendable type 'NotSendable' cannot be returned from nonisolated implementation to caller of protocol requirement 'fAsync()'}}
 }
 
 @available(SwiftStdlib 5.1, *)

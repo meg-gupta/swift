@@ -101,7 +101,7 @@ class GADTKlassWithMixedDefaultRequirements {
   var mainDefault: NonSendableType = requiresMainActor() // expected-note 4{{main actor-isolated default value of 'self.mainDefault' cannot be used in a global actor 'CustomActor'-isolated initializer}}
   nonisolated let nonisoNoDefault: SendableType
   @CustomActor var customDefault: NonSendableType = requiresCustomActor() // expected-note 2{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a main actor-isolated initializer}}
-  // expected-note @-1 2{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a @concurrent initializer}}
+  // expected-note @-1 2{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a nonisolated initializer}}
 
   nonisolated func trigger() {}
 
@@ -287,7 +287,7 @@ class GADTKlassWithMixedDefaultRequirements_AO<T> {
   nonisolated let nonisoNoDefault: SendableType
   nonisolated let nonisoSendableField: SendableType
   @CustomActor var customDefault: NonSendableType = requiresCustomActor() // expected-note 3{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a main actor-isolated initializer}}
-  // expected-note @-1 2{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a @concurrent initializer}}
+  // expected-note @-1 2{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a nonisolated initializer}}
 
   @CustomActor var customDefaultAO: NonSendableAOStruct<T> // expected-note 5{{'self.customDefaultAO' not initialized}}
 

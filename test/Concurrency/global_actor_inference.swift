@@ -127,7 +127,7 @@ class Object: Interface {
   // expected-note@-1{{turn data races into runtime errors with '@preconcurrency'}}{{15-15=@preconcurrency }}
   // expected-note@-2{{isolate this conformance to the main actor with '@MainActor'}}
 
-  var baz: Int = 42 // expected-note{{main actor-isolated property 'baz' cannot satisfy @concurrent requirement}}
+  var baz: Int = 42 // expected-note{{main actor-isolated property 'baz' cannot satisfy nonisolated requirement}}
   // expected-note@-1{{change property 'baz' to a 'nonisolated let' constant}}{{3-6=nonisolated let}}
 }
 
@@ -699,7 +699,7 @@ class Butter {
   // expected-complete-warning@-1 {{main actor-isolated default value in a global actor 'SomeGlobalActor'-isolated context; this is an error in the Swift 6 language mode}}
 
   nonisolated let b = statefulThingy // expected-minimal-targeted-error {{main actor-isolated var 'statefulThingy' can not be referenced from a nonisolated context}}
-  // expected-complete-warning@-1 {{main actor-isolated default value in a @concurrent context; this is an error in the Swift 6 language mode}}
+  // expected-complete-warning@-1 {{main actor-isolated default value in a nonisolated context; this is an error in the Swift 6 language mode}}
 
   var c: Int = {
     return getGlobal7()

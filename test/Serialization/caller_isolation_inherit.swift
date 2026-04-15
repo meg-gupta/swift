@@ -27,7 +27,7 @@ actor A {
   }
 
   // CHECK-LABEL: // unspecifiedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s11WithFeature26unspecifiedAsyncConcurrentyyxYalF : $@convention(thin) @async <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   func test1a() async {
     await WithFeature.unspecifiedAsyncConcurrent(ns)
@@ -52,7 +52,7 @@ actor A {
   }
 
   // CHECK-LABEL: // unspecifiedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s14WithoutFeature26unspecifiedAsyncConcurrentyyxYalF : $@convention(thin) @async <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   func test2a() async {
     // If unspecifiedAsync does not inherit the isolation of A, then we will get
@@ -77,7 +77,7 @@ actor A {
   }
 
   // CHECK-LABEL: // nonisolatedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s11WithFeature26nonisolatedAsyncConcurrentyyxYalF : $@convention(thin) @async <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   func test3a() async {
     await WithFeature.nonisolatedAsyncConcurrent(ns)
@@ -102,7 +102,7 @@ actor A {
   }
 
   // CHECK-LABEL: // nonisolatedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s14WithoutFeature26nonisolatedAsyncConcurrentyyxYalF : $@convention(thin) @async <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   func test4a() async {
     await WithoutFeature.nonisolatedAsyncConcurrent(ns)
@@ -126,7 +126,7 @@ actor A {
   }
 
   // CHECK-LABEL: // S.unspecifiedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s11WithFeature1SV26unspecifiedAsyncConcurrentyyxYalF : $@convention(method) @async <τ_0_0> (@in_guaranteed τ_0_0, S) -> ()
   func test5a() async {
     let s = WithFeature.S()
@@ -152,7 +152,7 @@ actor A {
   }
 
   // CHECK-LABEL: // S.nonisolatedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s11WithFeature1SV26nonisolatedAsyncConcurrentyyxYalF : $@convention(method) @async <τ_0_0> (@in_guaranteed τ_0_0, S) -> ()
   func test6a() async {
     let s = WithFeature.S()
@@ -180,7 +180,7 @@ actor A {
   }
 
   // CHECK-LABEL: // S.unspecifiedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s14WithoutFeature1SV26unspecifiedAsyncConcurrentyyxYalF : $@convention(method) @async <τ_0_0> (@in_guaranteed τ_0_0, S) -> ()
   func test7a() async {
     let s = WithoutFeature.S()
@@ -208,7 +208,7 @@ actor A {
   }
 
   // CHECK-LABEL: // S.nonisolatedAsyncConcurrent<A>(_:)
-  // CHECK: // Isolation: nonisolated
+  // CHECK: // Isolation: @concurrent
   // CHECK: sil @$s14WithoutFeature1SV26nonisolatedAsyncConcurrentyyxYalF : $@convention(method) @async <τ_0_0> (@in_guaranteed τ_0_0, S) -> ()
   func test8a() async {
     let s = WithoutFeature.S()

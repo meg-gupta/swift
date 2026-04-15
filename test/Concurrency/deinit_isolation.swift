@@ -89,7 +89,7 @@ actor DefaultDeinitActor {
     // self-isolated deinit
     deinit {
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -124,7 +124,7 @@ actor NonisolatedDeinitActor {
     // nonisolated deinit
     nonisolated deinit {
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -173,7 +173,7 @@ class ImplicitDeinit {
 class DefaultDeinit {
     deinit { // expected-note {{add 'isolated' to run isolated to 'FirstActor', which may be later than 'nonisolated deinit'}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -214,7 +214,7 @@ class NonisolatedDeinit {
     // nonisolated deinit
     nonisolated deinit { // expected-note {{marked as 'nonisolated' here}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -282,7 +282,7 @@ class DefaultDeinitInheritNonisolated: BaseWithNonisolatedDeinit {
     // nonisolated deinit
     deinit { // expected-note {{add 'isolated' to run isolated to 'FirstActor', which may be later than 'nonisolated deinit'}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -323,7 +323,7 @@ class NonisolatedDeinitInheritNonisolated: BaseWithNonisolatedDeinit {
     // nonisolated deinit
     nonisolated deinit { // expected-note {{marked as 'nonisolated' here}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -384,8 +384,8 @@ class ImplicitDeinitInheritIsolated1: BaseWithDeinitIsolatedOnFirstActor {
 class DefaultDeinitIsolated1: BaseWithDeinitIsolatedOnFirstActor {
     // nonisolated deinit
     // expected-note@+1 {{add 'isolated' to run isolated to 'FirstActor', which may be later than 'nonisolated deinit'}}
-    deinit { // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from global actor 'FirstActor'-isolated overridden declaration}}
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+    deinit { // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from global actor 'FirstActor'-isolated overridden declaration}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
     }
 }
 #endif
@@ -435,8 +435,8 @@ class PropagatedDeinitIsolated1: BaseWithDeinitIsolatedOnFirstActor {
 class NonisolatedDeinitIsolated1: BaseWithDeinitIsolatedOnFirstActor {
     // nonisolated deinit
     // expected-note@+1 {{marked as 'nonisolated' here}}
-    nonisolated deinit { // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from global actor 'FirstActor'-isolated overridden declaration}}
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+    nonisolated deinit { // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from global actor 'FirstActor'-isolated overridden declaration}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
     }
 }
 #endif
@@ -515,8 +515,8 @@ class PropagatedDeinitIsolated2: BaseWithDeinitIsolatedOnSecondActor {
 class NonisolatedDeinitIsolated2: BaseWithDeinitIsolatedOnSecondActor {
     // nonisolated deinit
     // expected-note@+1 {{marked as 'nonisolated' here}}
-    nonisolated deinit { // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from global actor 'SecondActor'-isolated overridden declaration}}
-        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+    nonisolated deinit { // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from global actor 'SecondActor'-isolated overridden declaration}}
+        isolatedFunc() // expected-error {{call to global actor 'FirstActor'-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
     }
 }
 #endif

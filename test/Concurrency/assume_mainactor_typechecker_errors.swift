@@ -15,7 +15,7 @@ class SendableData : @unchecked Sendable {}
 // expected-swift5-note@-1 {{calls to initializer 'init()' from outside of its actor context are implicitly asynchronous}}
 
 nonisolated func getDataFromSocket() -> SendableData { SendableData() }
-// expected-swift5-warning@-1 {{call to main actor-isolated initializer 'init()' in a synchronous @concurrent context}}
+// expected-swift5-warning@-1 {{call to main actor-isolated initializer 'init()' in a synchronous nonisolated context}}
 
 class Klass { // expected-swift5-note 3 {{}} expected-swift6-note 3 {{}}
   let s = SendableData()
@@ -90,8 +90,8 @@ extension Int {
 }
 
 nonisolated func testMemberOfInt(i: Int) {
-  i.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
-  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
+  i.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
+  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
 }
 
 protocol SendableProto: Sendable { }
@@ -116,8 +116,8 @@ extension MyOtherStruct {
 nonisolated
 extension MyOtherStruct {
   func g() {
-    17.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
-  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
+    17.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
+  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
   }
 }
 
@@ -148,8 +148,8 @@ extension ImportedOtherStruct {
 nonisolated
 extension ImportedOtherStruct {
   func g() {
-    17.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
-  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous @concurrent context}}
+    17.memberOfInt() // expected-swift5-warning{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
+  // expected-swift6-error@-1{{call to main actor-isolated instance method 'memberOfInt()' in a synchronous nonisolated context}}
   }
 }
 

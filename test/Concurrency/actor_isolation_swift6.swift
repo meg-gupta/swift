@@ -117,7 +117,7 @@ struct ReferenceSelfDotMethods {
     let mainActorAffinedClosure = testCurry()(self)
     // expected-note@-1 {{calls to let 'mainActorAffinedClosure' from outside of its actor context are implicitly asynchronous}}
     mainActorAffinedClosure()
-    // expected-error@-1 {{call to main actor-isolated let 'mainActorAffinedClosure' in a synchronous @concurrent context}}
+    // expected-error@-1 {{call to main actor-isolated let 'mainActorAffinedClosure' in a synchronous nonisolated context}}
   }
 }
 
@@ -167,6 +167,6 @@ func testPartialApplyWithIsolatedParameters() {
   let _: (Int, isolated PartialApplyTest) -> Void = fn // Ok
 
   func apply(a: PartialApplyTest) {
-    fn(42, a) //expected-error {{call to actor-isolated let 'fn' in a synchronous @concurrent context}}
+    fn(42, a) //expected-error {{call to actor-isolated let 'fn' in a synchronous nonisolated context}}
   }
 }

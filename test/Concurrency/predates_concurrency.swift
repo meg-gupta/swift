@@ -217,7 +217,7 @@ class InferMainActorPreconcurrency: MainActorPreconcurrency {
 
 nonisolated func blah() {
   InferMainActorPreconcurrency.predatesConcurrency()
-  // expected-warning@-1 {{call to main actor-isolated static method 'predatesConcurrency()' in a synchronous @concurrent context}}
+  // expected-warning@-1 {{call to main actor-isolated static method 'predatesConcurrency()' in a synchronous nonisolated context}}
 }
 
 protocol NotIsolated {

@@ -49,7 +49,7 @@ class ProbeImplicit_RoundtripNonisolated: RoundtripNonisolated {}
 class ProbeDefault_RoundtripNonisolated: RoundtripNonisolated {
     deinit {
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -95,7 +95,7 @@ class ProbeImplicit_RoundtripIsolated: RoundtripIsolated {}
 
 #if !SILGEN
 class ProbeDefault_RoundtripIsolated: RoundtripIsolated {
-    deinit {} // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
+    deinit {} // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
 }
 #endif
 
@@ -147,7 +147,7 @@ class ProbeImplicit_BaseNonisolated: BaseNonisolated {}
 class ProbeDefault_BaseNonisolated: BaseNonisolated {
     deinit {
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -200,7 +200,7 @@ class ProbeImplicit_DerivedNonisolated: DerivedNonisolated {}
 class ProbeDefault_DerivedNonisolated: DerivedNonisolated {
     deinit {
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -253,7 +253,7 @@ class ProbeImplicit_BaseIsolatedClass: BaseIsolatedClass {}
 class ProbeDefault_BaseIsolatedClass: BaseIsolatedClass {
     deinit { // expected-note {{add 'isolated' to run isolated to 'MainActor', which may be later than 'nonisolated deinit'}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -313,7 +313,7 @@ class ProbeImplicit_DerivedIsolatedClass: DerivedIsolatedClass {}
 class ProbeDefault_DerivedIsolatedClass: DerivedIsolatedClass {
     deinit { // expected-note {{add 'isolated' to run isolated to 'MainActor', which may be later than 'nonisolated deinit'}}
 #if !SILGEN
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
 #endif
     }
 }
@@ -368,8 +368,8 @@ class ProbeImplicit_BaseIsolatedDealloc: BaseIsolatedDealloc {}
 
 #if !SILGEN
 class ProbeDefault_BaseIsolatedDealloc: BaseIsolatedDealloc {
-    deinit { // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+    deinit { // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
     }
 }
 #endif
@@ -413,8 +413,8 @@ class ProbeImplicit_DerivedIsolatedDealloc: DerivedIsolatedDealloc {}
 
 #if !SILGEN
 class ProbeDefault_DerivedIsolatedDealloc: DerivedIsolatedDealloc {
-    deinit { // expected-error {{@concurrent deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
-        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous @concurrent context}}
+    deinit { // expected-error {{nonisolated deinitializer 'deinit' has different actor isolation from main actor-isolated overridden declaration}}
+        isolatedFunc() // expected-error {{call to main actor-isolated global function 'isolatedFunc()' in a synchronous nonisolated context}}
     }
 }
 #endif

@@ -769,8 +769,7 @@ void SILGenFunction::emitHopToActorValue(SILLocation loc, ManagedValue actor) {
       getActorIsolationOfContext(FunctionDC, [](AbstractClosureExpr *CE) {
         return CE->getActorIsolation();
       });
-  if (isolation != ActorIsolation::NonisolatedConcurrent &&
-      isolation != ActorIsolation::NonisolatedUnsafe &&
+  if (!isolation.isNonisolatedOrConcurrent() &&
       isolation != ActorIsolation::Unspecified) {
     // TODO: Explicit hop with no hop-back should only be allowed in nonisolated
     // async functions. But it needs work for any closure passed to

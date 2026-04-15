@@ -183,15 +183,15 @@ import A
 final class IsolatedDeinitChild: IsolatedDeinitTest {} // Ok
 
 nonisolated func testIsolation() {
-  testGlobal() // expected-warning {{call to main actor-isolated global function 'testGlobal()' in a synchronous @concurrent context}}
+  testGlobal() // expected-warning {{call to main actor-isolated global function 'testGlobal()' in a synchronous nonisolated context}}
 
   func test(s: S) {
-    s.f() // expected-warning {{call to main actor-isolated instance method 'f()' in a synchronous @concurrent context}}
+    s.f() // expected-warning {{call to main actor-isolated instance method 'f()' in a synchronous nonisolated context}}
   }
 
-  _ = S.Inner() // expected-warning {{call to main actor-isolated initializer 'init()' in a synchronous @concurrent context}}
+  _ = S.Inner() // expected-warning {{call to main actor-isolated initializer 'init()' in a synchronous nonisolated context}}
   _ = R.Inner() // Ok
   
-  _ = C() // expected-warning {{call to main actor-isolated initializer 'init()' in a synchronous @concurrent context}}
+  _ = C() // expected-warning {{call to main actor-isolated initializer 'init()' in a synchronous nonisolated context}}
   _ = C.value // expected-warning {{main actor-isolated class property 'value' can not be referenced from a nonisolated context}}
 }

@@ -70,10 +70,10 @@ func callGlobalActor() {
 func fromClosure() {
   { () -> Void in
     let x = syncGlobActorFn // expected-note{{calls to let 'x' from outside of its actor context are implicitly asynchronous}}
-    x() // expected-error{{call to global actor 'SomeGlobalActor'-isolated let 'x' in a synchronous @concurrent context}}
+    x() // expected-error{{call to global actor 'SomeGlobalActor'-isolated let 'x' in a synchronous nonisolated context}}
   }()
 
-  // expected-error@+1 {{call to global actor 'SomeGlobalActor'-isolated global function 'syncGlobActorFn()' in a synchronous @concurrent context}}
+  // expected-error@+1 {{call to global actor 'SomeGlobalActor'-isolated global function 'syncGlobActorFn()' in a synchronous nonisolated context}}
   let _ = { syncGlobActorFn() }()
 }
 
@@ -85,7 +85,7 @@ class Taylor {
   }
 
   deinit {
-    syncGlobActorFn() // expected-error {{call to global actor 'SomeGlobalActor'-isolated global function 'syncGlobActorFn()' in a synchronous @concurrent context}}
+    syncGlobActorFn() // expected-error {{call to global actor 'SomeGlobalActor'-isolated global function 'syncGlobActorFn()' in a synchronous nonisolated context}}
 
     _ = syncGlobActorFn
   }

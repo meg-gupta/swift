@@ -109,11 +109,11 @@ actor ActorWithMixedIsolationFields {
 @available(SwiftStdlib 5.5, *)
 actor ActorWithMixedDefaultRequirements {
   @MainActor var mainDefault: NonSendableType = requiresMainActor() // expected-note 2{{main actor-isolated default value of 'self.mainDefault' cannot be used in a global actor 'CustomActor'-isolated initializer}}
-  // expected-note @-1 2{{main actor-isolated default value of 'self.mainDefault' cannot be used in a @concurrent initializer}}
+  // expected-note @-1 2{{main actor-isolated default value of 'self.mainDefault' cannot be used in a nonisolated initializer}}
   var actorField: NonSendableType
   nonisolated let nonisoNoDefault: SendableType
   @CustomActor var customDefault: NonSendableType = requiresCustomActor() // expected-note 4{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a main actor-isolated initializer}}
-  // expected-note @-1 4{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a @concurrent initializer}}
+  // expected-note @-1 4{{global actor 'CustomActor'-isolated default value of 'self.customDefault' cannot be used in a nonisolated initializer}}
 
   nonisolated func trigger() {}
 

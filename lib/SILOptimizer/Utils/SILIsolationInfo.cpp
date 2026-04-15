@@ -370,7 +370,7 @@ static SILIsolationInfo computeIsolationForClassField(SILValue queriedValue,
   // since we just want to squelch the error but still have it be isolated in
   // its normal way. This provides more information since we know what the
   // underlying isolation /would/ have been.
-  if (varIsolation.isAnyNonisolated() && !varIsolation.isNonisolatedUnsafe())
+  if (varIsolation.isNonisolatedOrConcurrent() && !varIsolation.isNonisolatedUnsafe())
     return SILIsolationInfo::getDisconnected(false /*nonisolated unsafe*/);
 
   // Ok, we know that we do not have any overriding isolation from the var
@@ -932,7 +932,7 @@ SILIsolationInfo SILIsolationInfo::get(SILInstruction *inst) {
   // caused by the actor instances not matching.
   if (ApplyExpr *apply = inst->getLoc().getAsASTNode<ApplyExpr>()) {
     if (auto crossing = apply->getIsolationCrossing()) {
-      if (crossing->getCalleeIsolation().isAnyNonisolated()) {
+      if (crossing->getCalleeIsolation().isNonisolatedOrConcurrent()) {
         return SILIsolationInfo::getDisconnected(false /*nonisolated(unsafe)*/);
       }
     }
@@ -1327,7 +1327,8 @@ void SILIsolationInfo::printActorIsolationForDiagnostics(
     SILFunction *fn, ActorIsolation iso, llvm::raw_ostream &os,
     StringRef openingQuotationMark, bool asNoun) {
   // If we have NonisolatedNonsendingByDefault enabled, we need to return
-  // @concurrent for nonisolated and nonisolated for caller isolation inherited.
+  // @concurrent for NonisolatedConcurrent and nonisolated for
+  // NonisolatedNonsending (which is the default for async nonisolated).
   if (fn->isAsync() && fn->getASTContext().LangOpts.hasFeature(
                            Feature::NonisolatedNonsendingByDefault)) {
     if (iso.isNonisolatedNonsending()) {
@@ -1335,7 +1336,7 @@ void SILIsolationInfo::printActorIsolationForDiagnostics(
       return;
     }
 
-    if (iso.isAnyNonisolated()) {
+    if (iso.isNonisolatedConcurrent()) {
       os << "@concurrent";
       return;
     }

@@ -18,7 +18,7 @@ protocol Q {
 // expected-note@+2{{isolate this conformance to the main actor with '@MainActor'}}
 // expected-error@+1{{conformance of 'CImplicitMainActorNonisolatedConformance' to protocol 'P' crosses into main actor-isolated code and can cause data races}}
 class CImplicitMainActorNonisolatedConformance: nonisolated P {
-  func f() { // expected-note{{main actor-isolated instance method 'f()' cannot satisfy @concurrent requirement}}
+  func f() { // expected-note{{main actor-isolated instance method 'f()' cannot satisfy nonisolated requirement}}
   // expected-note@-1{{mark instance method 'f()' 'nonisolated'}}{{3-3=nonisolated }}
     onMain() // okay, f is on @MainActor
   }
@@ -47,7 +47,7 @@ extension CImplicitMainActor: Q {
 // expected-note@+2{{turn data races into runtime errors with '@preconcurrency'}}
 // expected-note@+1{{isolate this conformance to the main actor with '@MainActor'}}{{33-33=@MainActor }}
 nonisolated class CNonIsolated: P {
-  @MainActor func f() { } // expected-note{{main actor-isolated instance method 'f()' cannot satisfy @concurrent requirement}}
+  @MainActor func f() { } // expected-note{{main actor-isolated instance method 'f()' cannot satisfy nonisolated requirement}}
 }
 
 // Synthesized conformances
@@ -89,12 +89,12 @@ nonisolated func testConformancesFromNonisolated() {
   let _: any Q = CImplicitMainActor()
 
   // Error, these are main-actor-isolated conformances
-  let _: any P = CExplicitMainActor() // expected-error{{main actor-isolated conformance of 'CExplicitMainActor' to 'P' cannot be used in @concurrent context}}
-  let _: any P = CImplicitMainActor() // expected-error{{main actor-isolated conformance of 'CImplicitMainActor' to 'P' cannot be used in @concurrent context}}
+  let _: any P = CExplicitMainActor() // expected-error{{main actor-isolated conformance of 'CExplicitMainActor' to 'P' cannot be used in nonisolated context}}
+  let _: any P = CImplicitMainActor() // expected-error{{main actor-isolated conformance of 'CImplicitMainActor' to 'P' cannot be used in nonisolated context}}
 
 
-  let _: any Equatable.Type = EquatableStruct.self // expected-error{{main actor-isolated conformance of 'EquatableStruct' to 'Equatable' cannot be used in @concurrent context}}
-  let _: any Hashable.Type = HashableStruct.self // expected-error{{main actor-isolated conformance of 'HashableStruct' to 'Hashable' cannot be used in @concurrent context}}
+  let _: any Equatable.Type = EquatableStruct.self // expected-error{{main actor-isolated conformance of 'EquatableStruct' to 'Equatable' cannot be used in nonisolated context}}
+  let _: any Hashable.Type = HashableStruct.self // expected-error{{main actor-isolated conformance of 'HashableStruct' to 'Hashable' cannot be used in nonisolated context}}
   let _: any RawRepresentable.Type = RawRepresentableEnum.self
-  let _: any Encodable.Type = CodableClass.self // expected-error{{main actor-isolated conformance of 'CodableClass' to 'Encodable' cannot be used in @concurrent context}}
+  let _: any Encodable.Type = CodableClass.self // expected-error{{main actor-isolated conformance of 'CodableClass' to 'Encodable' cannot be used in nonisolated context}}
 }

@@ -14,7 +14,7 @@ nonisolated(nonsending)
 func executionCaller() async {}
 
 // CHECK-LABEL: // executionConcurrent()
-// CHECK: // Isolation: nonisolated
+// CHECK: // Isolation: @concurrent
 // CHECK: sil hidden [ossa] @$s14execution_attr0A10ConcurrentyyYaF : $@convention(thin) @async () -> () {
 @concurrent
 func executionConcurrent() async {}

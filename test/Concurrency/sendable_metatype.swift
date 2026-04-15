@@ -174,14 +174,16 @@ func dynamicCastingExistential(
   _ s1: sending Any,
   _ s2: sending Any
 ) async {
-  if let s1p = s1 as? any P {
-    acceptSendingP(s1p)
+  if let s1p = s1 as? any P { // expected-note {{isolated conformance to protocol 'P' can be introduced here}}
+    acceptSendingP(s1p) // expected-warning {{sending 's1p' risks causing data races}}
+    // expected-note @-1 {{task-isolated 's1p' is passed as a 'sending' parameter; Uses in callee may race with later task-isolated uses}}
   } else {
     print(s1)
   }
 
-  if let s2p = s2 as? any AnyObject & P {
-    acceptSendingAnyObjectP(s2p)
+  if let s2p = s2 as? any AnyObject & P { // expected-note {{isolated conformance to protocol 'P' can be introduced here}}
+    acceptSendingAnyObjectP(s2p) // expected-warning {{sending 's2p' risks causing data races}}
+    // expected-note @-1 {{task-isolated 's2p' is passed as a 'sending' parameter; Uses in callee may race with later task-isolated uses}}
   } else {
     print(s2)
   }

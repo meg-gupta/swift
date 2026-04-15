@@ -43,7 +43,7 @@ actor ProtectsNonSendable {
   nonisolated func testParameter(_ nsArg: NonSendableKlass) async {
     self.assumeIsolated { isolatedSelf in
       isolatedSelf.ns = nsArg // expected-warning {{sending 'nsArg' risks causing data races}}
-      // expected-concurrent-note @-1 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-concurrent-note @-1 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
       // expected-ni-note @-2 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
     }
   }
@@ -51,7 +51,7 @@ actor ProtectsNonSendable {
   nonisolated func testParameterOutOfLine2(_ nsArg: NonSendableKlass) async {
     let closure: (isolated ProtectsNonSendable) -> () = { isolatedSelf in
       isolatedSelf.ns = nsArg // expected-warning {{sending 'nsArg' risks causing data races}}
-      // expected-concurrent-note @-1 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-concurrent-note @-1 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
       // expected-ni-note @-2 {{task-isolated 'nsArg' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
     }
     self.assumeIsolated(closure)
@@ -63,7 +63,7 @@ actor ProtectsNonSendable {
     doSomething(l, nsArg)
     self.assumeIsolated { isolatedSelf in
       isolatedSelf.ns = l // expected-warning {{sending 'l' risks causing data races}}
-      // expected-concurrent-note @-1 {{task-isolated 'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-concurrent-note @-1 {{task-isolated 'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
       // expected-ni-note @-2 {{task-isolated 'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
     }
   }
@@ -83,7 +83,7 @@ actor ProtectsNonSendable {
     // This is not safe since we use l later.
     self.assumeIsolated { isolatedSelf in
       isolatedSelf.ns = l // expected-warning {{sending 'l' risks causing data races}}
-      // expected-concurrent-note @-1 {{'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later @concurrent uses}}
+      // expected-concurrent-note @-1 {{'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
       // expected-ni-note @-2 {{'l' is captured by a actor-isolated closure. actor-isolated uses in closure may race against later nonisolated uses}}
     }
 

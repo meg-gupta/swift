@@ -1403,7 +1403,7 @@ void ConformanceIsolationRequest::cacheResult(ActorIsolation result) const {
   auto conformance = std::get<0>(getStorage());
 
   // Common case: conformance is nonisolated.
-  if (result.isAnyNonisolated()) {
+  if (result.isNonisolatedOrConcurrent()) {
     conformance->setComputedNonnisolated();
     return;
   }
@@ -1901,6 +1901,7 @@ bool ActorIsolation::requiresSubstitution() const {
   switch (kind) {
   case NonisolatedNonsending:
   case ActorInstance:
+  case Nonisolated:
   case NonisolatedConcurrent:
   case NonisolatedUnsafe:
   case Unspecified:
@@ -1916,6 +1917,7 @@ ActorIsolation ActorIsolation::subst(SubstitutionMap subs) const {
   switch (kind) {
   case ActorInstance:
   case NonisolatedNonsending:
+  case Nonisolated:
   case NonisolatedConcurrent:
   case NonisolatedUnsafe:
   case Unspecified:

@@ -81,7 +81,7 @@ func closureLosesIsolation(
   closure: @Sendable () -> Void = {
     // expected-note@+1 {{calls to local function 'f()' from outside of its actor context are implicitly asynchronous}}
     @MainActor func f() {}
-    // expected-error@+1 {{call to main actor-isolated local function 'f()' in a synchronous @concurrent context}}
+    // expected-error@+1 {{call to main actor-isolated local function 'f()' in a synchronous nonisolated context}}
     f()
   }
 ) {}
@@ -106,7 +106,7 @@ func conflictingClosureIsolation(
 func isolationInLocalFunction(
   closure: () -> Void = {
     nonisolated func local() -> Int {
-      // expected-error@+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous @concurrent context}}
+      // expected-error@+1 {{call to main actor-isolated global function 'requiresMainActor()' in a synchronous nonisolated context}}
       requiresMainActor()
     }
   }

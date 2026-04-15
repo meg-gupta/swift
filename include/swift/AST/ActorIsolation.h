@@ -52,7 +52,7 @@ public:
   enum Kind : uint8_t {
     /// The actor isolation has not been specified. It is assumed to be
     /// unsafe to interact with this declaration from any actor.
-    Unspecified = 0, // TODO: Can we collapse this with Nonisolated or is it actually different?
+    Unspecified = 0,
     /// The declaration is isolated to the instance of an actor.
     /// For example, a mutable stored property or synchronous function within
     /// the actor is isolated to the instance of that actor.
@@ -170,7 +170,11 @@ public:
   }
 
   static ActorIsolation forNonisolated(bool unsafe) {
-    return ActorIsolation(unsafe ? NonisolatedUnsafe : NonisolatedConcurrent);
+    return ActorIsolation(unsafe ? NonisolatedUnsafe : Nonisolated);
+  }
+
+  static ActorIsolation forNonisolatedConcurrent() {
+    return ActorIsolation(NonisolatedConcurrent);
   }
 
   static ActorIsolation forNonisolatedNonsending() {
@@ -231,6 +235,14 @@ public:
     return (kind == Nonisolated) ||
       (kind == NonisolatedConcurrent) ||
       (kind == NonisolatedNonsending) ||
+      (kind == NonisolatedUnsafe);
+  }
+
+  /// Returns true for 'nonisolated', '@concurrent', or 'nonisolated(unsafe)'
+  /// but NOT 'nonisolated(nonsending)' which inherits caller isolation
+  bool isNonisolatedOrConcurrent() const {
+    return (kind == Nonisolated) ||
+      (kind == NonisolatedConcurrent) ||
       (kind == NonisolatedUnsafe);
   }
 
