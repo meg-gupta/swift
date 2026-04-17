@@ -137,10 +137,11 @@ extension ManagedBuffer where Element: ~Copyable {
   ///   call to `body`.
   @_alwaysEmitIntoClient
   @inline(__always)
+  @safe
   public final func withUnsafeMutablePointerToHeader<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Header>) throws(E) -> R
   ) throws(E) -> R {
-    try unsafe withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
+    try withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with an `UnsafeMutablePointer` to the `Element`
@@ -150,10 +151,11 @@ extension ManagedBuffer where Element: ~Copyable {
   ///   call to `body`.
   @_alwaysEmitIntoClient
   @inline(__always)
+  @safe
   public final func withUnsafeMutablePointerToElements<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Element>) throws(E) -> R
   ) throws(E) -> R {
-    try unsafe withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
+    try withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with `UnsafeMutablePointer`s to the stored `Header`
@@ -163,6 +165,7 @@ extension ManagedBuffer where Element: ~Copyable {
   ///   call to `body`.
   @_alwaysEmitIntoClient
   @inline(__always)
+  @safe
   public final func withUnsafeMutablePointers<E: Error, R: ~Copyable>(
     _ body: (
       UnsafeMutablePointer<Header>, UnsafeMutablePointer<Element>
@@ -180,7 +183,7 @@ extension ManagedBuffer {
   internal final func __legacy_withUnsafeMutablePointerToHeader<R>(
     _ body: (UnsafeMutablePointer<Header>) throws -> R
   ) rethrows -> R {
-    return try unsafe withUnsafeMutablePointers { (v, _) in return try unsafe body(v) }
+    return try withUnsafeMutablePointers { (v, _) in return try unsafe body(v) }
   }
 
   @_spi(SwiftStdlibLegacyABI) @available(swift, obsoleted: 1)
@@ -189,7 +192,7 @@ extension ManagedBuffer {
   internal final func __legacy_withUnsafeMutablePointerToElements<R>(
     _ body: (UnsafeMutablePointer<Element>) throws -> R
   ) rethrows -> R {
-    return try unsafe withUnsafeMutablePointers { return try unsafe body($1) }
+    return try withUnsafeMutablePointers { return try unsafe body($1) }
   }
 
   @_spi(SwiftStdlibLegacyABI) @available(swift, obsoleted: 1)
@@ -278,7 +281,7 @@ public struct ManagedBufferPointer<
       bufferClass: bufferClass, minimumCapacity: minimumCapacity)
 
     // initialize the header field
-    try unsafe withUnsafeMutablePointerToHeader {
+    try withUnsafeMutablePointerToHeader {
       unsafe $0.initialize(to:
         try factory(
           self.buffer,
@@ -429,10 +432,11 @@ extension ManagedBufferPointer where Element: ~Copyable {
   /// - Note: This pointer is valid only
   ///   for the duration of the call to `body`.
   @_alwaysEmitIntoClient
+  @safe
   public func withUnsafeMutablePointerToHeader<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Header>) throws(E) -> R
   ) throws(E) -> R {
-    try unsafe withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
+    try withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with an `UnsafeMutablePointer` to the `Element`
@@ -441,10 +445,11 @@ extension ManagedBufferPointer where Element: ~Copyable {
   /// - Note: This pointer is valid only for the duration of the
   ///   call to `body`.
   @_alwaysEmitIntoClient
+  @safe
   public func withUnsafeMutablePointerToElements<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Element>) throws(E) -> R
   ) throws(E) -> R {
-    try unsafe withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
+    try withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with `UnsafeMutablePointer`s to the stored `Header`
@@ -453,6 +458,7 @@ extension ManagedBufferPointer where Element: ~Copyable {
   /// - Note: These pointers are valid only for the duration of the
   ///   call to `body`.
   @_alwaysEmitIntoClient
+  @safe
   public func withUnsafeMutablePointers<E: Error, R: ~Copyable>(
     _ body: (
       UnsafeMutablePointer<Header>, UnsafeMutablePointer<Element>

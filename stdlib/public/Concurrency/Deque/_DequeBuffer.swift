@@ -16,7 +16,7 @@ import Swift
 
 internal class _DequeBuffer<Element>: ManagedBuffer<_DequeBufferHeader, Element> {
   deinit {
-    unsafe self.withUnsafeMutablePointers { header, elements in
+    self.withUnsafeMutablePointers { header, elements in
       unsafe header.pointee._checkInvariants()
 
       let capacity = unsafe header.pointee.capacity
@@ -36,7 +36,7 @@ internal class _DequeBuffer<Element>: ManagedBuffer<_DequeBufferHeader, Element>
 
 extension _DequeBuffer: CustomStringConvertible {
   internal var description: String {
-    unsafe withUnsafeMutablePointerToHeader { "_DequeStorage<\(Element.self)>\(unsafe $0.pointee)" }
+      withUnsafeMutablePointerToHeader { "_DequeStorage<\(Element.self)>\(unsafe $0.pointee)" }
   }
 }
 

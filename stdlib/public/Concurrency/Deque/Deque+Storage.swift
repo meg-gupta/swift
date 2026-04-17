@@ -71,15 +71,15 @@ extension _Deque._Storage {
 
 
   internal var capacity: Int {
-    unsafe _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.capacity }
+      _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.capacity }
   }
 
   internal var count: Int {
-    unsafe _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.count }
+      _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.count }
   }
 
   internal var startSlot: _DequeSlot {
-    unsafe _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.startSlot
+      _buffer.withUnsafeMutablePointerToHeader { unsafe $0.pointee.startSlot
     }
   }
 }
@@ -90,7 +90,7 @@ extension _Deque._Storage {
   internal typealias _UnsafeHandle = _Deque._UnsafeHandle
 
   internal func read<R>(_ body: (_UnsafeHandle) throws -> R) rethrows -> R {
-    try unsafe _buffer.withUnsafeMutablePointers { header, elements in
+      try _buffer.withUnsafeMutablePointers { header, elements in
       let handle = unsafe _UnsafeHandle(header: header,
                                  elements: elements,
                                  isMutable: false)
@@ -99,7 +99,7 @@ extension _Deque._Storage {
   }
 
   internal func update<R>(_ body: (_UnsafeHandle) throws -> R) rethrows -> R {
-    try unsafe _buffer.withUnsafeMutablePointers { header, elements in
+      try _buffer.withUnsafeMutablePointers { header, elements in
       let handle = unsafe _UnsafeHandle(header: header,
                                  elements: elements,
                                  isMutable: true)
