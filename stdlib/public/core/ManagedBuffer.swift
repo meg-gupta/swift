@@ -134,38 +134,44 @@ extension ManagedBuffer where Element: ~Copyable {
   /// `Header`.
   ///
   /// - Note: This pointer is valid only for the duration of the
-  ///   call to `body`.
+  ///   call to `body`. The caller is responsible for ensuring that
+  ///   the buffer is not being accessed elsewhere while performing
+  ///   this call.
   @_alwaysEmitIntoClient
   @inline(__always)
-  @safe
+  @unsafe
   public final func withUnsafeMutablePointerToHeader<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Header>) throws(E) -> R
   ) throws(E) -> R {
-    try withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
+    try unsafe withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with an `UnsafeMutablePointer` to the `Element`
   /// storage.
   ///
   /// - Note: This pointer is valid only for the duration of the
-  ///   call to `body`.
+  ///   call to `body`. The caller is responsible for ensuring that
+  ///   the buffer is not being accessed elsewhere while performing
+  ///   this call.
   @_alwaysEmitIntoClient
   @inline(__always)
-  @safe
+  @unsafe
   public final func withUnsafeMutablePointerToElements<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Element>) throws(E) -> R
   ) throws(E) -> R {
-    try withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
+    try unsafe withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with `UnsafeMutablePointer`s to the stored `Header`
   /// and raw `Element` storage.
   ///
   /// - Note: These pointers are valid only for the duration of the
-  ///   call to `body`.
+  ///   call to `body`. The caller is responsible for ensuring that
+  ///   the buffer is not being accessed elsewhere while performing
+  ///   this call.
   @_alwaysEmitIntoClient
   @inline(__always)
-  @safe
+  @unsafe
   public final func withUnsafeMutablePointers<E: Error, R: ~Copyable>(
     _ body: (
       UnsafeMutablePointer<Header>, UnsafeMutablePointer<Element>
@@ -183,7 +189,7 @@ extension ManagedBuffer {
   internal final func __legacy_withUnsafeMutablePointerToHeader<R>(
     _ body: (UnsafeMutablePointer<Header>) throws -> R
   ) rethrows -> R {
-    return try withUnsafeMutablePointers { (v, _) in return try unsafe body(v) }
+    return try unsafe withUnsafeMutablePointers { (v, _) in return try unsafe body(v) }
   }
 
   @_spi(SwiftStdlibLegacyABI) @available(swift, obsoleted: 1)
@@ -192,7 +198,7 @@ extension ManagedBuffer {
   internal final func __legacy_withUnsafeMutablePointerToElements<R>(
     _ body: (UnsafeMutablePointer<Element>) throws -> R
   ) rethrows -> R {
-    return try withUnsafeMutablePointers { return try unsafe body($1) }
+    return try unsafe withUnsafeMutablePointers { return try unsafe body($1) }
   }
 
   @_spi(SwiftStdlibLegacyABI) @available(swift, obsoleted: 1)
@@ -281,7 +287,7 @@ public struct ManagedBufferPointer<
       bufferClass: bufferClass, minimumCapacity: minimumCapacity)
 
     // initialize the header field
-    try withUnsafeMutablePointerToHeader {
+    try unsafe withUnsafeMutablePointerToHeader {
       unsafe $0.initialize(to:
         try factory(
           self.buffer,
@@ -429,36 +435,40 @@ extension ManagedBufferPointer where Element: ~Copyable {
   /// Call `body` with an `UnsafeMutablePointer` to the stored
   /// `Header`.
   ///
-  /// - Note: This pointer is valid only
-  ///   for the duration of the call to `body`.
+  /// - Note: This pointer is valid only for the duration of the call to
+  /// `body`. The caller is responsible for ensuring that the buffer is not
+  /// being accessed anyone else while performing this call.
   @_alwaysEmitIntoClient
-  @safe
+  @unsafe
   public func withUnsafeMutablePointerToHeader<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Header>) throws(E) -> R
   ) throws(E) -> R {
-    try withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
+    try unsafe withUnsafeMutablePointers { (v, _) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with an `UnsafeMutablePointer` to the `Element`
   /// storage.
   ///
   /// - Note: This pointer is valid only for the duration of the
-  ///   call to `body`.
+  ///   call to `body`. The caller is responsible for ensuring that the
+  ///   buffer is not being accessed anyone else while performing this call.
   @_alwaysEmitIntoClient
-  @safe
+  @unsafe
   public func withUnsafeMutablePointerToElements<E: Error, R: ~Copyable>(
     _ body: (UnsafeMutablePointer<Element>) throws(E) -> R
   ) throws(E) -> R {
-    try withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
+    try unsafe withUnsafeMutablePointers { (_, v) throws(E) in try unsafe body(v) }
   }
 
   /// Call `body` with `UnsafeMutablePointer`s to the stored `Header`
   /// and raw `Element` storage.
   ///
   /// - Note: These pointers are valid only for the duration of the
-  ///   call to `body`.
+  ///   call to `body`. The caller is responsible for ensuring that
+  ///   the buffer is not being accessed elsewhere while performing
+  ///   this call.
   @_alwaysEmitIntoClient
-  @safe
+  @unsafe
   public func withUnsafeMutablePointers<E: Error, R: ~Copyable>(
     _ body: (
       UnsafeMutablePointer<Header>, UnsafeMutablePointer<Element>
