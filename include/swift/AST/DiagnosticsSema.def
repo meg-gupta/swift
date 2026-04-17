@@ -9041,7 +9041,7 @@ GROUPED_ERROR(isolated_conformance_with_sendable_simple,IsolatedConformances,
       (Type, DeclName, ActorIsolation))
 GROUPED_ERROR(isolated_conformance_wrong_domain,IsolatedConformances,none,
       "%0 conformance of %1 to %2 cannot be used in %3 context",
-      (ActorIsolation, Type, DeclName, StringRef))
+      (ActorIsolation, Type, DeclName, ActorIsolation))
 GROUPED_WARNING(isolated_conformance_will_become_nonisolated,IsolatedConformances,none,
       "conformance of %0 to %1 should be marked 'nonisolated' to retain its behavior with upcoming feature 'InferIsolatedConformances'",
       (const ValueDecl *, const ValueDecl *))
@@ -9051,7 +9051,7 @@ GROUPED_ERROR(isolated_conformance_to_sendable_metatype,IsolatedConformances,non
 GROUPED_WARNING(isolated_conformance_may_cross_isolation,IsolatedConformances,none,
     "conformance of %select{underlying type of 'some %1'|%0}0 to protocol "
     "'%1' may be isolated and cannot be passed to %2 context",
-    (Identifier, StringRef, StringRef))
+    (Identifier, StringRef, ActorIsolation))
 
 //===----------------------------------------------------------------------===//
 // MARK: @_inheritActorContext

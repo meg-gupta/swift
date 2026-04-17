@@ -9091,7 +9091,7 @@ namespace {
               loc, diag::isolated_conformance_wrong_domain,
               firstConformance->getIsolation(), firstConformance->getType(),
               firstConformance->getProtocol()->getName(),
-              getIsolation().printStringForDiagnostics(ctx))
+              getIsolation())
           .warnUntilLanguageMode(LanguageMode::v6);
       return true;
     }

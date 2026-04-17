@@ -1377,7 +1377,7 @@ namespace {
         break;
 
       case ActorIsolation::NonisolatedNonsending:
-        printFlag(true, "isolated_to_caller_isolation", CapturesColor);
+        printFlag(true, "nonisolated_nonsending", CapturesColor);
         break;
 
       case ActorIsolation::ActorInstance:
