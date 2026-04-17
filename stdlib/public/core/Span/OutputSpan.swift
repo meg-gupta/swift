@@ -411,7 +411,7 @@ extension OutputSpan where Element: ~Copyable {
   @_alwaysEmitIntoClient
   @_transparent
   @lifetime(self: copy self)
-  @safe
+  @unsafe
   public mutating func withUnsafeMutableBufferPointer<E: Error, R: ~Copyable>(
     _ body: (
       UnsafeMutableBufferPointer<Element>,
