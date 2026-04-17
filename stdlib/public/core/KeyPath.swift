@@ -639,7 +639,7 @@ public class ReferenceWritableKeyPath<
       func formalMutation<MutationRoot>(_ base: MutationRoot)
           -> UnsafeMutablePointer<Value> {
         var base2 = base
-            return withUnsafeBytes(of: &base2) { baseBytes in
+        return withUnsafeBytes(of: &base2) { baseBytes in
           var p = unsafe baseBytes.baseAddress.unsafelyUnwrapped
           var curType: Any.Type = MutationRoot.self
           while true {

@@ -523,7 +523,7 @@ extension Substring: StringProtocol {
     _ body: (UnsafePointer<CChar>) throws(E) -> Result) throws(E) -> Result {
     // TODO(String performance): Detect when we cover the rest of a nul-
     // terminated String, and thus can avoid a copy.
-      return try String(self).withCString(body)
+    return try String(self).withCString(body)
   }
 
 #if !hasFeature(Embedded)

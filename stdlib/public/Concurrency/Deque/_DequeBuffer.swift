@@ -36,7 +36,7 @@ internal class _DequeBuffer<Element>: ManagedBuffer<_DequeBufferHeader, Element>
 
 extension _DequeBuffer: CustomStringConvertible {
   internal var description: String {
-      unsafe withUnsafeMutablePointerToHeader { "_DequeStorage<\(Element.self)>\(unsafe $0.pointee)" }
+    unsafe withUnsafeMutablePointerToHeader { "_DequeStorage<\(Element.self)>\(unsafe $0.pointee)" }
   }
 }
 

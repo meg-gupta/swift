@@ -62,7 +62,7 @@ public // SPI (Distributed)
 func _getFunctionFullNameFromMangledName(mangledName: String) -> String? {
   let mangledNameUTF8 = Array(mangledName.utf8)
   let (stringPtr, count) =
-  mangledNameUTF8.withUnsafeBufferPointer { (mangledNameUTF8) in
+    mangledNameUTF8.withUnsafeBufferPointer { (mangledNameUTF8) in
     return unsafe _getFunctionFullNameFromMangledNameImpl(
       mangledNameUTF8.baseAddress!,
       UInt(mangledNameUTF8.endIndex))

@@ -1100,7 +1100,7 @@ extension ArraySlice: RangeReplaceableCollection {
   public mutating func _withUnsafeMutableBufferPointerIfSupported<R>(
     _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withUnsafeMutableBufferPointer {
+    return try withUnsafeMutableBufferPointer {
       (bufferPointer) -> R in
       return try unsafe body(&bufferPointer)
     }
@@ -1122,7 +1122,7 @@ extension ArraySlice: RangeReplaceableCollection {
   public func withContiguousStorageIfAvailable<R>(
     _ body: (UnsafeBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withUnsafeBufferPointer {
+    return try withUnsafeBufferPointer {
       (bufferPointer) -> R in
       return try unsafe body(bufferPointer)
     }

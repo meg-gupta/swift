@@ -387,7 +387,7 @@ extension MutableSpan where Element: ~Copyable {
   public func withUnsafeBufferPointer<E: Error, Result: ~Copyable>(
     _ body: (_ buffer: UnsafeBufferPointer<Element>) throws(E) -> Result
   ) throws(E) -> Result {
-      try Span(_mutableSpan: self).withUnsafeBufferPointer(body)
+    try Span(_mutableSpan: self).withUnsafeBufferPointer(body)
   }
 
   //FIXME: mark closure parameter as non-escaping
@@ -421,7 +421,7 @@ extension MutableSpan where Element: BitwiseCopyable {
   public func withUnsafeBytes<E: Error, Result: ~Copyable>(
     _ body: (_ buffer: UnsafeRawBufferPointer) throws(E) -> Result
   ) throws(E) -> Result {
-      try RawSpan(_mutableSpan: self).withUnsafeBytes(body)
+    try RawSpan(_mutableSpan: self).withUnsafeBytes(body)
   }
 
   //FIXME: mark closure parameter as non-escaping

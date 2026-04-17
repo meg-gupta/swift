@@ -1415,7 +1415,7 @@ extension Array: RangeReplaceableCollection {
   public mutating func _withUnsafeMutableBufferPointerIfSupported<R>(
     _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withUnsafeMutableBufferPointer {
+    return try withUnsafeMutableBufferPointer {
       (bufferPointer) -> R in
       return try unsafe body(&bufferPointer)
     }
@@ -1426,7 +1426,7 @@ extension Array: RangeReplaceableCollection {
   public mutating func withContiguousMutableStorageIfAvailable<R>(
     _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withUnsafeMutableBufferPointer {
+    return try withUnsafeMutableBufferPointer {
       (bufferPointer) -> R in
       return try unsafe body(&bufferPointer)
     }
@@ -1437,7 +1437,7 @@ extension Array: RangeReplaceableCollection {
   public func withContiguousStorageIfAvailable<R>(
     _ body: (UnsafeBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withUnsafeBufferPointer {
+    return try withUnsafeBufferPointer {
       (bufferPointer) -> R in
       return try unsafe body(bufferPointer)
     }
@@ -1705,7 +1705,7 @@ extension Array {
   internal func withUnsafeBufferPointer<R>(
     _ body: (UnsafeBufferPointer<Element>) throws -> R
   ) rethrows -> R {
-      return try _buffer.withUnsafeBufferPointer(body)
+    return try _buffer.withUnsafeBufferPointer(body)
   }
 
   /// Calls a closure with a pointer to the array's contiguous storage.
@@ -1742,7 +1742,7 @@ extension Array {
   public func withUnsafeBufferPointer<R, E>(
     _ body: (UnsafeBufferPointer<Element>) throws(E) -> R
   ) throws(E) -> R {
-      return try _buffer.withUnsafeBufferPointer(body)
+    return try _buffer.withUnsafeBufferPointer(body)
   }
 
   @available(SwiftStdlib 6.2, *)
@@ -2076,7 +2076,7 @@ extension Array {
   public mutating func withUnsafeMutableBytes<R>(
     _ body: (UnsafeMutableRawBufferPointer) throws -> R
   ) rethrows -> R {
-      return try self.withUnsafeMutableBufferPointer {
+    return try self.withUnsafeMutableBufferPointer {
       return try unsafe body(UnsafeMutableRawBufferPointer($0))
     }
   }
@@ -2113,7 +2113,7 @@ extension Array {
   public func withUnsafeBytes<R>(
     _ body: (UnsafeRawBufferPointer) throws -> R
   ) rethrows -> R {
-      return try self.withUnsafeBufferPointer {
+    return try self.withUnsafeBufferPointer {
       try unsafe body(UnsafeRawBufferPointer($0))
     }
   }

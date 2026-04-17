@@ -435,7 +435,7 @@ extension _Deque: MutableCollection {
   mutating func _withUnsafeMutableBufferPointerIfSupported<R>(
     _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
   ) rethrows -> R? {
-      return try withContiguousMutableStorageIfAvailable(body)
+    return try withContiguousMutableStorageIfAvailable(body)
   }
 }
 
