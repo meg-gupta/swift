@@ -2191,6 +2191,7 @@ static TypeEntityReference getConformingEntityReference(
       cast<NormalProtocolConformance>(conformance)->isConformanceOfProtocol()) {
     auto ext = cast<ExtensionDecl>(conformance->getDeclContext());
     auto linkEntity = LinkEntity::forExtensionDescriptor(ext);
+    IGM.IRGen.AllConformanceOfProtocolExtensionDescriptors.insert(ext);
     IGM.IRGen.noteUseOfExtensionDescriptor(ext);
     return IGM.getContextDescriptorEntityReference(linkEntity);
   }
