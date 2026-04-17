@@ -1351,7 +1351,7 @@ public:
     return (Data & IsolationMask) == IsolatedAny;
   }
 
-  bool isNonIsolatedCaller() const {
+  bool isNonisolatedNonsendingCaller() const {
     return (Data & IsolationMask) == NonIsolatedNonsending;
   }
 

@@ -4471,7 +4471,7 @@ void PrintAST::printOneParameter(const ParamDecl *param,
 
       bool isNonisolatedNonsending = false;
       if (auto *funcTy = dyn_cast<AnyFunctionType>(interfaceTy.getPointer()))
-        isNonisolatedNonsending = funcTy->getIsolation().isNonIsolatedCaller();
+        isNonisolatedNonsending = funcTy->getIsolation().isNonisolatedNonsendingCaller();
 
       // We suppress `@escaping` on enum element parameters because it cannot
       // be written explicitly in this position.
