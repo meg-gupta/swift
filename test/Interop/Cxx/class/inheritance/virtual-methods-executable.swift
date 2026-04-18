@@ -27,4 +27,15 @@ VirtualMethodsTestSuite.test("value type") {
   expectEqual(789, d6.getPureInt())
 }
 
+VirtualMethodsTestSuite.test("renamed virtual methods") {
+  let vrb = VirtualRenamedBase()
+  expectEqual(101, vrb.swiftName())
+  let vri = VirtualRenamedInherited()
+  expectEqual(101, vri.swiftName())
+  let vro = VirtualRenamedOverridden()
+  expectEqual(303, vro.swiftName())
+  let pvro = PureVirtualRenamedOverridden()
+  expectEqual(404, pvro.swiftName())
+}
+
 runAllTests()

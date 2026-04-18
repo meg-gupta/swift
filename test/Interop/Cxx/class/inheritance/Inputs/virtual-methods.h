@@ -4,8 +4,6 @@ inline void testFunctionCollected() {}
 
 struct Base {
   virtual void foo() = 0;
-  virtual void virtualRename() const
-      __attribute__((swift_name("swiftVirtualRename()")));
 };
 
 template <class T>
@@ -30,6 +28,25 @@ struct Base3 { virtual int f() { return 111; } };
 struct Derived3 : public Base3 { virtual int f() {  return 222; } };
 struct Derived4 : public Base3 {};
 struct DerivedFromDerived2 : public Derived2 {};
+
+struct VirtualRenamedBase {
+  virtual int cxxName() const
+      __attribute__((swift_name("swiftName()")))
+      { return 101; }
+};
+struct VirtualRenamedInherited : VirtualRenamedBase {};
+struct VirtualRenamedOverridden : VirtualRenamedBase {
+  virtual int cxxName() const override { return 303; }
+};
+
+struct PureVirtualRenamedBase {
+  virtual int cxxName() const
+      __attribute__((swift_name("swiftName()"))) = 0;
+};
+struct PureVirtualRenamedInherited : PureVirtualRenamedBase {};
+struct PureVirtualRenamedOverridden : PureVirtualRenamedBase {
+  virtual int cxxName() const override { return 404; }
+};
 
 struct VirtualNonAbstractBase {
   virtual void nonAbstractMethod() const;
