@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -25,6 +25,7 @@
 #include "TypeCheckConcurrency.h"
 #include "TypeCheckDistributed.h"
 #include "TypeCheckEffects.h"
+#include "TypeCheckFullyInhabited.h"
 #include "TypeCheckInvertible.h"
 #include "TypeCheckObjC.h"
 #include "TypeCheckUnsafe.h"
@@ -6890,6 +6891,14 @@ void TypeChecker::checkConformancesInContext(IterableDeclContext *idc) {
         checkBitwiseCopyableConformance(
             conformance, /*isImplicit=*/conformance->getSourceKind() ==
                              ConformanceEntryKind::Synthesized);
+        break;
+      }
+      case KnownProtocolKind::ConvertibleToBytes: {
+        checkConvertibleToBytesConformance(conformance);
+        break;
+      }
+      case KnownProtocolKind::ConvertibleFromBytes: {
+        checkConvertibleFromBytesConformance(conformance);
         break;
       }
       default:
