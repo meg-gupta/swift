@@ -1326,20 +1326,14 @@ StringRef SILIsolationInfo::printActorIsolationForDiagnostics(
 void SILIsolationInfo::printActorIsolationForDiagnostics(
     SILFunction *fn, ActorIsolation iso, llvm::raw_ostream &os,
     StringRef openingQuotationMark, bool asNoun) {
-  // If we have NonisolatedNonsendingByDefault enabled, we need to return
-  // @concurrent for NonisolatedConcurrent and nonisolated for
-  // NonisolatedNonsending (which is the default for async nonisolated).
-  if (fn->isAsync() && fn->getASTContext().LangOpts.hasFeature(
-                           Feature::NonisolatedNonsendingByDefault)) {
-    if (iso.isNonisolatedNonsending()) {
-      os << "nonisolated";
-      return;
-    }
-
-    if (iso.isNonisolatedConcurrent()) {
-      os << "@concurrent";
-      return;
-    }
+  // Under NonisolatedNonsendingByDefault, render NonisolatedNonsending as
+  // "nonisolated" instead of the default "caller isolation inheriting-isolated".
+  if (fn->isAsync() &&
+      fn->getASTContext().LangOpts.hasFeature(
+          Feature::NonisolatedNonsendingByDefault) &&
+      iso.isNonisolatedNonsending()) {
+    os << "nonisolated";
+    return;
   }
 
   return iso.printForDiagnostics(os, openingQuotationMark, asNoun);

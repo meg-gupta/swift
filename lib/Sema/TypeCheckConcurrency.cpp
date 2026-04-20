@@ -4021,10 +4021,23 @@ namespace {
           case ActorReferenceResult::SameConcurrencyDomain:
             break;
 
-          case ActorReferenceResult::ExitsActorToNonisolated:
-            unsatisfiedIsolation =
-                ActorIsolation::forNonisolated(/*unsafe=*/false);
+          case ActorReferenceResult::ExitsActorToNonisolated: {
+            auto *decl = memberRef->first.getDecl();
+            if (decl->getAttrs().hasAttribute<ConcurrentAttr>()) {
+              unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
+            } else if (ctx.LangOpts.hasFeature(
+                           Feature::NonisolatedNonsendingByDefault) &&
+                       isa<AbstractFunctionDecl>(decl) &&
+                       cast<AbstractFunctionDecl>(decl)->isAsync()) {
+              // Old-style nonisolated async from a pre-feature module behaves
+              // like @concurrent (runs on generic executor)
+              unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
+            } else {
+              unsatisfiedIsolation =
+                  ActorIsolation::forNonisolated(/*unsafe=*/false);
+            }
             break;
+          }
 
           case ActorReferenceResult::EntersActor:
             unsatisfiedIsolation = result.isolation;
@@ -4097,12 +4110,15 @@ namespace {
       // type isolation.
       if (mayExitToNonisolated && fnType->isAsync()) {
         // Determine the appropriate nonisolated isolation for the callee.
-        // If the callee is explicitly @concurrent, use NonisolatedConcurrent;
-        // otherwise use plain Nonisolated.
+        // If the callee is explicitly @concurrent, use NonisolatedConcurrent.
+        // With NonisolatedNonsendingByDefault, any async nonisolated callee
+        // that is NOT nonisolated(nonsending) is effectively @concurrent too.
         auto calleeNonisolation =
-            (calleeDecl && getActorIsolation(calleeDecl).isNonisolatedConcurrent())
+            (calleeDecl && calleeDecl->getAttrs().hasAttribute<ConcurrentAttr>())
             ? ActorIsolation::forNonisolatedConcurrent()
-            : ActorIsolation::forNonisolated(/*unsafe=*/false);
+            : (ctx.LangOpts.hasFeature(Feature::NonisolatedNonsendingByDefault)
+                ? ActorIsolation::forNonisolatedConcurrent()
+                : ActorIsolation::forNonisolated(/*unsafe=*/false));
 
         if (getContextIsolation().isActorIsolated() &&
             !fnTypeIsolation.isNonisolatedNonsending())
