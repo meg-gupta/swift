@@ -1369,7 +1369,7 @@ namespace {
         break;
 
       case ActorIsolation::NonisolatedConcurrent:
-        printFlag(true, "nonisolated_concurrent", CapturesColor);
+        printFlag(true, "@concurrent", CapturesColor);
         break;
 
       case ActorIsolation::Erased:
