@@ -228,16 +228,6 @@ public:
 
   bool isUnspecified() const { return kind == Unspecified; }
 
-  /// Returns true if any kind of nonisolated isolation,
-  /// including 'nonisolated', '@concurrent', 'nonisolated(nonsending)',
-  /// or even 'nonisolated(unsafe)'.
-  bool isAnyNonisolated() const {
-    return (kind == Nonisolated) ||
-      (kind == NonisolatedConcurrent) ||
-      (kind == NonisolatedNonsending) ||
-      (kind == NonisolatedUnsafe);
-  }
-
   /// Returns true for 'nonisolated', '@concurrent', or 'nonisolated(unsafe)'
   /// but NOT 'nonisolated(nonsending)' which inherits caller isolation
   bool isNonisolatedOrConcurrent() const {
