@@ -4096,14 +4096,20 @@ namespace {
       // casts is what would add the nonisolated(nonsending) bit to the function
       // type isolation.
       if (mayExitToNonisolated && fnType->isAsync()) {
+        // Determine the appropriate nonisolated isolation for the callee.
+        // If the callee is explicitly @concurrent, use NonisolatedConcurrent;
+        // otherwise use plain Nonisolated.
+        auto calleeNonisolation =
+            (calleeDecl && getActorIsolation(calleeDecl).isNonisolatedConcurrent())
+            ? ActorIsolation::forNonisolatedConcurrent()
+            : ActorIsolation::forNonisolated(/*unsafe=*/false);
+
         if (getContextIsolation().isActorIsolated() &&
             !fnTypeIsolation.isNonisolatedNonsending())
-          unsatisfiedIsolation =
-              ActorIsolation::forNonisolated(/*unsafe=*/false);
+          unsatisfiedIsolation = calleeNonisolation;
         else if (getContextIsolation().isNonisolatedNonsending() &&
                  fnTypeIsolation.isNonIsolated())
-          unsatisfiedIsolation =
-              ActorIsolation::forNonisolated(/*unsafe=*/false);
+          unsatisfiedIsolation = calleeNonisolation;
       }
 
       // If there was no unsatisfied actor isolation, we're done.

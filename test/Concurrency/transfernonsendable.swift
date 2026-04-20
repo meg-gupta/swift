@@ -2010,8 +2010,8 @@ nonisolated(nonsending) func testCallNonisolatedNonsending(_ x: NonSendableKlass
   await useValueAsync(x) // expected-ni-warning {{sending 'x' risks causing data races}}
   // expected-ni-note @-1 {{sending nonisolated(nonsending) task-isolated 'x' to nonisolated global function 'useValueAsync' risks causing data races between nonisolated and nonisolated(nonsending) task-isolated uses}}
   await useValueAsyncConcurrent(x) // expected-warning {{sending 'x' risks causing data races}}
-  // expected-ni-note @-1 {{sending nonisolated(nonsending) task-isolated 'x' to nonisolated global function 'useValueAsyncConcurrent' risks causing data races between nonisolated and nonisolated(nonsending) task-isolated uses}}
-  // expected-ni-ns-note @-2 {{sending task-isolated 'x' to nonisolated global function 'useValueAsyncConcurrent' risks causing data races between nonisolated and task-isolated uses}}
+  // expected-ni-note @-1 {{sending nonisolated(nonsending) task-isolated 'x' to @concurrent global function 'useValueAsyncConcurrent' risks causing data races between @concurrent and nonisolated(nonsending) task-isolated uses}}
+  // expected-ni-ns-note @-2 {{sending task-isolated 'x' to @concurrent global function 'useValueAsyncConcurrent' risks causing data races between @concurrent and task-isolated uses}}
 }
 
 func avoidThinkingClosureParameterIsSending() {
