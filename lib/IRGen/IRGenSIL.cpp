@@ -3904,9 +3904,7 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   // NOTE: We cannot just drop_front since we could be between the indirect
   // results and the parameters.
   std::optional<unsigned> implicitIsolatedParameterIndex;
-  if (auto actorIsolation = site.getFunction()->getActorIsolation();
-      actorIsolation && actorIsolation->isNonisolatedNonsending() &&
-      site.isNonisolatedNonsending()) {
+  if (site.isNonisolatedNonsending()) {
     auto *iso = site.getIsolatedArgumentOperandOrNullPtr();
     assert(iso);
     implicitIsolatedParameterIndex = site.getAppliedArgIndex(*iso);
