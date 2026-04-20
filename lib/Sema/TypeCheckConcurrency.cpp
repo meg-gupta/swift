@@ -3236,7 +3236,7 @@ namespace {
             // Rewrite the closure type at this point.
             if (isolation.isNonisolatedNonsending()) {
               auto fnType = closure->getType()->castTo<AnyFunctionType>();
-              if (!fnType->getIsolation().isNonisolatedNonsendingCaller()) {
+              if (!fnType->getIsolation().isNonisolatedNonsending()) {
                 fnType = fnType->withIsolation(
                     FunctionTypeIsolation::forNonIsolatedCaller());
                 closure->setType(fnType);
@@ -4097,7 +4097,7 @@ namespace {
       // type isolation.
       if (mayExitToNonisolated && fnType->isAsync()) {
         if (getContextIsolation().isActorIsolated() &&
-            !fnTypeIsolation.isNonisolatedNonsendingCaller())
+            !fnTypeIsolation.isNonisolatedNonsending())
           unsatisfiedIsolation =
               ActorIsolation::forNonisolated(/*unsafe=*/false);
         else if (getContextIsolation().isNonisolatedNonsending() &&
@@ -4903,7 +4903,7 @@ ActorIsolationChecker::determineClosureIsolation(AbstractClosureExpr *closure,
     // the closure caller isolated.
     if (auto closureTy = getType(closure)) {
       if (auto *closureFnTy = closureTy->getAs<FunctionType>()) {
-        if (closureFnTy->getIsolation().isNonisolatedNonsendingCaller())
+        if (closureFnTy->getIsolation().isNonisolatedNonsending())
           return ActorIsolation::forNonisolatedNonsending();
       }
     }
@@ -4940,7 +4940,7 @@ ActorIsolationChecker::determineClosureIsolation(AbstractClosureExpr *closure,
       if (auto *fce = dyn_cast_or_null<FunctionConversionExpr>(context)) {
         auto expectedIsolation =
             fce->getType()->castTo<FunctionType>()->getIsolation();
-        if (expectedIsolation.isNonisolatedNonsendingCaller())
+        if (expectedIsolation.isNonisolatedNonsending())
           return ActorIsolation::forNonisolatedNonsending();
       }
     }

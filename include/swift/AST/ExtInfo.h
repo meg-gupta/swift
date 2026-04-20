@@ -123,7 +123,7 @@ public:
   bool isErased() const {
     return getKind() == Kind::Erased;
   }
-  bool isNonisolatedNonsendingCaller() const {
+  bool isNonisolatedNonsending() const {
     return getKind() == Kind::NonIsolatedNonsending;
   }
 
