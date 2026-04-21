@@ -747,24 +747,12 @@ function Get-PythonExecutable {
   return [IO.Path]::Combine((Get-PythonPath $BuildPlatform), "tools", "python.exe")
 }
 
-function Get-PythonScriptsPath {
-  return [IO.Path]::Combine((Get-PythonPath $BuildPlatform), "tools", "Scripts")
-}
-
 function Get-EmbeddedPythonInstallDir() {
   return [IO.Path]::Combine("$ImageRoot\", "Program Files", "Swift", "Python-$PythonVersion")
 }
 
 function Get-Syft {
   return $KnownSyft[$SyftVersion][$BuildArchName]
-}
-
-function Get-SyftPath([Hashtable] $Platform) {
-  return [IO.Path]::Combine("$BinaryCache\", "syft-$SyftVersion")
-}
-
-function Get-SyftExecutable {
-  return [IO.Path]::Combine((Get-SyftPath $BuildPlatform), "syft.exe")
 }
 
 function Get-InstallDir([Hashtable] $Platform) {
@@ -1103,7 +1091,6 @@ function Get-Dependencies {
       param
       (
           [string]$ZipFileName,
-          [string]$BinaryCache,
           [string]$ExtractPath,
           [bool]$CreateExtractPath = $true
       )
@@ -1129,37 +1116,10 @@ function Get-Dependencies {
       Expand-Archive -Path $Source -DestinationPath $Destination -Force
     }
 
-    function Expand-TapeArchive {
-      param
-      (
-          [string]$SourceName,
-          [string]$BinaryCache,
-          [string]$DestinationName
-      )
-      $Source = Join-Path -Path $BinaryCache -ChildPath $SourceName
-      $Destination = Join-Path -Path $BinaryCache -ChildPath $DestinationName
-
-      # Check if the extracted directory already exists and is up to date.
-      if (Test-Path $Destination) {
-          $TarLastWriteTime = (Get-Item $Source).LastWriteTime
-          $ExtractedLastWriteTime = (Get-Item $Destination).LastWriteTime
-          # Compare the last write times
-          if ($TarLastWriteTime -le $ExtractedLastWriteTime) {
-              # Write-Output "'$SourceName' is already extracted and up to date."
-              return
-          }
-      }
-
-      # Write-Output "Extracting '$Source' ..."
-      New-Item -ItemType Directory -ErrorAction Ignore -Path $Destination | Out-Null
-      tar -xvf $Source -C $Destination | Out-Null
-    }
-
     function Extract-Toolchain {
       param
       (
           [string]$InstallerExeName,
-          [string]$BinaryCache,
           [string]$ToolchainName
       )
 
@@ -1191,7 +1151,7 @@ function Get-Dependencies {
     if ($IncludeSBoM) {
       $syft = Get-Syft
       DownloadAndVerify $syft.URL "$BinaryCache\syft-$SyftVersion.zip" $syft.SHA256
-      Expand-ZipFile syft-$SyftVersion.zip $BinaryCache syft-$SyftVersion
+      Expand-ZipFile syft-$SyftVersion.zip -ExtractPath syft-$SyftVersion
       Write-Success "syft $SyftVersion"
     }
 
@@ -1207,7 +1167,7 @@ function Get-Dependencies {
       $Python = Get-KnownPython $ArchName $EmbeddedPython
       $FileName = $(if ($EmbeddedPython) { "EmbeddedPython$ArchName-$PythonVersion" } else { "Python$ArchName-$PythonVersion" })
       DownloadAndVerify $Python.URL "$BinaryCache\$FileName.zip" $Python.SHA256
-      Expand-ZipFile "$FileName.zip" "$BinaryCache" "$FileName"
+      Expand-ZipFile "$FileName.zip" -ExtractPath "$FileName"
       Write-Success "$ArchName Python $PythonVersion"
     }
 
@@ -1271,7 +1231,7 @@ function Get-Dependencies {
     if ($SkipBuild -and $SkipPackaging) { return }
 
     DownloadAndVerify $WiX.URL "$BinaryCache\WiX-$($WiX.Version).zip" $WiX.SHA256
-    Expand-ZipFile WiX-$($WiX.Version).zip $BinaryCache WiX-$($WiX.Version)
+    Expand-ZipFile WiX-$($WiX.Version).zip -ExtractPath WiX-$($WiX.Version)
     Write-Success "WiX $($WiX.Version)"
 
     if ($SkipBuild) { return }
@@ -1283,19 +1243,19 @@ function Get-Dependencies {
       $GnuWin32MakeURL = "https://downloads.sourceforge.net/project/ezwinports/make-4.4.1-without-guile-w32-bin.zip"
       $GnuWin32MakeHash = "fb66a02b530f7466f6222ce53c0b602c5288e601547a034e4156a512dd895ee7"
       DownloadAndVerify $GnuWin32MakeURL "$BinaryCache\GnuWin32Make-4.4.1.zip" $GnuWin32MakeHash
-      Expand-ZipFile GnuWin32Make-4.4.1.zip $BinaryCache GnuWin32Make-4.4.1
+      Expand-ZipFile GnuWin32Make-4.4.1.zip -ExtractPath GnuWin32Make-4.4.1
       Write-Success "GNUWin32 make 4.4.1"
     }
 
     # TODO(compnerd) stamp/validate that we need to re-extract
     New-Item -ItemType Directory -ErrorAction Ignore $BinaryCache\toolchains | Out-Null
-    Extract-Toolchain "$PinnedToolchain.exe" $BinaryCache $ToolchainVersionIdentifier
+    Extract-Toolchain "$PinnedToolchain.exe" -ToolchainName $ToolchainVersionIdentifier
     Write-Success "Swift Toolchain $PinnedVersion"
 
     if ($Android) {
       $NDK = Get-AndroidNDK
       DownloadAndVerify $NDK.URL "$BinaryCache\android-ndk-$AndroidNDKVersion-windows.zip" $NDK.SHA256
-      Expand-ZipFile -ZipFileName "android-ndk-$AndroidNDKVersion-windows.zip" -BinaryCache $BinaryCache -ExtractPath "android-ndk-$AndroidNDKVersion" -CreateExtractPath $false
+      Expand-ZipFile "android-ndk-$AndroidNDKVersion-windows.zip" -ExtractPath "android-ndk-$AndroidNDKVersion" -CreateExtractPath $false
       Write-Success "Android NDK $AndroidNDKVersion"
     }
 
@@ -1305,7 +1265,7 @@ function Get-Dependencies {
       $WinFlexBisonHash = "8D324B62BE33604B2C45AD1DD34AB93D722534448F55A16CA7292DE32B6AC135"
       DownloadAndVerify $WinFlexBisonURL "$BinaryCache\win_flex_bison-$WinFlexBisonVersion.zip" $WinFlexBisonHash
 
-      Expand-ZipFile -ZipFileName "win_flex_bison-$WinFlexBisonVersion.zip" -BinaryCache $BinaryCache -ExtractPath "win_flex_bison"
+      Expand-ZipFile "win_flex_bison-$WinFlexBisonVersion.zip" -BinaryCache $BinaryCache -ExtractPath "win_flex_bison"
       Write-Success "flex/bison $WinFlexBisonVersion"
     }
 
