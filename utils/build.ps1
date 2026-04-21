@@ -1061,10 +1061,6 @@ function Invoke-VsDevShell([Hashtable] $Platform) {
   }
 }
 
-function Get-PythonLibName() {
-  return "python{0}{1}" -f ([System.Version]$PythonVersion).Major, ([System.Version]$PythonVersion).Minor
-}
-
 function Get-Dependencies {
   Record-OperationTime $BuildPlatform "Get-Dependencies" {
     function Write-Success([string] $Description) {
@@ -2144,7 +2140,7 @@ function Build-CDispatch([Hashtable] $Platform, [switch] $Static = $false) {
 function Get-CompilersDefines([Hashtable] $Platform, [string] $Variant, [switch] $Test) {
   $BuildTools = [IO.Path]::Combine((Get-ProjectBinaryCache $BuildPlatform BuildTools), "bin")
   $PythonRoot = [IO.Path]::Combine((Get-PythonPath $Platform), "tools")
-  $PythonLibName = Get-PythonLibName
+  $PythonLibName = "python{0}{1}" -f ([System.Version]$PythonVersion).Major, ([System.Version]$PythonVersion).Minor
 
   $TestDefines = if ($Test) {
     @{
