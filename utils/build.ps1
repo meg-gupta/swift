@@ -3397,6 +3397,16 @@ function Build-SDK([Hashtable] $Platform) {
   Invoke-BuildStep Build-Foundation $Platform
 }
 
+function Build-SDKDependencies([Hashtable[]] $ArchitectureSlices) {
+  foreach ($Slice in $ArchitectureSlices) {
+    if ($IncludeDS2) { Invoke-BuildStep Build-DS2 $Slice }
+    Invoke-BuildStep Build-ZLib $Slice
+    Invoke-BuildStep Build-Brotli $Slice
+    Invoke-BuildStep Build-XML2 $Slice
+    Invoke-BuildStep Build-CURL $Slice
+  }
+}
+
 function Build-ExperimentalSDK([Hashtable] $Platform) {
   Invoke-BuildStep Build-CDispatch $Platform
 
@@ -4332,16 +4342,7 @@ if (-not $SkipBuild) {
     }
 
   if ($Windows) {
-    foreach ($Build in $WindowsSDKBuilds) {
-      if ($IncludeDS2) {
-        Invoke-BuildStep Build-DS2 $Build
-      }
-
-      Invoke-BuildStep Build-ZLib $Build
-      Invoke-BuildStep Build-Brotli $Build
-      Invoke-BuildStep Build-XML2 $Build
-      Invoke-BuildStep Build-CURL $Build
-    }
+    Build-SDKDependencies $WindowsSDKBuilds
 
     foreach ($SDK in $WindowsSDKVersions) {
       switch ($SDK) {
@@ -4413,16 +4414,7 @@ if (-not $SkipBuild) {
   }
 
   if ($Android) {
-    foreach ($Build in $AndroidSDKBuilds) {
-      if ($IncludeDS2) {
-        Invoke-BuildStep Build-DS2 $Build
-      }
-
-      Invoke-BuildStep Build-ZLib $Build
-      Invoke-BuildStep Build-Brotli $Build
-      Invoke-BuildStep Build-XML2 $Build
-      Invoke-BuildStep Build-CURL $Build
-    }
+    Build-SDKDependencies $AndroidSDKBuilds
 
     foreach ($SDK in $AndroidSDKVersions) {
       switch ($SDK) {
