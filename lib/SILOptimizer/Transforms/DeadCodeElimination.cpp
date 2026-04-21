@@ -15,7 +15,6 @@
 #include "swift/Basic/BlotSetVector.h"
 #include "swift/SIL/BasicBlockBits.h"
 #include "swift/SIL/DebugUtils.h"
-#include "swift/SIL/InstWrappers.h"
 #include "swift/SIL/MemAccessUtils.h"
 #include "swift/SIL/NodeBits.h"
 #include "swift/SIL/OwnershipUtils.h"
@@ -94,17 +93,8 @@ static bool seemsUseful(SILInstruction *I) {
     return true;
   }
 
-  // A dead forwarding operation with an owned argument can appear for a
-  // non-copyable or non-escapable struct which has only trivial elements.
-  // The instruction is not trivially dead because it ends the lifetime of
-  // its operand.
-  if (auto forwardingOperation = ForwardingOperation(I)) {
-    if (auto *op = forwardingOperation.getSingleForwardingOperand()) {
-      if (op->get()->getOwnershipKind() == OwnershipKind::Owned &&
-          op->get()->getType().isMoveOnly()) {
-        return true;
-      }
-    }
+  if (!canDeleteDeadMoveOnlyOwnedDestructureInst(I)) {
+    return true;
   }
 
   return false;
