@@ -4973,8 +4973,17 @@ ActorIsolationChecker::determineClosureIsolation(AbstractClosureExpr *closure,
     // NOTE: Since we already checked for global actor isolated things, we
     // know that all Sendable closures must be nonisolated. That is why it is
     // safe to rely on this path to handle Sendable closures.
-    if (isIsolationBoundary)
+    if (isIsolationBoundary) {
+      // An async-let autoclosure always launches a fresh child task that runs
+      // concurrently with the parent and does not inherit caller isolation;
+      // model it as @concurrent so diagnostics distinguish it from
+      // 'nonisolated'
+      if (auto *autoclosure = dyn_cast<AutoClosureExpr>(closure)) {
+        if (autoclosure->getThunkKind() == AutoClosureExpr::Kind::AsyncLet)
+          return ActorIsolation::forNonisolatedConcurrent();
+      }
       return ActorIsolation::forNonisolated(/*unsafe=*/false);
+    }
 
     return normalIsolation;
   }();
