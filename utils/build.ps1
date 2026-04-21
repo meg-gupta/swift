@@ -956,6 +956,13 @@ function Move-Directory($Src, $Dst) {
   Move-Item -Path $Src -Destination $Destination -Force | Out-Null
 }
 
+function ConvertTo-ThickLayout([Hashtable] $Platform, [string] $Resources, [string[]] $Filter) {
+  Get-ChildItem "${Resources}\*" -File -Include ${Filter} -ErrorAction Ignore | ForEach-Object {
+    Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
+    Move-Item $_.FullName "$Resources\$($Platform.Architecture.LLVMName)\" | Out-Null
+  }
+}
+
 function Invoke-Program() {
   [CmdletBinding(PositionalBinding = $false)]
   param
@@ -4351,10 +4358,7 @@ if (-not $SkipBuild) {
           foreach ($Build in $WindowsSDKBuilds) {
             Invoke-BuildStep Build-SDK $Build
 
-            Get-ChildItem "${SDKROOT}\usr\lib\swift\windows" -Filter "*.lib" -File -ErrorAction Ignore | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift\windows\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift\windows" -Filter @("*.lib")
 
             # FIXME(compnerd) how do we select which SDK is meant to be re-distributed?
             Copy-Directory "${SDKROOT}\usr\bin" "$([IO.Path]::Combine((Get-InstallDir $Build), "Runtimes", $ProductVersion, "usr"))"
@@ -4370,15 +4374,8 @@ if (-not $SkipBuild) {
           foreach ($Build in $WindowsSDKBuilds) {
             Invoke-BuildStep Build-ExperimentalSDK $Build
 
-            Get-ChildItem -ErrorAction Ignore "${SDKROOT}\usr\lib\swift\windows" -Filter "*.lib" -File | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift\windows\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
-
-            Get-ChildItem -ErrorAction Ignore "${SDKROOT}\usr\lib\swift_static\windows" -Filter "*.lib" -File | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift_static\windows\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift\windows" -Filter @("*.lib")
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift_static\windows" -Filter @("*.lib")
 
             # FIXME(compnerd) how do we select which SDK is meant to be re-distributed?
             Copy-Directory "${SDKROOT}\usr\bin" "$([IO.Path]::Combine((Get-InstallDir $Build), "Runtimes", "$ProductVersion.experimental", "usr"))"
@@ -4423,10 +4420,7 @@ if (-not $SkipBuild) {
           foreach ($Build in $AndroidSDKBuilds) {
             Invoke-BuildStep Build-SDK $Build
 
-            Get-ChildItem "${SDKROOT}\usr\lib\swift\android" -File | Where-Object { $_.Name -match ".a$|.so$" } | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift\android\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift\android" -Filter @(".a", ".so")
           }
 
           Install-SDK $AndroidSDKBuilds
@@ -4438,15 +4432,8 @@ if (-not $SkipBuild) {
           foreach ($Build in $AndroidSDKBuilds) {
             Invoke-BuildStep Build-ExperimentalSDK $Build
 
-            Get-ChildItem "${SDKROOT}\usr\lib\swift\android" -File | Where-Object { $_.Name -match ".a$|.so$" } | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift\android\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
-
-            Get-ChildItem -ErrorAction Ignore "${SDKROOT}\usr\lib\swift_static\android" -File | Where-Object { $_.Name -match ".a$|.so$" } | ForEach-Object {
-              Write-Host -BackgroundColor DarkRed -ForegroundColor White "$($_.FullName) is not nested in an architecture directory"
-              Move-Item $_.FullName "${SDKROOT}\usr\lib\swift_static\android\$($Build.Architecture.LLVMName)\" | Out-Null
-            }
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift\android" -Filter @(".a", ".so")
+            ConvertTo-ThickLayout -Platform $Build -Resources "${SDKROOT}\usr\lib\swift_static\android"  -Filter @(".a", ".so")
           }
 
           Install-SDK $AndroidSDKBuilds -Identifiers AndroidExperimental
