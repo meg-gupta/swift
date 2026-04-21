@@ -2,10 +2,10 @@
 
 // REQUIRES: asserts
 
-// CHECK: // func_with_nonisolated(nonsending)
+// CHECK: // func_with_nonisolated_nonsending_isolation
 // CHECK: // Isolation: nonisolated(nonsending)
-// CHECK: sil [isolation "nonisolated(nonsending)"] @func_with_nonisolated(nonsending) : $@convention(thin) () -> () {
-sil [isolation "nonisolated(nonsending)"] @func_with_nonisolated(nonsending) : $@convention(thin) () -> () {
+// CHECK: sil [isolation "nonisolated(nonsending)"] @func_with_nonisolated_nonsending_isolation : $@convention(thin) () -> () {
+sil [isolation "nonisolated(nonsending)"] @func_with_nonisolated_nonsending_isolation : $@convention(thin) () -> () {
 bb0:
   %0 = tuple ()
   return %0 : $()
