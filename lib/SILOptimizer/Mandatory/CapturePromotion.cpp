@@ -468,15 +468,14 @@ ClosureCloner::initCloned(SILOptFunctionBuilder &functionBuilder,
   assert(!orig->isGlobalInit() && "Global initializer cannot be cloned");
 
   auto *fn = functionBuilder.createFunction(
-      orig->getLinkage(), clonedName, clonedTy, orig->getGenericEnvironment(),
-      orig->getLocation(), orig->isBare(), IsNotTransparent, serialized,
-      IsNotDynamic, IsNotDistributed, IsNotRuntimeAccessible,
-      orig->getEntryCount(), orig->isThunk(), orig->getClassSubclassScope(),
-      orig->getInlineStrategy(), orig->getEffectsKind(), orig,
-      orig->getDebugScope());
+      orig->getLinkage(), clonedName, clonedTy, orig->getActorIsolation(),
+      orig->getGenericEnvironment(), orig->getLocation(), orig->isBare(),
+      IsNotTransparent, serialized, IsNotDynamic, IsNotDistributed,
+      IsNotRuntimeAccessible, orig->getEntryCount(), orig->isThunk(),
+      orig->getClassSubclassScope(), orig->getInlineStrategy(),
+      orig->getEffectsKind(), orig, orig->getDebugScope());
   for (auto &attr : orig->getSemanticsAttrs())
     fn->addSemanticsAttr(attr);
-  fn->setActorIsolation(orig->getActorIsolation());
   return fn;
 }
 

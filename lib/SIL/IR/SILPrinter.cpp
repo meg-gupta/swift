@@ -3742,11 +3742,9 @@ void SILFunction::print(SILPrintContext &PrintCtx) const {
   }
   OS << '\n';
 
-  if (auto functionIsolation = getActorIsolation()) {
-    OS << "// Isolation: ";
-    functionIsolation.print(OS);
-    OS << '\n';
-  }
+  OS << "// Isolation: ";
+  getActorIsolation().print(OS);
+  OS << '\n';
 
   printClangQualifiedNameCommentIfPresent(OS, getClangDecl());
 
