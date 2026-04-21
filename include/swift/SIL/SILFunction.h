@@ -364,7 +364,7 @@ private:
   unsigned BlockListChangeIdx = 0;
 
   /// The isolation of this function.
-  std::optional<ActorIsolation> actorIsolation;
+  ActorIsolation actorIsolation;
 
   /// The function's bare attribute. Bare means that the function is SIL-only
   /// and does not require debug info.
@@ -1535,12 +1535,11 @@ public:
   }
 
   ActorIsolation getActorIsolation() const {
-    ASSERT(actorIsolation.has_value());
-    return *actorIsolation;
+    return actorIsolation;
   }
 
   bool isNonisolatedNonsending() const {
-    return actorIsolation && actorIsolation->isCallerIsolationInheriting();
+    return actorIsolation.isCallerIsolationInheriting();
   }
 
   /// Return the source file that this SILFunction belongs to if it exists.
