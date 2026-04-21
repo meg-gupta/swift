@@ -1034,8 +1034,7 @@ static SILFunction *createEmptyVJP(ADContext &context,
       original->getInlineStrategy() == HeuristicAlwaysInline)
     vjp->setInlineStrategy(HeuristicAlwaysInline);
 
-  if (auto isolation = original->getActorIsolation())
-    vjp->setActorIsolation(*isolation);
+  vjp->setActorIsolation(original->getActorIsolation());
 
   LLVM_DEBUG(llvm::dbgs() << "VJP type: " << vjp->getLoweredFunctionType()
                           << "\n");
@@ -1085,8 +1084,7 @@ static SILFunction *createEmptyJVP(ADContext &context,
       original->getInlineStrategy() == HeuristicAlwaysInline)
     jvp->setInlineStrategy(HeuristicAlwaysInline);
 
-  if (auto isolation = original->getActorIsolation())
-    jvp->setActorIsolation(*isolation);
+  jvp->setActorIsolation(original->getActorIsolation());
 
   LLVM_DEBUG(llvm::dbgs() << "JVP type: " << jvp->getLoweredFunctionType()
                           << "\n");

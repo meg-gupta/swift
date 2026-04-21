@@ -1592,8 +1592,7 @@ SILFunction *VJPCloner::Implementation::createEmptyPullback() {
   pullback->setDebugScope(new (module)
                               SILDebugScope(original->getLocation(), pullback));
 
-  if (auto isolation = original->getActorIsolation())
-    pullback->setActorIsolation(*isolation);
+  pullback->setActorIsolation(original->getActorIsolation());
 
   return pullback;
 }

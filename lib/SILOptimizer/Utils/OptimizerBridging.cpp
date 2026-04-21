@@ -478,8 +478,7 @@ createSpecializedFunctionDeclaration(BridgedStringRef specializedName,
   for (auto &Attr : original->getSemanticsAttrs())
     specializedApplySiteCallee->addSemanticsAttr(Attr);
 
-  if (auto isolation = original->getActorIsolation())
-    specializedApplySiteCallee->setActorIsolation(*isolation);
+  specializedApplySiteCallee->setActorIsolation(original->getActorIsolation());
 
   return {specializedApplySiteCallee};
 }

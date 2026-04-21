@@ -1591,8 +1591,7 @@ createEmptyFunction(StringRef name,
       fromFn->getClassSubclassScope(), fromFn->getInlineStrategy(),
       fromFn->getEffectsKind(), nullptr, fromFn->getDebugScope());
 
-  if (auto isolation = fromFn->getActorIsolation())
-    newF->setActorIsolation(*isolation);
+  newF->setActorIsolation(fromFn->getActorIsolation());
 
   return newF;
 }

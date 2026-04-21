@@ -1174,9 +1174,7 @@ SILFunction *ClosureArgumentInOutToOutCloner::initCloned(
   for (auto &Attr : orig->getSemanticsAttrs()) {
     Fn->addSemanticsAttr(Attr);
   }
-  if (auto isolation = orig->getActorIsolation()) {
-    Fn->setActorIsolation(*isolation);
-  }
+  Fn->setActorIsolation(orig->getActorIsolation());
   return Fn;
 }
 

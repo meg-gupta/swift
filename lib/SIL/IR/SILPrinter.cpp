@@ -3744,7 +3744,7 @@ void SILFunction::print(SILPrintContext &PrintCtx) const {
 
   if (auto functionIsolation = getActorIsolation()) {
     OS << "// Isolation: ";
-    functionIsolation->print(OS);
+    functionIsolation.print(OS);
     OS << '\n';
   }
 
@@ -3831,9 +3831,9 @@ void SILFunction::print(SILPrintContext &PrintCtx) const {
   }
 
   if (auto isolation = getActorIsolation()) {
-    if (isolation->isSILParsed() || SILPrintFunctionIsolationInfo) {
+    if (isolation.isSILParsed() || SILPrintFunctionIsolationInfo) {
       OS << "[isolation \"";
-      isolation->printForSIL(OS);
+      isolation.printForSIL(OS);
       OS << "\"] ";
     }
   }

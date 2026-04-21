@@ -1532,8 +1532,9 @@ public:
     actorIsolation = newActorIsolation;
   }
 
-  std::optional<ActorIsolation> getActorIsolation() const {
-    return actorIsolation;
+  ActorIsolation getActorIsolation() const {
+    ASSERT(actorIsolation.has_value());
+    return *actorIsolation;
   }
 
   bool isNonisolatedNonsending() const {
