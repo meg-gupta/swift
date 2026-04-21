@@ -14,7 +14,7 @@
 @available(SwiftStdlib 6.4, *)
 @frozen
 @safe
-public struct Unique<Value: ~Copyable>: ~Copyable {
+public struct UniqueBox<Value: ~Copyable>: ~Copyable {
   @usableFromInline
   let pointer: UnsafeMutablePointer<Value>
 
@@ -39,10 +39,10 @@ public struct Unique<Value: ~Copyable>: ~Copyable {
 }
 
 @available(SwiftStdlib 6.4, *)
-extension Unique: @unchecked Sendable where Value: Sendable & ~Copyable {}
+extension UniqueBox: @unchecked Sendable where Value: Sendable & ~Copyable {}
 
 @available(SwiftStdlib 6.4, *)
-extension Unique where Value: ~Copyable {
+extension UniqueBox where Value: ~Copyable {
   /// Dereferences the unique box allowing for in-place reads and writes to the
   /// stored `Value`.
   @available(SwiftStdlib 6.4, *)
@@ -57,7 +57,7 @@ extension Unique where Value: ~Copyable {
     @_transparent
     @_unsafeSelfDependentResult
     mutate {
-      &(unsafe pointer).pointee
+      unsafe &pointer.pointee
     }
   }
 
@@ -75,7 +75,7 @@ extension Unique where Value: ~Copyable {
 }
 
 @available(SwiftStdlib 6.4, *)
-extension Unique where Value: ~Copyable {
+extension UniqueBox where Value: ~Copyable {
   /// Returns a single element span reference to the instance of `Value` stored
   /// within this unqiue box.
   @available(SwiftStdlib 6.4, *)
@@ -102,12 +102,12 @@ extension Unique where Value: ~Copyable {
 }
 
 @available(SwiftStdlib 6.4, *)
-extension Unique where Value: Copyable {
+extension UniqueBox where Value: Copyable {
   /// Copies the value within the unqiue box and returns it in a new unique
   /// instance.
   @available(SwiftStdlib 6.4, *)
   @_alwaysEmitIntoClient
-  public func clone() -> Unique<Value> {
-    Unique(value)
+  public func clone() -> Self {
+    UniqueBox(value)
   }
 }

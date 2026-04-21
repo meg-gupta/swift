@@ -282,7 +282,7 @@
     "Exclusivity.swift",
     "Borrow.swift",
     "Inout.swift",
-    "Unique.swift"
+    "UniqueBox.swift"
   ],
   "Result": [
     "Result.swift"

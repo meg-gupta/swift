@@ -15,9 +15,10 @@ struct Foo: ~Copyable {
   }
 }
 
+
 @available(SwiftStdlib 6.4, *)
 func basic() {
-  var intBox = Unique(123)
+  var intBox = UniqueBox(123)
 
   // CHECK: 123
   print(intBox.value)
@@ -30,7 +31,7 @@ func basic() {
 
 @available(SwiftStdlib 6.4, *)
 func noncopyable() {
-  let fooBox = Unique(Foo())
+  let fooBox = UniqueBox(Foo())
 
   // CHECK: bar
   print("bar")
@@ -41,7 +42,7 @@ func noncopyable() {
 @available(SwiftStdlib 6.4, *)
 func consume() {
   func help() -> Foo {
-    let fooBox = Unique(Foo())
+    let fooBox = UniqueBox(Foo())
 
     let foo = fooBox.consume()
 
@@ -58,7 +59,7 @@ func consume() {
 
 @available(SwiftStdlib 6.4, *)
 func span() {
-  let fooBox = Unique(Foo())
+  let fooBox = UniqueBox(Foo())
 
   let fooSpan = fooBox.span
 
@@ -71,7 +72,7 @@ func span() {
 
 @available(SwiftStdlib 6.4, *)
 func mutableSpan() {
-  var intBox = Unique(123)
+  var intBox = UniqueBox(123)
 
   let intSpan = intBox.mutableSpan
 
@@ -84,7 +85,7 @@ func mutableSpan() {
 
 @available(SwiftStdlib 6.4, *)
 func clone() {
-  var intBox = Unique(8)
+  var intBox = UniqueBox(8)
   var cloneIntBox = intBox.clone()
 
   intBox.value += 8

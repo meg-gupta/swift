@@ -237,7 +237,7 @@ split_embedded_sources(
   EMBEDDED UnicodeSPI.swift
   EMBEDDED UnicodeScalar.swift
   EMBEDDED UnicodeScalarProperties.swift
-  EMBEDDED Unique.swift
+  EMBEDDED UniqueBox.swift
   EMBEDDED Unmanaged.swift
   EMBEDDED UnmanagedOpaqueString.swift
   EMBEDDED UnmanagedString.swift
