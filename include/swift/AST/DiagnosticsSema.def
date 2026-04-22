@@ -5328,10 +5328,6 @@ GROUPED_WARNING(expression_unused_throwing_unstructured_task,
 NOTE(expression_unused_throwing_unstructured_task_silence, none,
      "to silence this warning, handle the error inside the task, or "
      "store/discard the task value explicitly", ())
-GROUPED_WARNING(expression_unused_throwing_closure_arg,
-        NoUseUnstructuredThrowingTask, none,
-        "result of %0 is not used, which may accidentally ignore errors thrown by passed-in closure",
-        (const ValueDecl *))
 WARNING(expression_unused_result_operator,NoUsage,
         "result of operator %0 is unused", (const ValueDecl *))
 WARNING(expression_unused_result_operator_name,NoUsage,
@@ -7507,17 +7503,6 @@ WARNING(discardable_result_on_void_never_function, none,
         "'@discardableResult' declared on a function returning "
         "'%select{Never|Void}0' "
         "is unnecessary", (bool))
-
-//------------------------------------------------------------------------------
-// MARK: @_nonDiscardableWhenThrowingOperation
-//------------------------------------------------------------------------------
-
-ERROR(non_discardable_when_throwing_operation_requires_discardable_result, none,
-      "'@_nonDiscardableWhenThrowingOperation' must be combined with '@discardableResult'", ())
-
-ERROR(non_discardable_when_throwing_operation_no_throwing_closure_param, none,
-      "'@_nonDiscardableWhenThrowingOperation' requires the function to have exactly one closure "
-      "parameter that uses typed throws", ())
 
 //------------------------------------------------------------------------------
 // MARK: Resilience diagnostics

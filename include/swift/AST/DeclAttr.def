@@ -922,12 +922,7 @@ DECL_ATTR(warn, Warn,
   AllowMultipleAttributes | ABIStableToAdd | ABIStableToRemove | APIStableToAdd | APIStableToRemove | ForbiddenInABIAttr,
   174)
 
-SIMPLE_DECL_ATTR(_nonDiscardableWhenThrowingOperation, NonDiscardableWhenThrowingOperation,
-  OnFunc | OnAccessor | OnConstructor,
-  LongAttribute | UserInaccessible | ABIStableToAdd | ABIStableToRemove | APIStableToAdd | APIStableToRemove | ForbiddenInABIAttr,
-  175)
-
-LAST_DECL_ATTR(NonDiscardableWhenThrowingOperation)
+LAST_DECL_ATTR(Warn)
 
 #undef DECL_ATTR_ALIAS
 #undef CONTEXTUAL_DECL_ATTR_ALIAS

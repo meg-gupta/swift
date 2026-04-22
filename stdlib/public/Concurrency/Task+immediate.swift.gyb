@@ -73,9 +73,6 @@ extension Task where Failure == ${FAILURE_TYPE} {
   @available(SwiftStdlib 6.2, *)
   @_alwaysEmitIntoClient
   @discardableResult
-  % if IS_THROWING:
-  @_nonDiscardableWhenThrowingOperation
-  % end
   public static func ${METHOD_NAME}(
     name: String? = nil,
     priority: TaskPriority? = nil,

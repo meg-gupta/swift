@@ -99,12 +99,6 @@ extension Text {
 }
 ```
 
-## `@_nonDiscardableWhenThrowingOperation`
-
-Can be applied to functions wich with `@discardableResult` to suppresses the discardable result 
-behavior, when the single operation closure parameter of such method is throwing a non-`Never`
-error type.
-
 ## `@_documentation(metadata: ...)`
 
 Adds "documentation metadata" to the symbol. The identifier in the attribute is

@@ -1645,7 +1645,6 @@ namespace  {
     UNINTERESTING_ATTR(Mutating)
     UNINTERESTING_ATTR(NonMutating)
     UNINTERESTING_ATTR(NonEphemeral)
-    UNINTERESTING_ATTR(NonDiscardableWhenThrowingOperation)
     UNINTERESTING_ATTR(NonObjC)
     UNINTERESTING_ATTR(NonOverride)
     UNINTERESTING_ATTR(NSApplicationMain)
