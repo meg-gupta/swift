@@ -55,6 +55,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:strict-memory-safety>
 - <doc:unavailable-sendable-conformance>
 - <doc:unknown-warning-group>
+- <doc:unsupported-scoped-import>
 - <doc:untyped-throws>
 - <doc:unused-import-access>
 - <doc:no-use-throwing-unstructured-task>
@@ -112,6 +113,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:unknown-warning-group>
 - <doc:availability-unrecognized-name>
 - <doc:mutable-global-variable>
+- <doc:unsupported-scoped-import>
 - <doc:untyped-throws>
 - <doc:unused-import-access>
 - <doc:no-use-throwing-unstructured-task>
