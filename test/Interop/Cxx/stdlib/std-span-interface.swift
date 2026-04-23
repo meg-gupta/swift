@@ -22,8 +22,8 @@ import CxxStdlib
 
 // CHECK:     struct DependsOnSelf {
 // CHECK:       @safe borrowing func get() -> ConstSpanOfInt
-// CHECK:       @_lifetime(borrow self)
-// CHECK-NEXT:  @_alwaysEmitIntoClient @_disfavoredOverload public borrowing func get() -> Span<CInt>
+// CHECK-LEGACY:       @_lifetime(borrow self)
+// CHECK-LEGACY-NEXT:  @_alwaysEmitIntoClient @_disfavoredOverload public borrowing func get() -> Span<CInt>
 // CHECK:     }
 
 // CHECK:     struct CaptureByReference {
@@ -40,10 +40,10 @@ import CxxStdlib
 // CHECK-DAG:    /// This is an auto-generated wrapper for safer interop
 // CHECK-DAG:    @available(visionOS 1.0, tvOS 12.2, watchOS 5.2, iOS 12.2, macOS 10.14.4, *)
 // CHECK-DAG:    @_alwaysEmitIntoClient @_disfavoredOverload public mutating func methodWithSafeWrapper(_ s: Span<CInt>)
-// CHECK-DAG:    /// This is an auto-generated wrapper for safer interop
-// CHECK-DAG:    @available(visionOS 1.0, tvOS 12.2, watchOS 5.2, iOS 12.2, macOS 10.14.4, *)
-// CHECK-DAG:    @_lifetime(&self)
-// CHECK-DAG:    @_alwaysEmitIntoClient @_disfavoredOverload public mutating func getMutable(_ s: Span<CInt>) -> MutableSpan<CInt>
+// CHECK-LEGCAY-DAG: /// This is an auto-generated wrapper for safer interop
+// CHECK-LEGACY-DAG: @available(visionOS 1.0, tvOS 12.2, watchOS 5.2, iOS 12.2, macOS 10.14.4, *)
+// CHECK-LEGACY-DAG: @_lifetime(&self)
+// CHECK-LEGACY-DAG: @_alwaysEmitIntoClient @_disfavoredOverload public mutating func getMutable(_ s: Span<CInt>) -> MutableSpan<CInt>
 // CHECK-NEXT: }
 
 // CHECK:      mutating func methodWithMutableSafeWrapper(_ s: SpanOfInt)
@@ -169,7 +169,7 @@ import CxxStdlib
 
 func callMethodWithSafeWrapper(_ x: inout X, s: Span<CInt>) {
     x.methodWithSafeWrapper(s)
-    let _ = x.getMutable(s)
+    let _ = x.getMutable(s) // expected-default-error {{cannot convert value of type 'Span<CInt>' (aka 'Span<Int32>') to expected argument type 'ConstSpanOfInt'}}
 }
 
 func callFooBar(_ x: inout SpanWithoutTypeAlias, _ s: ConstSpanOfInt) {
