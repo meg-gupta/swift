@@ -4032,7 +4032,7 @@ NOTE(inconsistent_implicit_access_level_on_import_here,none,
 FIXIT(inconsistent_implicit_access_level_on_import_fixit,
      "%select{private|fileprivate|internal|package|public|%error}0 ",
      (AccessLevel))
-WARNING(inconsistent_import_access_levels,none,
+GROUPED_WARNING(inconsistent_import_access_levels,InconsistentImportAccess,none,
         "module %0 is imported as "
         "'%select{private|fileprivate|internal|package|public|%error}1' "
         "from the same file; "

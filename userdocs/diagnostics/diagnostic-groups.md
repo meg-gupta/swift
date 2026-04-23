@@ -40,6 +40,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:return-type-implicit-copy>
 - <doc:implicit-strong-capture>
 - <doc:clang-declaration-import>
+- <doc:inconsistent-import-access>
 - <doc:isolated-conformances>
 - <doc:error-in-future-swift-version>
 - <doc:old-suppressed-associatedtypes>
@@ -78,6 +79,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:return-type-implicit-copy>
 - <doc:implicit-strong-capture>
 - <doc:clang-declaration-import>
+- <doc:inconsistent-import-access>
 - <doc:isolated-conformances>
 - <doc:error-in-future-swift-version>
 - <doc:old-suppressed-associatedtypes>
