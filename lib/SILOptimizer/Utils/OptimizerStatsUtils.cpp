@@ -289,11 +289,6 @@ llvm::cl::opt<std::string> StatsOnlyFunctionsNamePattern(
 struct FunctionStat {
   int BlockCount = 0;
   int InstCount = 0;
-  /// True when the FunctionStat is created for a SIL Function after a SIL
-  /// Optimization pass has been run on it. When it is a post optimization SIL
-  /// Function, we do not want to store anything in the InlinedAts Map in
-  /// InstCountVisitor.
-  bool NewFunc = false;
   /// Instruction counts per SILInstruction kind.
   InstructionCounts InstCounts;
 
@@ -301,9 +296,8 @@ struct FunctionStat {
   llvm::StringSet<> VarNames;
   llvm::DenseSet<FunctionStat::VarID> DebugVariables;
   llvm::DenseSet<const SILDebugScope *> VisitedScope;
-  llvm::DenseMap<VarID, const SILDebugScope *> InlinedAts;
 
-  FunctionStat(SILFunction *F, bool NewFunc = false);
+  FunctionStat(SILFunction *F);
   FunctionStat() {}
 
   // The DebugVariables set contains pointers to VarNames. Disallow copy.
@@ -403,24 +397,16 @@ struct ModuleStat {
 struct InstCountVisitor : SILInstructionVisitor<InstCountVisitor> {
   int BlockCount = 0;
   int InstCount = 0;
-  /// True when the InstCountVisitor is created for a SIL Function after a SIL
-  /// Optimization pass has been run on it. When it is a post optimization SIL
-  /// Function, we do not want to store anything in the InlinedAts Map in
-  /// InstCountVisitor.
-  const bool &NewFunc;
   InstructionCounts &InstCounts;
 
   llvm::StringSet<> &VarNames;
   llvm::DenseSet<FunctionStat::VarID> &DebugVariables;
-  llvm::DenseMap<FunctionStat::VarID, const SILDebugScope *> &InlinedAts;
 
   InstCountVisitor(
       InstructionCounts &InstCounts, llvm::StringSet<> &VarNames,
-      llvm::DenseSet<FunctionStat::VarID> &DebugVariables,
-      llvm::DenseMap<FunctionStat::VarID, const SILDebugScope *> &InlinedAts,
-      bool &NewFunc)
-      : NewFunc(NewFunc), InstCounts(InstCounts), VarNames(VarNames),
-        DebugVariables(DebugVariables), InlinedAts(InlinedAts) {}
+      llvm::DenseSet<FunctionStat::VarID> &DebugVariables)
+      : InstCounts(InstCounts), VarNames(VarNames),
+        DebugVariables(DebugVariables) {}
 
   int getBlockCount() const {
     return BlockCount;
@@ -457,8 +443,6 @@ struct InstCountVisitor : SILInstructionVisitor<InstCountVisitor> {
               varInfo->Scope ? varInfo->Scope : inst->getDebugScope(),
               UniqueName, loc);
     DebugVariables.insert(key);
-    if (!NewFunc)
-      InlinedAts.try_emplace(key, varInfo->Scope->InlinedCallSite);
   }
 };
 
@@ -745,64 +729,43 @@ bool isFirstTimeData(int Old, int New) {
 /// \p DbgValScope, return false otherwise.
 bool isScopeChildOfOrEqualTo(const SILDebugScope *Scope,
                              const SILDebugScope *DbgValScope) {
-  llvm::DenseSet<const SILDebugScope *> VisitedScope;
   while (Scope != nullptr) {
-    if (VisitedScope.find(Scope) == VisitedScope.end()) {
-      VisitedScope.insert(Scope);
-      if (Scope == DbgValScope) {
-        return true;
-      }
-      if (auto *S = dyn_cast<const SILDebugScope *>(Scope->Parent))
-        Scope = S;
-    } else
-      return false;
-  }
-  return false;
-}
-
-/// Return true if \p InlinedAt is the same as \p DbgValInlinedAt or part of
-/// the InlinedAt chain, return false otherwise.
-bool isInlinedAtChildOfOrEqualTo(const SILDebugScope *InlinedAt,
-                                 const SILDebugScope *DbgValInlinedAt) {
-  if (DbgValInlinedAt == InlinedAt)
-    return true;
-  if (!DbgValInlinedAt)
-    return false;
-  if (!InlinedAt)
-    return false;
-  auto *IA = InlinedAt;
-  while (IA) {
-    if (IA == DbgValInlinedAt)
+    if (Scope == DbgValScope)
       return true;
-    IA = IA->InlinedCallSite;
+    Scope = dyn_cast<const SILDebugScope *>(Scope->Parent);
   }
   return false;
 }
 
-// Find an Instruction that shares the same scope as the dropped debug_value
-// or has a scope that is the child of the scope of the debug_value, and has
-// an inlinedAt equal to the inlinedAt of the debug_value or its inlinedAt
-// chain contains the inlinedAt of the debug_value. If such an Instruction is
-// found, debug information is considered lost.
-int functionHasInstructionInScope(SILFunction *F,
-                                  const SILDebugScope *DbgValScope,
-                                  const SILDebugScope *OldInlinedAt) {
+/// Return true if the debugger, when stopped at an instruction with scope
+/// \p InstrScope, could observe a variable declared in \p VarScope.
+///
+/// The debugger can see a variable if its scope is in the lexical parent chain
+/// of the current scope, or in the lexical parent chain of any caller frame
+/// in the InlinedCallSite chain. This accounts for the user navigating up
+/// through inlined frames.
+bool isScopeVisibleFromScope(const SILDebugScope *InstrScope,
+                             const SILDebugScope *VarScope) {
+  auto *FrameScope = InstrScope;
+  while (FrameScope) {
+    if (isScopeChildOfOrEqualTo(FrameScope, VarScope))
+      return true;
+    FrameScope = FrameScope->InlinedCallSite;
+  }
+  return false;
+}
+
+/// Return true if an instruction from which \p VarScope is visible
+/// exists in the function. If not, \p VarScope is dead, which means
+/// any variable associated with it can safely be dropped.
+bool functionHasInstructionInScope(SILFunction *F,
+                                   const SILDebugScope *VarScope) {
   for (auto &BB : *F) {
     for (auto &I : BB) {
       if (I.isMetaInstruction() || isa<UnreachableInst>(I))
         continue;
-      auto DbgLoc = I.getDebugLocation();
-      auto Scope = DbgLoc.getScope();
-      // If the Scope is a child of, or equal to the DbgValScope and is
-      // inlined at the Var's InlinedAt location, return true to signify
-      // that the Var has been dropped.
-      if (isScopeChildOfOrEqualTo(Scope, DbgValScope) &&
-          isInlinedAtChildOfOrEqualTo(Scope->InlinedCallSite, OldInlinedAt)) {
-        // Found another instruction in the variable's scope, so there
-        // exists a break point at which the variable could be observed.
-        // Count it as lost.
+      if (isScopeVisibleFromScope(I.getDebugLocation().getScope(), VarScope))
         return true;
-      }
     }
   }
   return false;
@@ -822,8 +785,7 @@ int computeLostVariables(SILFunction *F, FunctionStat &Old, FunctionStat &New,
   for (auto &Var : OldSet) {
     if (NewSet.contains(Var))
       continue;
-    if (functionHasInstructionInScope(F, std::get<0>(Var),
-                                      Old.InlinedAts[Var])) {
+    if (functionHasInstructionInScope(F, std::get<0>(Var))) {
       // Found another instruction in the variable's scope, so there
       // exists a break point at which the variable could be observed.
       // Count it as dropped.
@@ -1080,7 +1042,7 @@ void OptimizerStatsAnalysis::updateModuleStats(TransformationContext &Ctx) {
       InvalidatedFuncs.pop_back();
       auto &FuncStat = getFunctionStat(F);
       auto &OldFuncStat = FuncStat;
-      FunctionStat NewFuncStat(F, true);
+      FunctionStat NewFuncStat(F);
       processFuncStatsChanges(F, OldFuncStat, NewFuncStat, Ctx);
       NewModStat.subFunctionStat(OldFuncStat);
       NewModStat.addFunctionStat(NewFuncStat);
@@ -1105,7 +1067,7 @@ void OptimizerStatsAnalysis::updateModuleStats(TransformationContext &Ctx) {
       AddedFuncs.pop_back();
       auto &FuncStat = getFunctionStat(F);
       FunctionStat OldFuncStat;
-      FunctionStat NewFuncStat(F, true);
+      FunctionStat NewFuncStat(F);
       processFuncStatsChanges(F, OldFuncStat, NewFuncStat, Ctx);
       NewModStat.addFunctionStat(NewFuncStat);
       FuncStat = std::move(NewFuncStat);
@@ -1127,8 +1089,8 @@ void OptimizerStatsAnalysis::updateModuleStats(TransformationContext &Ctx) {
   ModStat = NewModStat;
 }
 
-FunctionStat::FunctionStat(SILFunction *F, bool NewFunc) : NewFunc(NewFunc) {
-  InstCountVisitor V(InstCounts, VarNames, DebugVariables, InlinedAts, NewFunc);
+FunctionStat::FunctionStat(SILFunction *F) {
+  InstCountVisitor V(InstCounts, VarNames, DebugVariables);
   V.visitSILFunction(F);
   BlockCount = V.getBlockCount();
   InstCount = V.getInstCount();
