@@ -45,6 +45,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:error-in-future-swift-version>
 - <doc:old-suppressed-associatedtypes>
 - <doc:module-version-missing>
+- <doc:module-self-import>
 - <doc:oslog>
 - <doc:option-obsoleted-by-module-selectors>
 - <doc:result-builder-methods>
@@ -86,6 +87,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:missing-module-on-known-paths>
 - <doc:module-version-missing>
 - <doc:module-not-testable>
+- <doc:module-self-import>
 - <doc:multiple-inheritance>
 - <doc:nominal-types>
 - <doc:oslog>

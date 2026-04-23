@@ -870,9 +870,9 @@ NOTE(sema_no_import_no_sdk,none,
 NOTE(sema_no_import_no_sdk_xcrun,none,
      "use \"xcrun swiftc\" to select the default macOS SDK "
      "installed with Xcode", ())
-WARNING(sema_import_current_module,none,
+GROUPED_WARNING(sema_import_current_module,ModuleSelfImport,none,
         "this file is part of module %0; ignoring import", (Identifier))
-WARNING(sema_import_current_module_with_file,none,
+GROUPED_WARNING(sema_import_current_module_with_file,ModuleSelfImport,none,
         "file '%0' is part of module %1; ignoring import",
         (StringRef, Identifier))
 ERROR(sema_opening_import,Fatal,
