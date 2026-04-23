@@ -8438,8 +8438,17 @@ NOTE(add_generic_parameter_non_bitwise_copyable_conformance,none,
 ERROR(bitwise_copyable_outside_module,none,
       "conformance to 'BitwiseCopyable' must occur in the same module as %kind0",
       (const ValueDecl *))
+ERROR(convertible_to_bytes_outside_stdlib,none,
+      "type conforming to 'ConvertibleToBytes' must be defined in the standard library module",
+      (const ValueDecl *))
 ERROR(convertible_to_bytes_outside_module,none,
       "conformance to 'ConvertibleToBytes' must occur in the same module as %kind0",
+      (const ValueDecl *))
+ERROR(convertible_from_bytes_outside_stdlib,none,
+      "type conforming to 'ConvertibleFromBytes' must be defined in the standard library module",
+      (const ValueDecl *))
+ERROR(convertible_from_bytes_outside_module,none,
+      "conformance to 'ConvertibleFromBytes' must occur in the same module as %kind0",
       (const ValueDecl *))
 ERROR(suppress_inferrable_protocol_extension,none,
       "conformance to inferrable protocol %0 cannot be suppressed in an extension", (const ProtocolDecl *))

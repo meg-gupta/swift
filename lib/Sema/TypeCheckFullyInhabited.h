@@ -1,14 +1,27 @@
-#ifndef SWIFT_SEMA_TYPEFULLYINHABITED_H
-#define SWIFT_SEMA_TYPEFULLYINHABITED_H
+//===------ TypeCheckFullyInhabited.h -------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2026 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+//
+// Semantic analysis for ConvertibleToBytes and ConvertibleFromBytes.
+//
+//===----------------------------------------------------------------------===//
 
-#include "swift/AST/ProtocolConformance.h"
-#include "swift/AST/TypeCheckRequests.h"
+#ifndef SWIFT_SEMA_TYPECHECKFULLYINHABITED_H
+#define SWIFT_SEMA_TYPECHECKFULLYINHABITED_H
 
 namespace swift {
 class ProtocolConformance;
 
-bool checkConvertibleToBytesConformance(ProtocolConformance *conformance);
-bool checkConvertibleFromBytesConformance(ProtocolConformance *conformance);
+void checkConvertibleToBytesConformance(ProtocolConformance *conformance);
+void checkConvertibleFromBytesConformance(ProtocolConformance *conformance);
 } // end namespace swift
 
-#endif // !SWIFT_SEMA_TYPEFULLYINHABITED_H
+#endif // !SWIFT_SEMA_TYPECHECKFULLYINHABITED_H
