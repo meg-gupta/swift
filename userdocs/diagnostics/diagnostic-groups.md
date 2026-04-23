@@ -49,6 +49,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:oslog>
 - <doc:option-obsoleted-by-module-selectors>
 - <doc:result-builder-methods>
+- <doc:spi-import-ignored>
 - <doc:semantic-copies>
 - <doc:strict-language-features>
 - <doc:strict-memory-safety>
@@ -98,6 +99,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 - <doc:conformance-isolation>
 - <doc:protocol-type-non-conformance>
 - <doc:result-builder-methods>
+- <doc:spi-import-ignored>
 - <doc:semantic-copies>
 - <doc:sendable-metatypes>
 - <doc:sending-closure-risks-data-race>
