@@ -2924,10 +2924,10 @@ WARNING(add_predates_concurrency_import,none,
 GROUPED_WARNING(remove_predates_concurrency_import,PreconcurrencyImport,
                 none,
                 "'@preconcurrency' on module %0 has no effect", (Identifier))
-WARNING(remove_public_import,none,
+GROUPED_WARNING(remove_public_import,UnusedImportAccess,none,
         "public import of %0 was not used in public declarations or inlinable code",
         (Identifier))
-WARNING(remove_package_import,none,
+GROUPED_WARNING(remove_package_import,UnusedImportAccess,none,
         "package import of %0 was not used in package declarations",
         (Identifier))
 GROUPED_WARNING(public_decl_needs_sendable,ExplicitSendable,none,
