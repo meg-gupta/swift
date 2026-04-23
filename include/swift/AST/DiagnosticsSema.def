@@ -2917,7 +2917,7 @@ NOTE(add_nominal_sendable_conformance,none,
 NOTE(add_generic_parameter_conformance,none,
      "consider making generic parameter %0 conform to the %1 protocol",
      (Type, ProtocolDecl *))
-WARNING(add_predates_concurrency_import,none,
+GROUPED_WARNING(add_predates_concurrency_import,AddPreconcurrencyImport,none,
      "add '@preconcurrency' to %select{suppress|treat}0 "
      "'Sendable'-related %select{warnings|errors}0 from module %1"
      "%select{| as warnings}0", (bool, Identifier))

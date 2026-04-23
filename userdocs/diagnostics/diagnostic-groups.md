@@ -25,6 +25,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 ```
 
 ## Groups with warnings
+- <doc:add-preconcurrency-import>
 - <doc:always-available-domain>
 - <doc:trailing-closure-matching>
 - <doc:compilation-caching>
@@ -64,6 +65,7 @@ Or upgrade all warnings except deprecated declaration to errors:
 
 ## Topics
 - <doc:dynamic-callable-requirements>
+- <doc:add-preconcurrency-import>
 - <doc:always-available-domain>
 - <doc:trailing-closure-matching>
 - <doc:actor-isolated-mutating-async>
