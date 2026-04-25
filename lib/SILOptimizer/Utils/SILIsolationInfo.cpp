@@ -1172,7 +1172,7 @@ SILIsolationInfo SILIsolationInfo::getForCastConformances(
   // any isolated conformances because it's not on any actor.
   auto function = value->getFunction();
   auto functionIsolation = function->getActorIsolation();
-  if (functionIsolation.isNonisolated())
+  if (functionIsolation.isNonisolatedOrConcurrent())
     return {};
 
   auto sendableMetatype =

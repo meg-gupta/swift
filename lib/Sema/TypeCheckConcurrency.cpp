@@ -4022,15 +4022,7 @@ namespace {
             break;
 
           case ActorReferenceResult::ExitsActorToNonisolated: {
-            auto *decl = memberRef->first.getDecl();
-            if (decl->getAttrs().hasAttribute<ConcurrentAttr>()) {
-              unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
-            } else if (ctx.LangOpts.hasFeature(
-                           Feature::NonisolatedNonsendingByDefault) &&
-                       isa<AbstractFunctionDecl>(decl) &&
-                       cast<AbstractFunctionDecl>(decl)->isAsync()) {
-              // Old-style nonisolated async from a pre-feature module behaves
-              // like @concurrent (runs on generic executor)
+            if (fnType->isAsync()) {
               unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
             } else {
               unsatisfiedIsolation =
@@ -4109,23 +4101,12 @@ namespace {
       // casts is what would add the nonisolated(nonsending) bit to the function
       // type isolation.
       if (mayExitToNonisolated && fnType->isAsync()) {
-        // Determine the appropriate nonisolated isolation for the callee.
-        // If the callee is explicitly @concurrent, use NonisolatedConcurrent.
-        // With NonisolatedNonsendingByDefault, any async nonisolated callee
-        // that is NOT nonisolated(nonsending) is effectively @concurrent too.
-        auto calleeNonisolation =
-            (calleeDecl && calleeDecl->getAttrs().hasAttribute<ConcurrentAttr>())
-            ? ActorIsolation::forNonisolatedConcurrent()
-            : (ctx.LangOpts.hasFeature(Feature::NonisolatedNonsendingByDefault)
-                ? ActorIsolation::forNonisolatedConcurrent()
-                : ActorIsolation::forNonisolated(/*unsafe=*/false));
-
         if (getContextIsolation().isActorIsolated() &&
             !fnTypeIsolation.isNonisolatedNonsending())
-          unsatisfiedIsolation = calleeNonisolation;
+          unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
         else if (getContextIsolation().isNonisolatedNonsending() &&
                  fnTypeIsolation.isNonIsolated())
-          unsatisfiedIsolation = calleeNonisolation;
+          unsatisfiedIsolation = ActorIsolation::forNonisolatedConcurrent();
       }
 
       // If there was no unsatisfied actor isolation, we're done.
@@ -4843,9 +4824,14 @@ computeClosureIsolationFromParent(DeclContext *closure,
   case ActorIsolation::Nonisolated:
   case ActorIsolation::NonisolatedConcurrent:
   case ActorIsolation::NonisolatedUnsafe:
-  case ActorIsolation::Unspecified:
-    return ActorIsolation::forNonisolated(
-        parentIsolation == ActorIsolation::NonisolatedUnsafe);
+  case ActorIsolation::Unspecified: {
+    auto closureFn = AnyFunctionRef::fromFunctionDeclContext(closure);
+    if (closureFn.isAsync())
+      return ActorIsolation::forNonisolatedConcurrent();
+
+    return ActorIsolation::forNonisolated(parentIsolation ==
+                                          ActorIsolation::NonisolatedUnsafe);
+  }
 
   case ActorIsolation::Erased:
     llvm_unreachable("context cannot have erased isolation");
@@ -4887,6 +4873,9 @@ computeClosureIsolationFromParent(DeclContext *closure,
       // context.
       return parentIsolation;
     }
+
+    if (AnyFunctionRef::fromFunctionDeclContext(closure).isAsync())
+      return ActorIsolation::forNonisolatedConcurrent();
 
     return ActorIsolation::forNonisolated(/*unsafe=*/false);
   }
@@ -5138,7 +5127,9 @@ getIsolationFromAttributes(const Decl *decl, bool shouldDiagnose = true,
       (globalActorAttr ? 1 : 0) + (concurrentAttr ? 1 : 0);
   if (numIsolationAttrs == 0) {
     if (isa<DestructorDecl>(decl) && !decl->isImplicit()) {
-      return ActorIsolation::forNonisolated(false);
+      return cast<DestructorDecl>(decl)->isAsync()
+                 ? ActorIsolation::forNonisolatedConcurrent()
+                 : ActorIsolation::forNonisolated(false);
     }
     return std::nullopt;
   }
@@ -6287,8 +6278,10 @@ computeDefaultInferredActorIsolation(ValueDecl *value) {
   if (auto func = dyn_cast<AbstractFunctionDecl>(value)) {
     // A @Sendable function is assumed to be actor-independent.
     if (func->isSendable()) {
-      return {
-          {ActorIsolation::forNonisolated(/*unsafe=*/false), {}}, nullptr, {}};
+      auto isolation = func->isAsync()
+                           ? ActorIsolation::forNonisolatedConcurrent()
+                           : ActorIsolation::forNonisolated(/*unsafe=*/false);
+      return {{isolation, {}}, nullptr, {}};
     }
   }
 
@@ -6325,7 +6318,7 @@ computeDefaultInferredActorIsolation(ValueDecl *value) {
         if (auto *AFD = dyn_cast<AbstractFunctionDecl>(overriddenValue)) {
           if (AFD->getForeignAsyncConvention()) {
             return {
-                {ActorIsolation::forNonisolated(/*unsafe=*/false),
+                {ActorIsolation::forNonisolatedConcurrent(),
                  IsolationSource(overriddenValue, IsolationSource::Override)},
                 overriddenValue,
                 isolation};
@@ -6387,10 +6380,8 @@ static InferredActorIsolation computeActorIsolation(Evaluator &evaluator,
                                                     ValueDecl *value) {
   // Defer bodies share the actor isolation of their enclosing context.
   if (value->isDeferBody()) {
-    return {
-      getActorIsolationOfContext(value->getDeclContext()),
-      IsolationSource()
-    };
+    return {getActorIsolationOfContext(value->getDeclContext()),
+            IsolationSource()};
   }
 
   // If this declaration has actor-isolated "self", it's isolated to that
@@ -8265,7 +8256,8 @@ ActorIsolation swift::getActorIsolationForReference(ValueDecl *decl,
     ActorReferenceResult::Options options = std::nullopt;
     if (varIsSafeAcrossActors(fromModule, var, declIsolation, std::nullopt, options) &&
         var->getTypeInContext()->isSendableType())
-      return ActorIsolation::forNonisolated(/*unsafe*/false);
+      return var->isAsync() ? ActorIsolation::forNonisolatedConcurrent()
+                            : ActorIsolation::forNonisolated(/*unsafe*/ false);
 
     if (var->isLet() && isStoredProperty(var) &&
         declIsolation.isNonisolatedOrConcurrent()) {
