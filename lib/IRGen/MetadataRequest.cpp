@@ -2037,6 +2037,10 @@ namespace {
       if (auto metatype = tryGetLocal(type, request))
         return metatype;
 
+      if (IGF.IGM.isEmbeddedWithExistentials()) {
+        return MetadataResponse::forComplete(IGF.IGM.getAddrOfTypeMetadata(type));
+      }
+
       auto instMetadata =
         IGF.emitAbstractTypeMetadataRef(type.getInstanceType());
 

@@ -39,9 +39,13 @@ func getType<T>(of: T.Type) -> Any.Type {
 
 // CHECK-LABEL: define {{.*}}swiftcc ptr @"$e6typeof7getType2ofypXpxm_tlFSi_Sdt_Ttg5"
 // CHECK: ptr @"$eSi_SdtMf"
+
+// CHECK-LABEL: define linkonce_odr hidden swiftcc ptr @"$e6typeof7getType2ofypXpxm_tlFSd_Sdtm_Ttg5"()
+// CHECK: ptr @"$eSd_SdtmMf"
 public func readTypes() {
   _ = getType(of: Void.self)
   _ = getType(of: (Int, Double).self)
+  _ = getType(of: (Double, Double).Type.self)
 }
 
 public class C { }
