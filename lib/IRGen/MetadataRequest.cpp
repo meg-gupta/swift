@@ -2123,6 +2123,11 @@ namespace {
     }
 
     llvm::Value *emitExistentialTypeMetadata(CanExistentialType type) {
+      if (IGF.IGM.Context.LangOpts.hasFeature(Feature::Embedded)) {
+        llvm::Constant *result = IGF.IGM.getAddrOfTypeMetadata(type);
+        return result;
+      }
+
       auto layout = type.getExistentialLayout();
 
       if (!layout.getParameterizedProtocols().empty()) {
