@@ -32,6 +32,8 @@ struct Main {
     precondition(compare(Void.self, Void.self))
     precondition(compare((Int, Float).self, (Int, Float).self))
     precondition(!compare((Float).self, (Int, Float).self))
+    precondition(!compare((Float).Type.self, (Int, Float).self))
+    precondition(compare((any Error).Type.self, (any Error).Type.self))
     // CHECK: Done!
     print("Done!")
   }

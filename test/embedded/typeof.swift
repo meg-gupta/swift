@@ -33,6 +33,8 @@ func getType<T>(of: T.Type) -> Any.Type {
 // CHECK: @"$eytMf" = linkonce_odr hidden constant
 // CHECK: @"$eSi_SdtWV" = linkonce_odr hidden constant
 // CHECK: @"$eSi_SdtMf" = linkonce_odr hidden constant
+// CHECK: @"$eSd_SdtmMf" = linkonce_odr hidden constant
+// CHECK: @"$es5Error_pMf" = linkonce_odr hidden constant
 
 // CHECK-LABEL: define {{.*}}swiftcc ptr @"$e6typeof7getType2ofypXpxm_tlFyt_Ttg5"
 // CHECK: ptr @"$eytMf"
@@ -42,10 +44,15 @@ func getType<T>(of: T.Type) -> Any.Type {
 
 // CHECK-LABEL: define linkonce_odr hidden swiftcc ptr @"$e6typeof7getType2ofypXpxm_tlFSd_Sdtm_Ttg5"()
 // CHECK: ptr @"$eSd_SdtmMf"
+
+// CHECK-LABEL: define linkonce_odr hidden swiftcc ptr @"$e6typeof7getType2ofypXpxm_tlFs5Error_p_Ttg5"()
+// CHECK: ptr @"$es5Error_pMf"
+
 public func readTypes() {
   _ = getType(of: Void.self)
   _ = getType(of: (Int, Double).self)
   _ = getType(of: (Double, Double).Type.self)
+  _ = getType(of: (any Error).self)
 }
 
 public class C { }
