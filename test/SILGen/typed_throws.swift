@@ -1,4 +1,4 @@
-// RUN: %target-swift-emit-silgen -Xllvm -sil-print-types %s | %FileCheck %s
+// RUN: %target-swift-emit-silgen -Xllvm -sil-print-types %s | %FileCheck %s --enable-var-scope
 // RUN: %target-swift-emit-sil -sil-verify-all %s
 
 enum MyError: Error {
