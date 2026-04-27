@@ -6,7 +6,6 @@
 // REQUIRES: executable_test
 // REQUIRES: swift_in_compiler
 // REQUIRES: optimized_stdlib
-// REQUIRES: OS=macosx || OS=wasip1
 // REQUIRES: swift_feature_Embedded
 
 public func compare (
@@ -17,7 +16,6 @@ public func compare (
   case (.none, .none):
     return true
   case let (.some(ty0), .some(ty1)):
-    // FIXME: this should just return Bool(Builtin.is_same_metatype(ty0, ty1))
     let p1 = unsafeBitCast(ty0, to: UnsafeRawPointer.self)
     let p2 = unsafeBitCast(ty1, to: UnsafeRawPointer.self)
     return p1 == p2
