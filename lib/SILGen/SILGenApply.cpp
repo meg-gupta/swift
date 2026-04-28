@@ -7465,6 +7465,16 @@ ArgumentSource AccessorBaseArgPreparer::prepareAccessorAddressBaseArg() {
     if (selfParam.isConsumedInCaller() || base.getType().isAddressOnly(SGF.F)) {
       // The load can only be a take if the base is a +1 rvalue.
       auto shouldTake = IsTake_t(base.hasCleanup());
+      
+      // If the base is move only and a +0 value, then the copy we're about to emit is invalid
+      // and will later be diagnosed by the move checker. We'll mark the base as unresolved
+      // to give the move checker a chance to salvage things if it can eliminate the copy.
+      if (!shouldTake && base.getType().isMoveOnly()) {
+          auto marked = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+              loc, base.getValue(),
+              MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign);
+          base = ManagedValue::forBorrowedAddressRValue(marked);
+      }
 
       auto isGuaranteed = selfParam.isGuaranteedInCaller();
 
