@@ -2100,7 +2100,8 @@ namespace {
 
       // These currently aren't wrapped in ExistentialType, but we
       // can future-proof against them ending up in this path.
-      if (type->isAny() || type->isAnyObject())
+      if (!type->getASTContext().LangOpts.hasFeature(Feature::Embedded) &&
+          (type->isAny() || type->isAnyObject()))
         return emitSingletonExistentialTypeMetadata(type);
 
       auto metadata = emitExistentialTypeMetadata(type);
@@ -2253,19 +2254,16 @@ namespace {
     MetadataResponse
     visitProtocolCompositionType(CanProtocolCompositionType type,
                                  DynamicMetadataRequest request) {
-      if (type->isAny() || type->isAnyObject())
-        return emitSingletonExistentialTypeMetadata(type);
-
-      assert(false && "constraint type should be wrapped in existential type");
+      if (type->isAny() || type->isAnyObject()) {
+        if (!type->getASTContext().LangOpts.hasFeature(Feature::Embedded))
+          return emitSingletonExistentialTypeMetadata(type);
+      } else {
+        assert(false && "constraint type should be wrapped in existential type");
+      }
 
       CanExistentialType existential(
           ExistentialType::get(type)->castTo<ExistentialType>());
-
-      if (auto metatype = tryGetLocal(existential, request))
-        return metatype;
-
-      auto metadata = emitExistentialTypeMetadata(existential);
-      return setLocal(type, MetadataResponse::forComplete(metadata));
+      return visitExistentialType(existential, request);
     }
 
 
