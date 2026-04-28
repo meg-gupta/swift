@@ -8,3 +8,13 @@ public struct NCNE: ~Escapable, ~Copyable {
     }
   }
 }
+
+public struct NC: ~Copyable {
+  public init() {}
+
+  @_owned public var value: NC {
+    consuming get {
+      NC()
+    }
+  }
+}

@@ -25,3 +25,10 @@ func takeThingBorrowing(out: borrowing NCNE) { // expected-error {{'out' is borr
   let bytes = out.bytes // expected-error {{'out' is borrowed and cannot be consumed}} expected-note 2 {{consumed here}}
   _ = consume bytes
 }
+
+// This function is here to test that a normal NC value with consuming getter invoked compiles
+// and specifically doesn't fail due to duplicate mark_unresolved_non_copyable_value instructions with the change for rdar://175724267.
+func takeNC(out: consuming NC) {
+  let v = out.value
+  _ = consume v
+}
