@@ -8,14 +8,20 @@ import ResilientLib
 // Verify that calling a consuming getter on a noncopyable l-value from a resilient library
 // gets a `mark_unresolved_non_copyable_value` and compiles.
 
-// CHECK-LABEL: sil hidden [ossa] @$s{{.*}}9takeThing{{.*}} : $@convention(thin) (@in Thing) -> ()
+// CHECK-LABEL: sil hidden [ossa] @$s{{.*}}9takeThing{{.*}} : $@convention(thin) (@in NCNE) -> ()
 func takeThing(out: consuming NCNE) {
   // CHECK: [[ACCESS:%.*]] = begin_access [read]
   // CHECK: [[MARKED:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[ACCESS]]
-  // CHECK: [[TEMP:%.*]] = alloc_stack $Thing
+  // CHECK: [[TEMP:%.*]] = alloc_stack $NCNE
   // CHECK: copy_addr [[MARKED]] to [init] [[TEMP]]
-  // CHECK: [[GETTER:%.*]] = function_ref @$s12ResilientLib5ThingV5bytess11MutableSpanVySiGvg
+  // CHECK: [[GETTER:%.*]] = function_ref @$s12ResilientLib4NCNEV5bytess11MutableSpanVySiGvg
   // CHECK: apply [[GETTER]]([[TEMP]])
   let bytes = out.bytes
+  _ = consume bytes
+}
+
+// Verify that calling a consuming getter on a borrowed noncopyable value is rejected.
+func takeThingBorrowing(out: borrowing NCNE) { // expected-error {{'out' is borrowed and cannot be consumed}}
+  let bytes = out.bytes // expected-error {{'out' is borrowed and cannot be consumed}} expected-note 2 {{consumed here}}
   _ = consume bytes
 }
