@@ -3727,6 +3727,7 @@ function Build-ArgumentParser([Hashtable] $Platform) {
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       BUILD_TESTING = "NO";
+      BUILD_EXAMPLES = "NO";
       CMAKE_STATIC_LIBRARY_PREFIX_Swift = "lib";
     }
 }
