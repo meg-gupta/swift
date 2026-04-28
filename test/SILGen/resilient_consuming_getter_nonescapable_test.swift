@@ -3,6 +3,9 @@
 // RUN: %target-swift-emit-silgen %s -I %t -enable-experimental-feature Lifetimes -enable-experimental-feature UnderscoreOwned | %FileCheck %s
 // RUN: %target-swift-emit-sil %s -I %t -enable-experimental-feature Lifetimes -enable-experimental-feature UnderscoreOwned -verify
 
+// REQUIRES: swift_feature_Lifetimes
+// REQUIRES: swift_feature_UnderscoreOwned
+
 import ResilientLib
 
 // Verify that calling a consuming getter on a noncopyable l-value from a resilient library
