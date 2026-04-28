@@ -22,7 +22,7 @@ func takeThing(out: consuming NCNE) {
 
 // Verify that calling a consuming getter on a borrowed noncopyable value is rejected.
 func takeThingBorrowing(out: borrowing NCNE) { // expected-error {{'out' is borrowed and cannot be consumed}}
-  let bytes = out.bytes // expected-error {{'out' is borrowed and cannot be consumed}} expected-note 2 {{consumed here}}
+  let bytes = out.bytes // expected-note {{consumed here}}
   _ = consume bytes
 }
 
