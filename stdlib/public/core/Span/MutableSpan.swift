@@ -14,8 +14,8 @@
 import Swift
 #endif
 
-// A MutableSpan<Element> represents a span of memory which
-// contains initialized `Element` instances.
+/// `MutableSpan<Element>` represents a contiguous region of memory which
+/// contains initialized instances of `Element`.
 @safe
 @frozen
 @available(SwiftCompatibilitySpan 5.0, *)
@@ -35,6 +35,7 @@ public struct MutableSpan<Element: ~Copyable>
     unsafe _pointer._unsafelyUnwrappedUnchecked
   }
 
+  /// Create an empty span.
   @_alwaysEmitIntoClient
   @inline(__always)
   @lifetime(immortal)
@@ -193,6 +194,7 @@ extension Span where Element: ~Copyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: ~Copyable {
 
+  /// Borrow the underlying initialized memory for read-only access.
   @_alwaysEmitIntoClient
   @_transparent
   public var span: Span<Element> {
@@ -238,16 +240,20 @@ extension MutableSpan where Element: ~Copyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: ~Copyable {
 
+  /// The number of elements in the span.
   @_alwaysEmitIntoClient
   @_semantics("fixed_storage.get_count")
   public var count: Int { _assumeNonNegative(_count) }
 
+  /// A Boolean value indicating whether the span is empty.
   @_alwaysEmitIntoClient
   @_transparent
   public var isEmpty: Bool { _count == 0 }
 
+  /// The type that represents a position in a `MutableSpan`.
   public typealias Index = Int
 
+  /// The range of valid indices for subscripting the span.
   @_alwaysEmitIntoClient
   public var indices: Range<Index> {
     unsafe Range(_uncheckedBounds: (0, count))
@@ -358,6 +364,10 @@ extension MutableSpan where Element: ~Copyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: ~Copyable {
 
+  /// Exchange the elements at the two given indices.
+  ///
+  /// - Parameter i: A valid index into this span.
+  /// - Parameter j: A valid index into this span.
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
   public mutating func swapAt(_ i: Index, _ j: Index) {
@@ -366,6 +376,12 @@ extension MutableSpan where Element: ~Copyable {
     unsafe swapAt(unchecked: i, unchecked: j)
   }
 
+  /// Exchange the elements at the two given indices.
+  ///
+  /// This function does not validate `i` or `j`; this is an unsafe operation.
+  ///
+  /// - Parameter i: A valid index into this span.
+  /// - Parameter j: A valid index into this span.
   @unsafe
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
@@ -382,6 +398,18 @@ extension MutableSpan where Element: ~Copyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: ~Copyable {
 
+  /// Call a closure with a pointer to the viewed contiguous storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeBufferPointer(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeBufferPointer` parameter
+  ///   that points to the viewed contiguous storage. If `body` has
+  ///   a return value, that value is also used as the return value
+  ///   for the `withUnsafeBufferPointer(_:)` method. The closure's
+  ///   parameter is valid only for the duration of its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   //FIXME: mark closure parameter as non-escaping
   @_alwaysEmitIntoClient
   @_transparent
@@ -392,6 +420,19 @@ extension MutableSpan where Element: ~Copyable {
     try Span(_mutableSpan: self).withUnsafeBufferPointer(body)
   }
 
+  /// Call a closure with a pointer to the viewed mutable contiguous
+  /// storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeMutableBufferPointer(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeMutableBufferPointer`
+  ///   parameter that points to the viewed contiguous storage. If `body`
+  ///   has a return value, that value is also used as the return value
+  ///   for the `withUnsafeMutableBufferPointer(_:)` method. The closure's
+  ///   parameter is valid only for the duration of its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   //FIXME: mark closure parameter as non-escaping
   @_alwaysEmitIntoClient
   @_transparent
@@ -416,6 +457,20 @@ extension MutableSpan where Element: ~Copyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan where Element: BitwiseCopyable {
 
+  /// Calls the given closure with a pointer to the underlying bytes of
+  /// the viewed contiguous storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeBytes(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeRawBufferPointer`
+  ///   parameter that points to the viewed contiguous storage.
+  ///   If `body` has a return value, that value is also
+  ///   used as the return value for the `withUnsafeBytes(_:)` method.
+  ///   The closure's parameter is valid only for the duration of
+  ///   its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   //FIXME: mark closure parameter as non-escaping
   @_alwaysEmitIntoClient
   @_transparent
@@ -426,6 +481,20 @@ extension MutableSpan where Element: BitwiseCopyable {
     try RawSpan(_mutableSpan: self).withUnsafeBytes(body)
   }
 
+  /// Calls the given closure with a mutable pointer to the underlying bytes
+  /// of the viewed contiguous storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeMutableBytes(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeMutableRawBufferPointer`
+  ///   parameter that points to the viewed contiguous storage.
+  ///   If `body` has a return value, that value is also
+  ///   used as the return value for the `withUnsafeMutableBytes(_:)` method.
+  ///   The closure's parameter is valid only for the duration of
+  ///   its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   //FIXME: mark closure parameter as non-escaping
   @_alwaysEmitIntoClient
   @_transparent
@@ -446,6 +515,9 @@ extension MutableSpan where Element: BitwiseCopyable {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableSpan {
 
+  /// Update every element of this span to the given value.
+  ///
+  /// - Parameter repeatedValue: The value to set for every element.
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
   public mutating func update(repeating repeatedValue: consuming Element) {
