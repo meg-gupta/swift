@@ -26,7 +26,7 @@ using namespace swift;
 
 static void assertProtocolIdentity(ProtocolConformance *conformance,
                                    KnownProtocolKind kind) {
-  assert(conformance->getProtocol() ==
+  ASSERT(conformance->getProtocol() ==
          conformance->getDeclContext()
              ->getParentModule()
              ->getASTContext()
