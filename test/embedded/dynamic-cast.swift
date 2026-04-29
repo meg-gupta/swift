@@ -39,6 +39,9 @@ case failed
 case didNotTry
 }
 
+@c
+func arc4random_buf(_ buf: UnsafeMutableRawPointer, _ nbytes: Int) { }
+
 @inline(never)
 func doTryCastFromAny<T>(_ value: Any, to: T.Type) -> T? {
   value as? T
