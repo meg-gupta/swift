@@ -14,8 +14,8 @@
 import Swift
 #endif
 
-// A MutableRawSpan represents a span of memory which
-// contains initialized `Element` instances.
+/// `MutableRawSpan` represents a contiguous region of memory
+/// which contains initialized bytes.
 @safe
 @frozen
 @available(SwiftCompatibilitySpan 5.0, *)
@@ -33,6 +33,7 @@ public struct MutableRawSpan: ~Copyable & ~Escapable {
     unsafe _pointer._unsafelyUnwrappedUnchecked
   }
 
+  /// Create an empty span.
   @_alwaysEmitIntoClient
   @inline(__always)
   @lifetime(immortal)
@@ -134,14 +135,19 @@ extension MutableRawSpan {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableRawSpan {
+  /// The number of bytes in the span.
   @_alwaysEmitIntoClient
   @_semantics("fixed_storage.get_count")
   public var byteCount: Int { _assumeNonNegative(_count) }
 
+  /// A Boolean value indicating whether the span is empty.
   @_alwaysEmitIntoClient
   @_transparent
   public var isEmpty: Bool { byteCount == 0 }
 
+  /// The valid byte offsets for accessing this span, in ascending order.
+  ///
+  /// - Complexity: O(1)
   @_alwaysEmitIntoClient
   public var byteOffsets: Range<Int> {
     unsafe Range(_uncheckedBounds: (0, byteCount))
@@ -152,6 +158,20 @@ extension MutableRawSpan {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableRawSpan {
 
+  /// Calls the given closure with a pointer to the underlying bytes of
+  /// the viewed contiguous storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeBytes(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeRawBufferPointer`
+  ///   parameter that points to the viewed contiguous storage.
+  ///   If `body` has a return value, that value is also
+  ///   used as the return value for the `withUnsafeBytes(_:)` method.
+  ///   The closure's parameter is valid only for the duration of
+  ///   its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   @_alwaysEmitIntoClient
   @_transparent
   @safe
@@ -161,6 +181,20 @@ extension MutableRawSpan {
     try unsafe body(.init(start: _pointer, count: _count))
   }
 
+  /// Calls the given closure with a mutable pointer to the underlying bytes
+  /// of the viewed contiguous storage.
+  ///
+  /// The buffer pointer passed as an argument to `body` is valid only
+  /// during the execution of `withUnsafeMutableBytes(_:)`.
+  /// Do not store or return the pointer for later use.
+  ///
+  /// - Parameter body: A closure with an `UnsafeMutableRawBufferPointer`
+  ///   parameter that points to the viewed contiguous storage.
+  ///   If `body` has a return value, that value is also
+  ///   used as the return value for the `withUnsafeMutableBytes(_:)` method.
+  ///   The closure's parameter is valid only for the duration of
+  ///   its execution.
+  /// - Returns: The return value of the `body` closure parameter.
   @_alwaysEmitIntoClient
   @_transparent
   @lifetime(self: copy self)
@@ -189,6 +223,7 @@ extension RawSpan {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension MutableRawSpan {
 
+  /// Borrow the underlying initialized memory for read-only access.
   public var bytes: RawSpan {
     @_alwaysEmitIntoClient
     @_transparent
@@ -337,6 +372,14 @@ extension MutableRawSpan {
     unsafe _start().loadUnaligned(fromByteOffset: offset, as: T.self)
   }
 
+  /// Stores the given value's bytes into the span's raw memory at the
+  /// specified byte offset.
+  ///
+  /// - Parameters:
+  ///   - value: The value to store as raw bytes.
+  ///   - offset: The offset from the start of the span, in bytes.
+  ///     `offset` must be nonnegative. The default is zero.
+  ///   - type: The type of `value`.
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
   public mutating func storeBytes<T: BitwiseCopyable>(
@@ -350,6 +393,16 @@ extension MutableRawSpan {
     unsafe storeBytes(of: value, toUncheckedByteOffset: offset, as: type)
   }
 
+  /// Stores the given value's bytes into the span's raw memory at the
+  /// specified byte offset.
+  ///
+  /// This function does not validate `offset`; this is an unsafe operation.
+  ///
+  /// - Parameters:
+  ///   - value: The value to store as raw bytes.
+  ///   - offset: The offset from the start of the span, in bytes.
+  ///     `offset` must be nonnegative.
+  ///   - type: The type of `value`.
   @unsafe
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
