@@ -51,6 +51,7 @@ public struct RawSpan: ~Escapable, Copyable, BitwiseCopyable {
   @usableFromInline
   internal let _count: Int
 
+  /// Create an empty span.
   @_alwaysEmitIntoClient
   @inline(__always)
   @lifetime(immortal)
@@ -523,8 +524,6 @@ extension RawSpan {
   /// during the execution of `withUnsafeBytes(_:)`.
   /// Do not store or return the pointer for later use.
   ///
-  /// Note: For an empty `RawSpan`, the closure always receives a `nil` pointer.
-  ///
   /// - Parameter body: A closure with an `UnsafeRawBufferPointer`
   ///   parameter that points to the viewed contiguous storage.
   ///   If `body` has a return value, that value is also
@@ -695,8 +694,17 @@ extension RawSpan {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension RawSpan {
-  /// Returns a Boolean value indicating whether two `RawSpan` instances
-  /// refer to the same region in memory.
+  /// Returns a Boolean value indicating whether two instances refer to the same
+  /// memory region.
+  ///
+  /// Two spans are identical if they reference the same starting address
+  /// and have the same number of elements.
+  ///
+  /// - Parameter other: A span to compare with this one.
+  /// - Returns: Whether `self` and `other` reference the same region
+  ///     in memory.
+  ///
+  /// - Complexity: O(1)
   @_alwaysEmitIntoClient
   public func isIdentical(to other: Self) -> Bool {
     unsafe (self._pointer == other._pointer) && (self._count == other._count)
@@ -704,6 +712,13 @@ extension RawSpan {
 
   /// Returns a Boolean value indicating whether two instances refer to the same
   /// memory region.
+  ///
+  /// Two spans are identical if they reference the same starting address
+  /// and have the same number of elements.
+  ///
+  /// - Parameter other: A span to compare with this one.
+  /// - Returns: Whether `self` and `other` reference the same region
+  ///     in memory.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
