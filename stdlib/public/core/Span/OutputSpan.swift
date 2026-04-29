@@ -189,10 +189,10 @@ extension OutputSpan {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension OutputSpan where Element: ~Copyable {
-  /// The type that represents an initialized position in an `OutputSpan`.
+  /// The type that represents an initialized index in an `OutputSpan`.
   public typealias Index = Int
 
-  /// The range of initialized positions for this `OutputSpan`.
+  /// The range of initialized indices for this `OutputSpan`.
   @_alwaysEmitIntoClient
   public var indices: Range<Index> {
     unsafe Range(_uncheckedBounds: (0, count))
@@ -206,7 +206,7 @@ extension OutputSpan where Element: ~Copyable {
     _precondition(indices.contains(index), "index out of bounds")
   }
 
-  /// Accesses the element at the specified position.
+  /// Accesses the element at the specified index.
   ///
   /// - Parameter index: A valid index into this span.
   ///
@@ -224,9 +224,9 @@ extension OutputSpan where Element: ~Copyable {
     }
   }
 
-  /// Accesses the element at the specified position.
+  /// Accesses the element at the specified index.
   ///
-  /// This subscript does not validate `position`; this is an unsafe operation.
+  /// This subscript does not validate `index`; this is an unsafe operation.
   ///
   /// - Parameter index: A valid index into this span.
   ///

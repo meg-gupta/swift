@@ -250,7 +250,7 @@ extension MutableSpan where Element: ~Copyable {
   @_transparent
   public var isEmpty: Bool { _count == 0 }
 
-  /// The type that represents a position in a `MutableSpan`.
+  /// The type that represents an index in a `MutableSpan`.
   public typealias Index = Int
 
   /// The range of valid indices for subscripting the span.
@@ -305,7 +305,7 @@ extension MutableSpan where Element: ~Copyable {
   internal func _checkIndex(_ position: Index) {
     _precondition(indices.contains(position), "index out of bounds")
   }
-  /// Accesses the element at the specified position in the `MutableSpan`.
+  /// Accesses the element at the specified index in the `MutableSpan`.
   ///
   /// - Parameter position: The offset of the element to access. `position`
   ///     must be greater or equal to zero, and less than `count`.
@@ -326,7 +326,7 @@ extension MutableSpan where Element: ~Copyable {
     }
   }
 
-  /// Accesses the element at the specified position in the `MutableSpan`.
+  /// Accesses the element at the specified index in the `MutableSpan`.
   ///
   /// This subscript does not validate `position`; this is an unsafe operation.
   ///
@@ -534,13 +534,13 @@ extension MutableSpan {
 extension MutableSpan where Element: ~Copyable {
 
   /// Constructs a new span over the items within the supplied range of
-  /// positions within this span.
+  /// indices within this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
   ///
-  /// - Parameter bounds: A valid range of positions. Every position in
+  /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
   /// - Returns: A `MutableSpan` over the items within `bounds`

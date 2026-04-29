@@ -400,7 +400,7 @@ extension Span where Element: ~Copyable {
   @_transparent
   public var isEmpty: Bool { _count == 0 }
 
-  /// The representation for a position in `Span`.
+  /// The representation for an index in `Span`.
   public typealias Index = Int
 
   /// The indices that are valid for subscripting the span, in ascending
@@ -424,7 +424,7 @@ extension Span where Element: ~Copyable {
     _precondition(indices.contains(position), "Index out of bounds")
   }
 
-  /// Accesses the element at the specified position in the `Span`.
+  /// Accesses the element at the specified index in the `Span`.
   ///
   /// - Parameter position: The offset of the element to access. `position`
   ///     must be greater or equal to zero, and less than `count`.
@@ -439,7 +439,7 @@ extension Span where Element: ~Copyable {
     }
   }
 
-  /// Accesses the element at the specified position in the `Span`.
+  /// Accesses the element at the specified index in the `Span`.
   ///
   /// This subscript does not validate `position`. Using this subscript
   /// with an invalid `position` results in undefined behaviour.
@@ -471,7 +471,7 @@ extension Span where Element: ~Copyable {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension Span where Element: BitwiseCopyable {
-  /// Accesses the element at the specified position in the `Span`.
+  /// Accesses the element at the specified index in the `Span`.
   ///
   /// - Parameter position: The offset of the element to access. `position`
   ///     must be greater or equal to zero, and less than `count`.
@@ -485,7 +485,7 @@ extension Span where Element: BitwiseCopyable {
     }
   }
 
-  /// Accesses the element at the specified position in the `Span`.
+  /// Accesses the element at the specified index in the `Span`.
   ///
   /// This subscript does not validate `position`. Using this subscript
   /// with an invalid `position` results in undefined behaviour.
@@ -530,13 +530,13 @@ extension Span where Element: BitwiseCopyable {
 extension Span where Element: ~Copyable {
 
   /// Constructs a new span over the items within the supplied range of
-  /// positions within this span.
+  /// indices within this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
   ///
-  /// - Parameter bounds: A valid range of positions. Every position in
+  /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `Span`.
   ///
   /// - Returns: A `Span` over the items within `bounds`
@@ -561,7 +561,7 @@ extension Span where Element: ~Copyable {
   }
 
   /// Constructs a new span over the items within the supplied range of
-  /// positions within this span.
+  /// indices within this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -569,7 +569,7 @@ extension Span where Element: ~Copyable {
   ///
   /// This function does not validate `bounds`; this is an unsafe operation.
   ///
-  /// - Parameter bounds: A valid range of positions. Every position in
+  /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `Span`.
   ///
   /// - Returns: A `Span` over the items within `bounds`
@@ -596,13 +596,13 @@ extension Span where Element: ~Copyable {
   }
 
   /// Constructs a new span over the items within the supplied range of
-  /// positions within this span.
+  /// indices within this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
   ///
-  /// - Parameter bounds: A valid range of positions. Every position in
+  /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `Span`.
   ///
   /// - Returns: A `Span` over the items within `bounds`
@@ -624,7 +624,7 @@ extension Span where Element: ~Copyable {
   }
 
   /// Constructs a new span over the items within the supplied range of
-  /// positions within this span.
+  /// indices within this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -632,7 +632,7 @@ extension Span where Element: ~Copyable {
   ///
   /// This function does not validate `bounds`; this is an unsafe operation.
   ///
-  /// - Parameter bounds: A valid range of positions. Every position in
+  /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `Span`.
   ///
   /// - Returns: A `Span` over the items within `bounds`
