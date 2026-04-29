@@ -606,8 +606,8 @@ enum ExistentialTypeRepresentation: UInt8 {
     _ existentialRaw: UnsafeRawPointer,
     storedMetadata: UnsafeRawPointer
   ) -> UnsafeRawPointer {
-    let flags = unsafe _swift_embedded_metadata_get_vwt_flags(
-      UnsafeMutableRawPointer(mutating: storedMetadata))
+    let flags = unsafe UInt32(_swift_embedded_metadata_get_vwt_flags(
+        UnsafeMutableRawPointer(mutating: storedMetadata)))
     if flags & ValueWitnessFlags.IsNonInline != 0 {
       // Non-inline: word 0 is a box pointer; project through to the value.
       let box = unsafe existentialRaw.assumingMemoryBound(to: UnsafeRawPointer.self)[0]
