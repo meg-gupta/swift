@@ -53,10 +53,6 @@ extension ProtocolInA {
   public func defaultedRequirementInC() { }
 }
 
-extension StructWithWitnessesForProtocolWithAssociatedTypesInA {
-  public struct WitnessedInC { }
-}
-
 public struct EquatableInC: Equatable {
   public static func ==(_: EquatableInC, _: EquatableInC) -> Bool {
     false
