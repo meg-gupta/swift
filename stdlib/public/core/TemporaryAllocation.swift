@@ -254,19 +254,38 @@ public func withUnsafeTemporaryAllocation<R: ~Copyable, E: Error>(
 
 @available(SwiftCompatibilitySpan 5.0, *)
 @_alwaysEmitIntoClient @_transparent
+@safe
 public func withTemporaryAllocation<T: ~Copyable, R: ~Copyable, E: Error>(
   of type: T.Type,
   capacity: Int,
   _ body: (inout OutputSpan<T>) throws(E) -> R
 ) throws(E) -> R where T : ~Copyable, R : ~Copyable {
   try withUnsafeTemporaryAllocation(of: type, capacity: capacity) { (buffer) throws(E) in
-    var span = OutputSpan(buffer: buffer, initializedCount: 0)
+    var span = unsafe OutputSpan(buffer: buffer, initializedCount: 0)
     defer {
-      let initializedCount = span.finalize(for: buffer)
+      let initializedCount = unsafe span.finalize(for: buffer)
       span = OutputSpan()
-      buffer.extracting(..<initializedCount).deinitialize()
+      unsafe buffer.extracting(..<initializedCount).deinitialize()
     }
 
+    return try body(&span)
+  }
+}
+
+@available(SwiftCompatibilitySpan 5.0, *)
+@_alwaysEmitIntoClient @_transparent
+@safe
+public func withTemporaryAllocation<R: ~Copyable, E: Error>(
+  byteCount: Int,
+  alignment: Int,
+  _ body: (inout OutputRawSpan) throws(E) -> R
+) throws(E) -> R where R: ~Copyable {
+  try withUnsafeTemporaryAllocation(byteCount: byteCount, alignment: alignment) { (buffer) throws(E) in
+    var span = unsafe OutputRawSpan(buffer: buffer, initializedCount: 0)
+    defer {
+      _ = unsafe span.finalize(for: buffer)
+      span = OutputRawSpan()
+    }
     return try body(&span)
   }
 }

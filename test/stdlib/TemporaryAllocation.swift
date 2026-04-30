@@ -153,15 +153,6 @@ TemporaryAllocationTestSuite.test("typedEmptyAllocationIsStackAllocated") {
   }
 }
 
-TemporaryAllocationTestSuite.test("emptySpanHasNoBuffer") {
-  withTemporaryAllocation(of: Int.self, capacity: 0) { span in
-    span.withUnsafeMutableBufferPointer { buffer, initializedCount in
-      expectTrue(buffer.baseAddress == nil)
-      initializedCount = 0
-    }
-  }
-}
-
 TemporaryAllocationTestSuite.test("voidAllocationIsStackAllocated") {
   withUnsafeTemporaryAllocation(of: Void.self, capacity: 1) { buffer in
     expectStackAllocated(buffer.baseAddress!)
@@ -235,6 +226,86 @@ TemporaryAllocationTestSuite.test("spanWithThrow") {
       throw HomeworkError.forgot
     }
     fatalError("did not throw!?!")
+  } catch {
+    expectEqual(error, .forgot)
+  }
+}
+
+// MARK: Raw bytes span
+
+TemporaryAllocationTestSuite.test("rawSpanOnStack") {
+  withTemporaryAllocation(byteCount: 8, alignment: 1) { rawSpan in
+    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      expectStackAllocated(buffer.baseAddress!)
+      initializedCount = 0
+    }
+  }
+}
+
+TemporaryAllocationTestSuite.test("rawSpanOnHeap") {
+  withTemporaryAllocation(byteCount: 100_000, alignment: 1) { rawSpan in
+    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      expectNotStackAllocated(buffer.baseAddress!)
+      initializedCount = 0
+    }
+  }
+}
+
+TemporaryAllocationTestSuite.test("rawSpanEmptyAllocationIsStackAllocated") {
+  withTemporaryAllocation(byteCount: 0, alignment: 1) { rawSpan in
+    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      expectStackAllocated(buffer.baseAddress!)
+      initializedCount = 0
+    }
+  }
+}
+
+TemporaryAllocationTestSuite.test("rawSpanIsAligned") {
+  withTemporaryAllocation(byteCount: 1, alignment: 8) { rawSpan in
+    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      let pointerBits = Int(bitPattern: buffer.baseAddress!)
+      let alignmentMask = 0b111
+      expectEqual(pointerBits & alignmentMask, 0)
+      initializedCount = 0
+    }
+  }
+}
+
+TemporaryAllocationTestSuite.test("rawSpanAppendAndByteCount") {
+  withTemporaryAllocation(byteCount: 4, alignment: 1) { rawSpan in
+    expectEqual(rawSpan.byteCount, 0)
+    expectEqual(rawSpan.freeCapacity, 4)
+    expectTrue(rawSpan.isEmpty)
+    rawSpan.append(UInt8(0xAB))
+    rawSpan.append(UInt8(0xCD))
+    expectEqual(rawSpan.byteCount, 2)
+    expectEqual(rawSpan.freeCapacity, 2)
+    expectFalse(rawSpan.isEmpty)
+  }
+}
+
+#if !os(WASI)
+TemporaryAllocationTestSuite.test("rawSpanCrashOnNegativeByteCount") {
+  expectCrash {
+    let byteCount = Int.random(in: -2 ..< -1)
+    withTemporaryAllocation(byteCount: byteCount, alignment: 1) { _ in }
+  }
+}
+
+TemporaryAllocationTestSuite.test("rawSpanCrashOnNegativeAlignment") {
+  expectCrash {
+    let alignment = Int.random(in: -2 ..< -1)
+    withTemporaryAllocation(byteCount: 16, alignment: alignment) { _ in }
+  }
+}
+#endif
+
+TemporaryAllocationTestSuite.test("rawSpanWithThrow") {
+  do throws(HomeworkError) {
+    try withTemporaryAllocation(byteCount: 8, alignment: 1) { (rawSpan) throws(HomeworkError) -> Void in
+      throw HomeworkError.forgot
+    }
+    fatalError("did not throw")
   } catch {
     expectEqual(error, .forgot)
   }
