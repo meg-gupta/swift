@@ -9,7 +9,6 @@
 // REQUIRES: concurrency
 // REQUIRES: OS=macosx || OS=wasip1
 // REQUIRES: swift_feature_Embedded
-// REQUIRES: swift_feature_NonisolatedNonsendingByDefault
 // REQUIRES: concurrency_runtime
 
 import _Concurrency
