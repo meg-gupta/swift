@@ -452,6 +452,9 @@ struct AliasAnalysis {
       }
       return .noEffects
     default:
+      if builtin.memoryEffects == .noEffects {
+        return .noEffects
+      }
       return defaultEffects(of: builtin, on: memLoc)
     }
   }
