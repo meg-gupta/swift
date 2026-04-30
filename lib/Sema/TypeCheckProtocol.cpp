@@ -2058,8 +2058,7 @@ RequirementCheck WitnessChecker::checkWitness(ValueDecl *requirement,
   }
 
   // Check whether the witness has been imported appropriately.
-  if (requirement != match.Witness &&
-      shouldDiagnoseMissingImportForMember(match.Witness, DC))
+  if (shouldDiagnoseMissingImportForMember(match.Witness, DC))
     return CheckKind::RequiresMissingImport;
 
   return CheckKind::Success;
