@@ -337,7 +337,7 @@ extension RawSpan {
   /// The number of bytes in the span.
   ///
   /// To check whether the span is empty, use its `isEmpty` property
-  /// instead of comparing `count` to zero.
+  /// instead of comparing `byteCount` to zero.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -698,7 +698,7 @@ extension RawSpan {
   /// memory region.
   ///
   /// Two spans are identical if they reference the same starting address
-  /// and have the same number of elements.
+  /// and have the same number of bytes.
   ///
   /// - Parameter other: A span to compare with this one.
   /// - Returns: Whether `self` and `other` reference the same region
@@ -714,7 +714,7 @@ extension RawSpan {
   /// memory region.
   ///
   /// Two spans are identical if they reference the same starting address
-  /// and have the same number of elements.
+  /// and have the same number of bytes.
   ///
   /// - Parameter other: A span to compare with this one.
   /// - Returns: Whether `self` and `other` reference the same region
@@ -786,7 +786,7 @@ extension RawSpan {
 
   /// Returns a span over all but the given number of trailing bytes.
   ///
-  /// If the number of elements to drop exceeds the number of elements in
+  /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
   ///
   /// The returned span's first byte is always at offset 0; unlike buffer
@@ -851,7 +851,7 @@ extension RawSpan {
 
   /// Returns a span over all but the given number of initial bytes.
   ///
-  /// If the number of elements to drop exceeds the number of bytes in
+  /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
   ///
   /// The returned span's first byte is always at offset 0; unlike buffer
