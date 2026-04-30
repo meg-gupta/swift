@@ -421,6 +421,8 @@ extension MutableRawSpan {
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -444,6 +446,8 @@ extension MutableRawSpan {
 
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -489,6 +493,8 @@ extension MutableRawSpan {
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -512,6 +518,8 @@ extension MutableRawSpan {
 
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -560,6 +568,8 @@ extension MutableRawSpan {
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -580,6 +590,8 @@ extension MutableRawSpan {
 
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -624,6 +636,8 @@ extension MutableRawSpan {
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -650,6 +664,8 @@ extension MutableRawSpan {
 
   /// Constructs a new span over the bytes within the supplied range of
   /// positions within this span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -702,6 +718,8 @@ extension MutableRawSpan {
 
   /// Constructs a new span over all the bytes of this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -717,6 +735,8 @@ extension MutableRawSpan {
   }
 
   /// Constructs a new span over all the bytes of this span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -759,6 +779,8 @@ extension MutableRawSpan {
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -786,6 +808,8 @@ extension MutableRawSpan {
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -836,6 +860,8 @@ extension MutableRawSpan {
   /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -863,6 +889,8 @@ extension MutableRawSpan {
   ///
   /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -914,6 +942,8 @@ extension MutableRawSpan {
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -942,6 +972,8 @@ extension MutableRawSpan {
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
@@ -993,6 +1025,8 @@ extension MutableRawSpan {
   /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -1021,6 +1055,8 @@ extension MutableRawSpan {
   ///
   /// If the number of bytes to drop exceeds the number of bytes in
   /// the span, the result is an empty span.
+  ///
+  /// The returned span represents a mutation of this span.
   ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
