@@ -45,7 +45,7 @@ public struct OutputSpan<Element: ~Copyable>: ~Copyable, ~Escapable {
     }
   }
 
-  /// Create an OutputSpan with zero capacity
+  /// Create an OutputSpan with zero capacity.
   @_alwaysEmitIntoClient
   @lifetime(immortal)
   public init() {
@@ -253,7 +253,7 @@ extension OutputSpan where Element: ~Copyable {
     return unsafe address.assumingMemoryBound(to: Element.self)
   }
 
-  /// Exchange the elements at the two given offsets
+  /// Exchange the elements at the two given indices.
   ///
   /// - Parameter i: A valid index into this span.
   /// - Parameter j: A valid index into this span.
@@ -265,7 +265,7 @@ extension OutputSpan where Element: ~Copyable {
     unsafe swapAt(unchecked: i, unchecked: j)
   }
 
-  /// Exchange the elements at the two given offsets
+  /// Exchange the elements at the two given indices.
   ///
   /// This function does not validate `i` or `j`; this is an unsafe operation.
   ///

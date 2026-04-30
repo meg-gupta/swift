@@ -32,7 +32,7 @@ public struct OutputRawSpan: ~Copyable, ~Escapable {
   @usableFromInline
   internal var _count: Int
 
-  /// Create an OutputRawSpan with zero capacity
+  /// Create an OutputRawSpan with zero capacity.
   @_alwaysEmitIntoClient
   @lifetime(immortal)
   public init() {
@@ -208,7 +208,7 @@ extension OutputRawSpan {
     _count &-= n
   }
 
-  /// Remove all this span's elements and return its memory
+  /// Remove all this span's bytes and return its memory
   /// to the uninitialized state.
   @_alwaysEmitIntoClient
   @lifetime(self: copy self)
@@ -308,7 +308,7 @@ extension OutputRawSpan {
   /// 1. The inout integer passed in as the second argument must be the exact
   ///     number of initialized bytes in the buffer passed in as the first
   ///     argument.
-  /// 2. These initialized elements must be located in a single contiguous
+  /// 2. These initialized bytes must be located in a single contiguous
   ///     region starting at the beginning of the buffer. The rest of the buffer
   ///     must hold uninitialized memory.
   ///
@@ -347,8 +347,7 @@ extension OutputRawSpan {
 @available(SwiftCompatibilitySpan 5.0, *)
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension OutputRawSpan {
-  /// Consume the output span (relinquishing its control over the buffer it is
-  /// addressing), and return the number of initialized bytes in it.
+  /// Consume the output span and return the number of initialized bytes.
   ///
   /// This method should be invoked in the scope where the `OutputRawSpan` was
   /// created, when it is time to commit the contents of the updated buffer
@@ -375,8 +374,7 @@ extension OutputRawSpan {
     return _count
   }
 
-  /// Consume the output span (relinquishing its control over the buffer it is
-  /// addressing), and return the number of initialized bytes in it.
+  /// Consume the output span and return the number of initialized bytes.
   ///
   /// This method should be invoked in the scope where the `OutputRawSpan` was
   /// created, when it is time to commit the contents of the updated buffer

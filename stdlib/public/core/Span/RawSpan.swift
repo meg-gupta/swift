@@ -67,7 +67,7 @@ public struct RawSpan: ~Escapable, Copyable, BitwiseCopyable {
   ///
   /// The region of `byteCount` bytes of memory starting at `pointer`
   /// must remain valid, initialized and immutable
-  /// throughout the lifetime of the newly-created `Span`.
+  /// throughout the lifetime of the newly-created `RawSpan`.
   /// Failure to maintain this invariant results in undefined behaviour.
   ///
   /// - Parameters:
@@ -310,7 +310,7 @@ extension RawSpan {
     )
   }
 
-  /// Create a `RawSpan` over the memory represented by a `Span<T>`
+  /// Create a `RawSpan` over the memory represented by a `Span<T>`.
   ///
   /// - Parameters:
   ///   - span: An existing `Span<T>`, which will define both this
@@ -376,7 +376,7 @@ extension RawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `RawSpan`.
   ///
-  /// - Returns: A span over the bytes within `bounds`
+  /// - Returns: A `RawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -409,7 +409,7 @@ extension RawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `RawSpan`.
   ///
-  /// - Returns: A span over the bytes within `bounds`
+  /// - Returns: A `RawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -439,7 +439,7 @@ extension RawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `RawSpan`.
   ///
-  /// - Returns: A span over the bytes within `bounds`
+  /// - Returns: A `RawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -467,7 +467,7 @@ extension RawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `RawSpan`.
   ///
-  /// - Returns: A span over the bytes within `bounds`
+  /// - Returns: A `RawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -496,7 +496,7 @@ extension RawSpan {
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
   ///
-  /// - Returns: A span over all the bytes of this span.
+  /// - Returns: A `RawSpan` over all the bytes of this span.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -545,7 +545,7 @@ extension RawSpan {
 @_originallyDefinedIn(module: "Swift;CompatibilitySpan", SwiftCompatibilitySpan 6.2)
 extension RawSpan {
 
-  /// View the bytes of this span as type `T`
+  /// View the bytes of this span as type `T`.
   ///
   /// This is the equivalent of `unsafeBitCast(_:to:)`. The
   /// underlying bytes must be initialized as type `T`, be
@@ -726,14 +726,12 @@ extension RawSpan {
     unsafe (self._pointer == other._pointer) && (self._count == other._count)
   }
 
-  /// Returns the offsets where the memory of `other` is located within
-  /// the memory represented by `self`
-  ///
-  /// Note: `other` must be a subrange of `self`
+  /// Returns the byte offsets within this span where the memory represented
+  /// by other is located, or nil if other is not located within this span.
   ///
   /// - Parameters:
-  ///   - other: a subrange of `self`
-  /// - Returns: A range of offsets within `self`
+  ///   - other: a span that may be a subrange of `self`
+  /// - Returns: A range of byte offsets within `self`, or `nil`.
   @_alwaysEmitIntoClient
   public func byteOffsets(of other: borrowing Self) -> Range<Int>? {
     if other._count > _count { return nil }
@@ -754,7 +752,7 @@ extension RawSpan {
 extension RawSpan {
 
   /// Returns a span containing the initial bytes of this span,
-  /// up to the specified maximum byte count.
+  /// up to the specified maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.

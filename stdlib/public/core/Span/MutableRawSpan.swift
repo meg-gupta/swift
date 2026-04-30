@@ -430,7 +430,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -456,7 +456,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @available(*, deprecated, renamed: "_mutatingExtracting(_:)")
@@ -476,7 +476,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -504,7 +504,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -530,7 +530,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -553,7 +553,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -577,7 +577,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -600,7 +600,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @available(*, deprecated, renamed: "_mutatingExtracting(_:)")
@@ -622,7 +622,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -647,7 +647,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -676,7 +676,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -701,7 +701,7 @@ extension MutableRawSpan {
   /// - Parameter bounds: A valid range of positions. Every position in
   ///     this range must be within the bounds of this `MutableRawSpan`.
   ///
-  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`
+  /// - Returns: A `MutableRawSpan` over the bytes within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -774,7 +774,7 @@ extension MutableRawSpan {
 extension MutableRawSpan {
 
   /// Returns a span containing the initial bytes of this span,
-  /// up to the specified maximum byte count.
+  /// up to the specified maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
@@ -804,7 +804,7 @@ extension MutableRawSpan {
   }
 
   /// Returns a span containing the initial bytes of this span,
-  /// up to the specified maximum byte count.
+  /// up to the specified maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
@@ -828,7 +828,7 @@ extension MutableRawSpan {
   }
 
   /// Returns a span containing the initial bytes of this span,
-  /// up to the specified maximum byte count.
+  /// up to the specified maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
   /// the result contains all the bytes.
@@ -936,7 +936,7 @@ extension MutableRawSpan {
 #endif
   }
 
-  /// Returns a span containing the final bytes of the span,
+  /// Returns a span containing the trailing bytes of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
@@ -967,7 +967,7 @@ extension MutableRawSpan {
 #endif
   }
 
-  /// Returns a span containing the final bytes of the span,
+  /// Returns a span containing the trailing bytes of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
@@ -991,7 +991,7 @@ extension MutableRawSpan {
     _mutatingExtracting(last: maxLength)
   }
 
-  /// Returns a span containing the final bytes of the span,
+  /// Returns a span containing the trailing bytes of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,

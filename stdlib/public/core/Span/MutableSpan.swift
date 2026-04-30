@@ -266,7 +266,7 @@ extension MutableSpan where Element: BitwiseCopyable {
 
   /// Construct a raw span over the memory represented by this span.
   ///
-  /// - Returns: a RawSpan over the memory represented by this span
+  /// - Returns: A `RawSpan` over the memory represented by this span.
   @_alwaysEmitIntoClient
   @_transparent
   @unsafe
@@ -283,7 +283,7 @@ extension MutableSpan where Element: BitwiseCopyable {
   /// it is possible to mutate a byte so as to produce an invalid
   /// bit pattern in the corresponding instance of `Element`.
   ///
-  /// - Returns: a MutableRawSpan over the memory represented by this span
+  /// - Returns: A `MutableRawSpan` over the memory represented by this span.
   @_alwaysEmitIntoClient
   @_transparent
   @unsafe
@@ -536,6 +536,8 @@ extension MutableSpan where Element: ~Copyable {
   /// Constructs a new span over the items within the supplied range of
   /// indices within this span.
   ///
+  /// The returned span represents a mutation of this span.
+  ///
   /// The returned span's first item is always at offset 0; unlike buffer
   /// slices, extracted spans do not share their indices with the
   /// span from which they are extracted.
@@ -543,7 +545,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -569,7 +571,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @available(*, deprecated, renamed: "_mutatingExtracting(_:)")
@@ -589,7 +591,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -617,7 +619,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -644,7 +646,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -667,7 +669,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -692,7 +694,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -715,7 +717,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @available(*, deprecated, renamed: "_mutatingExtracting(_:)")
@@ -737,7 +739,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @_alwaysEmitIntoClient
@@ -762,7 +764,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -791,7 +793,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -816,7 +818,7 @@ extension MutableSpan where Element: ~Copyable {
   /// - Parameter bounds: A valid range of indices. Every index in
   ///     this range must be within the bounds of this `MutableSpan`.
   ///
-  /// - Returns: A `MutableSpan` over the items within `bounds`
+  /// - Returns: A `MutableSpan` over the items within `bounds`.
   ///
   /// - Complexity: O(1)
   @unsafe
@@ -1051,7 +1053,7 @@ extension MutableSpan where Element: ~Copyable {
 #endif
   }
 
-  /// Returns a span containing the final elements of the span,
+  /// Returns a span containing the trailing elements of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
@@ -1083,7 +1085,7 @@ extension MutableSpan where Element: ~Copyable {
 #endif
   }
 
-  /// Returns a span containing the final elements of the span,
+  /// Returns a span containing the trailing elements of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
@@ -1107,7 +1109,7 @@ extension MutableSpan where Element: ~Copyable {
     _mutatingExtracting(last: maxLength)
   }
 
-  /// Returns a span containing the final elements of the span,
+  /// Returns a span containing the trailing elements of the span,
   /// up to the given maximum length.
   ///
   /// If the maximum length exceeds the length of this span,
