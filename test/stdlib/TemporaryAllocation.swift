@@ -1,4 +1,4 @@
-// RUN: %target-run-simple-swiftgyb
+// RUN: %target-run-simple-swift(-strict-memory-safety)
 // REQUIRES: executable_test
 
 import StdlibUnittest
@@ -9,15 +9,15 @@ var TemporaryAllocationTestSuite = TestSuite("TemporaryAllocation")
 func isStackAllocated(_ pointer: UnsafeRawPointer) -> Bool? {
     var stackBegin: UInt = 0
     var stackEnd: UInt = 0
-    if _swift_stdlib_getCurrentStackBounds(&stackBegin, &stackEnd) {
-        var pointerValue = UInt(bitPattern: pointer)
+    if unsafe _swift_stdlib_getCurrentStackBounds(&stackBegin, &stackEnd) {
+        let pointerValue = UInt(bitPattern: pointer)
         return pointerValue >= stackBegin && pointerValue < stackEnd
     }
     return nil
 }
 
 func expectStackAllocated(_ pointer: UnsafeRawPointer) {
-    if let stackAllocated = isStackAllocated(pointer) {
+    if let stackAllocated = unsafe isStackAllocated(pointer) {
         expectTrue(stackAllocated)
     } else {
         // Could not read stack bounds. Skip.
@@ -25,7 +25,7 @@ func expectStackAllocated(_ pointer: UnsafeRawPointer) {
 }
 
 func expectNotStackAllocated(_ pointer: UnsafeRawPointer) {
-    if let stackAllocated = isStackAllocated(pointer) {
+    if let stackAllocated = unsafe isStackAllocated(pointer) {
         expectFalse(stackAllocated)
     } else {
         // Could not read stack bounds. Skip.
@@ -36,7 +36,7 @@ func expectNotStackAllocated(_ pointer: UnsafeRawPointer) {
 
 TemporaryAllocationTestSuite.test("untypedAllocationOnStack") {
   withUnsafeTemporaryAllocation(byteCount: 8, alignment: 1) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
@@ -45,13 +45,14 @@ TemporaryAllocationTestSuite.test("untypedAllocationOnHeap") {
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
   withUnsafeTemporaryAllocation(byteCount: 100_000, alignment: 1) { buffer in
-      expectNotStackAllocated(buffer.baseAddress!)
+    unsafe expectNotStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("unprotectedUntypedAllocationOnStack") {
-  _withUnprotectedUnsafeTemporaryAllocation(byteCount: 8, alignment: 1) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(byteCount: 8, alignment: 1) {
+    buffer in
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
@@ -59,14 +60,16 @@ TemporaryAllocationTestSuite.test("unprotectedUntypedAllocationOnHeap") {
   // EXPECTATION: a very large allocated buffer is heap-allocated. (Note if
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
-  _withUnprotectedUnsafeTemporaryAllocation(byteCount: 100_000, alignment: 1) { buffer in
-      expectNotStackAllocated(buffer.baseAddress!)
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(
+    byteCount: 100_000, alignment: 1
+  ) { buffer in
+    unsafe expectNotStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("untypedEmptyAllocationIsStackAllocated") {
   withUnsafeTemporaryAllocation(byteCount: 0, alignment: 1) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
@@ -98,14 +101,14 @@ TemporaryAllocationTestSuite.test("untypedAllocationIsAligned") {
 
 TemporaryAllocationTestSuite.test("typedAllocationOnStack") {
   withUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("spanOnStack") {
   withTemporaryAllocation(of: Int.self, capacity: 1) { span in
-    span.withUnsafeMutableBufferPointer { buffer, initializedCount in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe span.withUnsafeMutableBufferPointer { buffer, initializedCount in
+      unsafe expectStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
@@ -116,7 +119,7 @@ TemporaryAllocationTestSuite.test("typedAllocationOnHeap") {
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
   withUnsafeTemporaryAllocation(of: Int.self, capacity: 100_000) { buffer in
-      expectNotStackAllocated(buffer.baseAddress!)
+    unsafe expectNotStackAllocated(buffer.baseAddress!)
   }
 }
 
@@ -125,16 +128,16 @@ TemporaryAllocationTestSuite.test("spanOnHeap") {
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
   withTemporaryAllocation(of: Int.self, capacity: 100_000) { span in
-    span.withUnsafeMutableBufferPointer { buffer, initializedCount in
-      expectNotStackAllocated(buffer.baseAddress!)
+    unsafe span.withUnsafeMutableBufferPointer { buffer, initializedCount in
+      unsafe expectNotStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
 }
 
 TemporaryAllocationTestSuite.test("unprotectedTypedAllocationOnStack") {
-  _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { buffer in
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
@@ -142,27 +145,27 @@ TemporaryAllocationTestSuite.test("unprotectedTypedAllocationOnHeap") {
   // EXPECTATION: a very large allocated buffer is heap-allocated. (Note if
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
-  _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 100_000) { buffer in
-      expectNotStackAllocated(buffer.baseAddress!)
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 100_000) { buffer in
+    unsafe expectNotStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("typedEmptyAllocationIsStackAllocated") {
   withUnsafeTemporaryAllocation(of: Int.self, capacity: 0) { buffer in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("voidAllocationIsStackAllocated") {
   withUnsafeTemporaryAllocation(of: Void.self, capacity: 1) { buffer in
-    expectStackAllocated(buffer.baseAddress!)
+    unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
 
 TemporaryAllocationTestSuite.test("voidSpanIsStackAllocated") {
   withTemporaryAllocation(of: Void.self, capacity: 1) { span in
-    span.withUnsafeMutableBufferPointer { buffer, initializedCount in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe span.withUnsafeMutableBufferPointer { buffer, initializedCount in
+      unsafe expectStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
@@ -194,7 +197,7 @@ TemporaryAllocationTestSuite.test("typedAllocationIsAligned") {
 
 TemporaryAllocationTestSuite.test("spanIsAligned") {
   withTemporaryAllocation(of: Int.self, capacity: 1) { span in
-    span.withUnsafeMutableBufferPointer { buffer, initializedCount in
+    unsafe span.withUnsafeMutableBufferPointer { buffer, initializedCount in
       let pointerBits = Int(bitPattern: buffer.baseAddress!)
       let alignmentMask = MemoryLayout<Int>.alignment - 1
       expectEqual(pointerBits & alignmentMask, 0)
@@ -235,8 +238,8 @@ TemporaryAllocationTestSuite.test("spanWithThrow") {
 
 TemporaryAllocationTestSuite.test("rawSpanOnStack") {
   withTemporaryAllocation(byteCount: 8, alignment: 1) { rawSpan in
-    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      unsafe expectStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
@@ -244,8 +247,8 @@ TemporaryAllocationTestSuite.test("rawSpanOnStack") {
 
 TemporaryAllocationTestSuite.test("rawSpanOnHeap") {
   withTemporaryAllocation(byteCount: 100_000, alignment: 1) { rawSpan in
-    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
-      expectNotStackAllocated(buffer.baseAddress!)
+    unsafe rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      unsafe expectNotStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
@@ -253,8 +256,8 @@ TemporaryAllocationTestSuite.test("rawSpanOnHeap") {
 
 TemporaryAllocationTestSuite.test("rawSpanEmptyAllocationIsStackAllocated") {
   withTemporaryAllocation(byteCount: 0, alignment: 1) { rawSpan in
-    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
-      expectStackAllocated(buffer.baseAddress!)
+    unsafe rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+      unsafe expectStackAllocated(buffer.baseAddress!)
       initializedCount = 0
     }
   }
@@ -262,7 +265,7 @@ TemporaryAllocationTestSuite.test("rawSpanEmptyAllocationIsStackAllocated") {
 
 TemporaryAllocationTestSuite.test("rawSpanIsAligned") {
   withTemporaryAllocation(byteCount: 1, alignment: 8) { rawSpan in
-    rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
+    unsafe rawSpan.withUnsafeMutableBytes { buffer, initializedCount in
       let pointerBits = Int(bitPattern: buffer.baseAddress!)
       let alignmentMask = 0b111
       expectEqual(pointerBits & alignmentMask, 0)
