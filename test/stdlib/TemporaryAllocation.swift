@@ -217,7 +217,7 @@ TemporaryAllocationTestSuite.test("typedAllocationWithThrow") {
     try withUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { (buffer) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
-    fatalError("did not throw!?!")
+    expectUnreachable("did not throw!?!")
   } catch {
     expectEqual(error, .forgot)
   }
@@ -228,7 +228,7 @@ TemporaryAllocationTestSuite.test("spanWithThrow") {
     try withTemporaryAllocation(of: Int.self, capacity: 1) { (span) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
-    fatalError("did not throw!?!")
+    expectUnreachable("did not throw!?!")
   } catch {
     expectEqual(error, .forgot)
   }
@@ -308,7 +308,7 @@ TemporaryAllocationTestSuite.test("rawSpanWithThrow") {
     try withTemporaryAllocation(byteCount: 8, alignment: 1) { (rawSpan) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
-    fatalError("did not throw")
+    expectUnreachable("did not throw")
   } catch {
     expectEqual(error, .forgot)
   }
