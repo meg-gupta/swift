@@ -136,7 +136,9 @@ TemporaryAllocationTestSuite.test("spanOnHeap") {
 }
 
 TemporaryAllocationTestSuite.test("unprotectedTypedAllocationOnStack") {
-  unsafe _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { buffer in
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(
+    of: Int.self, capacity: 1
+  ) { buffer in
     unsafe expectStackAllocated(buffer.baseAddress!)
   }
 }
@@ -145,7 +147,9 @@ TemporaryAllocationTestSuite.test("unprotectedTypedAllocationOnHeap") {
   // EXPECTATION: a very large allocated buffer is heap-allocated. (Note if
   // swift_stdlib_isStackAllocationSafe() gets fleshed out, this test may need
   // to be changed.)
-  unsafe _withUnprotectedUnsafeTemporaryAllocation(of: Int.self, capacity: 100_000) { buffer in
+  unsafe _withUnprotectedUnsafeTemporaryAllocation(
+    of: Int.self, capacity: 100_000
+  ) { buffer in
     unsafe expectNotStackAllocated(buffer.baseAddress!)
   }
 }
@@ -214,7 +218,8 @@ case forgot
 
 TemporaryAllocationTestSuite.test("typedAllocationWithThrow") {
   do throws(HomeworkError) {
-    try withUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { (buffer) throws(HomeworkError) -> Void in
+    try withUnsafeTemporaryAllocation(of: Int.self, capacity: 1) {
+      (buffer) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
     expectUnreachable("did not throw!?!")
@@ -225,7 +230,8 @@ TemporaryAllocationTestSuite.test("typedAllocationWithThrow") {
 
 TemporaryAllocationTestSuite.test("spanWithThrow") {
   do throws(HomeworkError) {
-    try withTemporaryAllocation(of: Int.self, capacity: 1) { (span) throws(HomeworkError) -> Void in
+    try withTemporaryAllocation(of: Int.self, capacity: 1) {
+      (span) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
     expectUnreachable("did not throw!?!")
@@ -305,7 +311,8 @@ TemporaryAllocationTestSuite.test("rawSpanCrashOnNegativeAlignment")
 
 TemporaryAllocationTestSuite.test("rawSpanWithThrow") {
   do throws(HomeworkError) {
-    try withTemporaryAllocation(byteCount: 8, alignment: 1) { (rawSpan) throws(HomeworkError) -> Void in
+    try withTemporaryAllocation(byteCount: 8, alignment: 1) {
+      (rawSpan) throws(HomeworkError) -> Void in
       throw HomeworkError.forgot
     }
     expectUnreachable("did not throw")
