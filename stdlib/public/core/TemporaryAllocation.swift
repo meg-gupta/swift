@@ -254,7 +254,6 @@ public func withUnsafeTemporaryAllocation<R: ~Copyable, E: Error>(
 
 @available(SwiftCompatibilitySpan 5.0, *)
 @_alwaysEmitIntoClient @_transparent
-@safe
 public func withTemporaryAllocation<T: ~Copyable, R: ~Copyable, E: Error>(
   of type: T.Type,
   capacity: Int,
@@ -274,7 +273,6 @@ public func withTemporaryAllocation<T: ~Copyable, R: ~Copyable, E: Error>(
 
 @available(SwiftCompatibilitySpan 5.0, *)
 @_alwaysEmitIntoClient @_transparent
-@safe
 public func withTemporaryAllocation<R: ~Copyable, E: Error>(
   byteCount: Int,
   alignment: Int,
