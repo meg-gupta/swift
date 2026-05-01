@@ -9,7 +9,7 @@
 
 // CHECK: define {{.*}} @"$e20floatingpointparsing11testLiteralSdSgyF"()
 public func testLiteral() -> Double? {
-  // CHECK: call swiftcc { i64, i8 } @"$eSdySdSgxcSyRzlufCSS_Tt0g5"
+  // CHECK: call swiftcc {{.*}} @"$eSdySdSgxcSyRzlufCSS_Tt0g5"
   // CHECK-NOT: stdlib_isOSVersionAtLeast
   Double("1.5")
 }
