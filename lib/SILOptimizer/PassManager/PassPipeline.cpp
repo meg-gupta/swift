@@ -131,12 +131,6 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P,
 
   P.addAddressLowering();
 
-  // When enabled, run address lowering for large loadable types using the
-  // full address lowering infrastructure.
-  if (Options.EnableLargeLoadableTypesAddressLowering) {
-    P.addLargeLoadableTypesAddressLowering();
-  }
-
   // TODO: remove this once CapturePromotion deletes specialized functions itself.
   P.addDiagnosticDeadFunctionElimination();
 
@@ -199,6 +193,12 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P,
   //
   // End Ownership Optimizations
   //===---
+
+  // When enabled, run address lowering for large loadable types using the
+  // full address lowering infrastructure.
+  if (Options.EnableLargeLoadableTypesAddressLowering) {
+    P.addLargeLoadableTypesAddressLowering();
+  }
 
 #ifndef NDEBUG
   // Add a verification pass to check our work when skipping
