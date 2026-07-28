@@ -192,7 +192,7 @@ public:
   bool EnableSILOpaqueValues = false;
 
   /// If set to true, run address lowering for large loadable types.
-  bool EnableLargeLoadableTypesAddressLowering = false;
+  bool EnableLargeLoadableTypesAddressLowering = true;
 
   /// Enable pack metadata stack "promotion".
   ///
