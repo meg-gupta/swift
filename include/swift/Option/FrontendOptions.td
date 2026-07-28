@@ -1353,6 +1353,10 @@ def enable_large_loadable_types_reg2mem : Flag<["-"], "enable-large-loadable-typ
 def disable_large_loadable_types_reg2mem : Flag<["-"], "disable-large-loadable-types-reg2mem">,
   HelpText<"Disable large loadable types register to memory pass">;
 
+def enable_large_loadable_types_address_lowering
+    : Flag<["-"], "enable-large-loadable-types-address-lowering">,
+      HelpText<"Lower large loadable types using the address lowering pass">;
+
 def enable_x86_64_corocc : Flag<["-"], "enable-x86_64-corocc">,
   HelpText<"Use swiftcorocc for yield_once_2 routines on x86_64.">;
 

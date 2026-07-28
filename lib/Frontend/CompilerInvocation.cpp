@@ -3351,6 +3351,8 @@ static bool ParseSILArgs(SILOptions &Opts, ArgList &Args,
   Opts.EnableOSSAOptimizations &= !Args.hasArg(OPT_disable_ossa_opts);
   Opts.EnableSILOpaqueValues = Args.hasFlag(
       OPT_enable_sil_opaque_values, OPT_disable_sil_opaque_values, false);
+  Opts.EnableLargeLoadableTypesAddressLowering |=
+      Args.hasArg(OPT_enable_large_loadable_types_address_lowering);
   Opts.EnableAsyncDemotion |= Args.hasArg(OPT_enable_async_demotion);
   Opts.EnableThrowsPrediction = Args.hasFlag(
       OPT_enable_throws_prediction, OPT_disable_throws_prediction,

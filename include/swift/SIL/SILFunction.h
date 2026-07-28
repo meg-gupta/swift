@@ -706,6 +706,7 @@ public:
   /// You have to do that yourself
   void rewriteLoweredTypeUnsafe(CanSILFunctionType newType) {
     LoweredType = newType;
+    LoweredTypeInContext = CanSILFunctionType();
   }
 
   /// Return the number of entities referring to this function (other

@@ -100,7 +100,8 @@ static void addMandatoryDebugSerialization(SILPassPipelinePlan &P) {
 //
 // Any passes not needed for diagnostic emission that need to run at -Onone
 // should be in the -Onone pass pipeline and the prepare optimizations pipeline.
-static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
+static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P,
+                                              const SILOptions &Options) {
   P.startPipeline("Mandatory Diagnostic Passes + Enabling Optimization Passes");
 
   P.addMarkNeverWrittenMutableClosureBoxesAsImmutable();
@@ -156,7 +157,6 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
   // and `differentiable_function` instructions.
   P.addDifferentiation();
 
-  const auto &Options = P.getOptions();
   P.addClosureLifetimeFixup();
 
   //===---
@@ -334,7 +334,7 @@ SILPassPipelinePlan::getDiagnosticPassPipeline(const SILOptions &Options) {
   }
 
   // Otherwise run the rest of diagnostics.
-  addMandatoryDiagnosticOptPipeline(P);
+  addMandatoryDiagnosticOptPipeline(P, Options);
 
   if (SILViewCanonicalCFG) {
     addCFGPrinterPipeline(P, "SIL View Canonical CFG");
@@ -963,7 +963,9 @@ SILPassPipelinePlan::getIRGenPreparePassPipeline(const SILOptions &Options) {
   P.addAllocStackHoisting();
   // Change large loadable types to be passed indirectly across function
   // boundaries as required by the ABI.
-  P.addLoadableByAddress();
+  if (!Options.EnableLargeLoadableTypesAddressLowering) {
+    P.addLoadableByAddress();
+  }
 
   if (Options.EnablePackMetadataStackPromotion) {
     // Insert marker instructions indicating where on-stack pack metadata
@@ -1045,6 +1047,14 @@ SILPassPipelinePlan::getPerformancePassPipeline(const SILOptions &Options) {
   // Perform optimizations that specialize.
   addClosureSpecializePassPipeline(P);
 
+  // When enabled, run address lowering for large loadable types using the
+  // full address lowering infrastructure.
+  if (P.getOptions().EnableLargeLoadableTypesAddressLowering) {
+    P.addLargeLoadableTypesAddressLowering();
+    P.addTempRValueElimination();
+    P.addTempLValueElimination();
+  }
+
   P.addKillInvalidDebugValues();
   P.addOwnershipModelEliminator();
 
@@ -1114,6 +1124,14 @@ SILPassPipelinePlan::getOnonePassPipeline(const SILOptions &Options) {
   // If we are asked to stop optimizing before lowering ownership, do so now.
   if (P.Options.StopOptimizationBeforeLoweringOwnership)
     return P;
+
+  // When enabled, run address lowering for large loadable types using the
+  // full address lowering infrastructure.
+  if (Options.EnableLargeLoadableTypesAddressLowering) {
+    P.addLargeLoadableTypesAddressLowering();
+    P.addTempRValueElimination();
+    P.addTempLValueElimination();
+  }
 
   P.addKillInvalidDebugValues();
   P.addOwnershipModelEliminator();
