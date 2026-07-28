@@ -135,6 +135,9 @@
 #define DEBUG_TYPE "address-lowering"
 
 #include "PhiStorageOptimizer.h"
+#include "../../IRGen/IRGenModule.h"
+#include "../../IRGen/NativeConventionSchema.h"
+#include "../../IRGen/TypeInfo.h"
 #include "swift/AST/Decl.h"
 #include "swift/Basic/Assertions.h"
 #include "swift/Basic/BlotSetVector.h"
@@ -170,21 +173,164 @@
 using namespace swift;
 using llvm::SmallSetVector;
 
+/// Forward declaration.
+static CanSILFunctionType
+remapLargeLoadableConventions(CanSILFunctionType fnType,
+                            irgen::IRGenModule *IGM,
+                            GenericEnvironment *genEnv);
+
 /// Get a function's convention for Lowered SIL, even though the SIL stage is
 /// still Canonical.
-static SILFunctionConventions getLoweredFnConv(SILFunction *function) {
+static SILFunctionConventions getLoweredFnConv(SILFunction *function,
+                                               irgen::IRGenModule *IGM = nullptr) {
+  auto fnType = function->getLoweredFunctionType();
+  if (IGM) {
+    fnType = remapLargeLoadableConventions(
+        fnType, IGM, function->getGenericEnvironment());
+  }
   return SILFunctionConventions(
-      function->getLoweredFunctionType(),
+      fnType,
       SILModuleConventions::getLoweredAddressConventions(
           function->getModule()));
 }
 
 /// Get a call's function convention for Lowered SIL even though the SIL stage
 /// is still Canonical.
-static SILFunctionConventions getLoweredCallConv(ApplySite call) {
+static SILFunctionConventions getLoweredCallConv(ApplySite call,
+                                                 irgen::IRGenModule *IGM = nullptr) {
+  auto fnType = call.getSubstCalleeType();
+  if (IGM) {
+    auto *callee = call.getCalleeFunction();
+    auto *genEnv = callee ? callee->getGenericEnvironment() : nullptr;
+    fnType = remapLargeLoadableConventions(fnType, IGM, genEnv);
+  }
   return SILFunctionConventions(
-      call.getSubstCalleeType(),
+      fnType,
       SILModuleConventions::getLoweredAddressConventions(call.getModule()));
+}
+
+/// Returns true if \p canType requires indirect passing according to the
+/// target's native calling convention.
+static bool requiresIndirectPassing(CanType canType, irgen::IRGenModule &IGM) {
+  const irgen::TypeInfo &TI = IGM.getTypeInfoForLowered(canType);
+  auto &nativeSchema = TI.nativeParameterValueSchema(IGM);
+  return nativeSchema.requiresIndirect();
+}
+
+/// Returns true if \p canType requires indirect return according to the
+/// target's native calling convention.
+static bool requiresIndirectReturn(CanType canType, irgen::IRGenModule &IGM) {
+  const irgen::TypeInfo &TI = IGM.getTypeInfoForLowered(canType);
+  auto &nativeSchema = TI.nativeReturnValueSchema(IGM);
+  return nativeSchema.requiresIndirect();
+}
+
+/// Map a type through a generic environment if it has type parameters.
+/// Returns a null CanType if the type cannot be resolved.
+static CanType resolveTypeInContext(CanType canType,
+                                    GenericEnvironment *genEnv) {
+  if (!canType->hasTypeParameter())
+    return canType;
+  if (!genEnv)
+    return CanType();
+  return genEnv->mapTypeIntoEnvironment(canType)->getCanonicalType();
+}
+
+/// Returns true if \p t is a loadable type that is too large to pass in
+/// registers according to the target's native calling convention.
+static bool isLargeLoadableType(SILType t, GenericEnvironment *genEnv,
+                                irgen::IRGenModule *IGM) {
+  if (!IGM)
+    return false;
+  if (t.isAddress() || t.isClassOrClassMetatype())
+    return false;
+
+  auto canType = resolveTypeInContext(t.getASTType(), genEnv);
+  if (!canType)
+    return false;
+  if (!canType.getAnyGeneric() && !t.is<BuiltinFixedArrayType>())
+    return false;
+
+  return requiresIndirectPassing(canType, *IGM);
+}
+
+/// Returns true if \p t is a loadable type that is too large to pass in
+/// registers, querying the function's generic environment.
+static bool isLargeLoadableType(SILType t, SILFunction *function,
+                                irgen::IRGenModule *IGM) {
+  return isLargeLoadableType(t,
+      function ? function->getGenericEnvironment() : nullptr, IGM);
+}
+
+/// Returns true if \p t is a large loadable type that requires indirect return.
+static bool isLargeLoadableReturnType(SILType t, GenericEnvironment *genEnv,
+                                      irgen::IRGenModule *IGM) {
+  if (!IGM)
+    return false;
+  if (t.isAddress() || t.isClassOrClassMetatype())
+    return false;
+
+  auto canType = resolveTypeInContext(t.getASTType(), genEnv);
+  if (!canType)
+    return false;
+  if (!canType.getAnyGeneric() && !t.is<BuiltinFixedArrayType>())
+    return false;
+
+  return requiresIndirectReturn(canType, *IGM);
+}
+
+/// Remap direct conventions to indirect for large loadable types in a
+/// function type.
+static CanSILFunctionType
+remapLargeLoadableConventions(CanSILFunctionType fnType,
+                              irgen::IRGenModule *IGM,
+                              GenericEnvironment *genEnv) {
+  if (!IGM)
+    return fnType;
+
+  bool changed = false;
+
+  SmallVector<SILParameterInfo, 8> newParams;
+  for (auto param : fnType->getParameters()) {
+    if (!param.isFormalIndirect()) {
+      auto paramTy = SILType::getPrimitiveObjectType(param.getInterfaceType());
+      if (isLargeLoadableType(paramTy, genEnv, IGM)) {
+        auto newConv = param.getConvention() == ParameterConvention::Direct_Owned
+                           ? ParameterConvention::Indirect_In
+                           : ParameterConvention::Indirect_In_Guaranteed;
+        newParams.push_back(SILParameterInfo(param.getInterfaceType(),
+                                             newConv, param.getOptions()));
+        changed = true;
+        continue;
+      }
+    }
+    newParams.push_back(param);
+  }
+
+  SmallVector<SILResultInfo, 4> newResults;
+  for (auto result : fnType->getResults()) {
+    if (!result.isFormalIndirect()) {
+      auto resultTy = SILType::getPrimitiveObjectType(result.getInterfaceType());
+      if (isLargeLoadableReturnType(resultTy, genEnv, IGM)) {
+        newResults.push_back(SILResultInfo(result.getInterfaceType(),
+                                           ResultConvention::Indirect));
+        changed = true;
+        continue;
+      }
+    }
+    newResults.push_back(result);
+  }
+
+  if (!changed)
+    return fnType;
+
+  return SILFunctionType::get(
+      fnType->getInvocationGenericSignature(), fnType->getExtInfo(),
+      fnType->getCoroutineKind(), fnType->getCalleeConvention(), newParams,
+      fnType->getYields(), newResults, fnType->getOptionalErrorResult(),
+      fnType->getPatternSubstitutions(), fnType->getInvocationSubstitutions(),
+      fnType->getASTContext(),
+      fnType->getWitnessMethodConformanceOrInvalid());
 }
 
 //===----------------------------------------------------------------------===//
@@ -302,7 +448,8 @@ static bool isPseudoReturnValue(SILValue value) {
 ///
 /// Precondition: indirect function arguments have already been rewritten
 ///               (see insertIndirectReturnArgs()).
-static SILValue getTupleStorageValue(Operand *operand) {
+static SILValue getTupleStorageValue(Operand *operand,
+                                     irgen::IRGenModule *IGM = nullptr) {
   auto *tuple = cast<TupleInst>(operand->getUser());
   if (!isPseudoReturnValue(tuple))
     return tuple;
@@ -310,7 +457,7 @@ static SILValue getTupleStorageValue(Operand *operand) {
   unsigned resultIdx = tuple->getElementIndex(operand);
 
   auto *function = tuple->getFunction();
-  auto loweredFnConv = getLoweredFnConv(function);
+  auto loweredFnConv = getLoweredFnConv(function, IGM);
   assert(loweredFnConv.getResults().size() == tuple->getElements().size());
 
   unsigned indirectResultIdx = 0;
@@ -329,11 +476,12 @@ static SILValue getTupleStorageValue(Operand *operand) {
 ///     return %oper
 ///
 ///   For %oper, return %loweredIndirectResult
-static SILValue getSingleReturnAddress(Operand *operand) {
+static SILValue getSingleReturnAddress(Operand *operand,
+                                       irgen::IRGenModule *IGM = nullptr) {
   assert(!isPseudoReturnValue(operand->get()));
 
   auto *function = operand->getParentFunction();
-  assert(getLoweredFnConv(function).getNumIndirectSILResults() == 1);
+  assert(getLoweredFnConv(function, IGM).getNumIndirectSILResults() == 1);
 
   // Cannot call getIndirectSILResults here because that API uses the
   // function conventions before address lowering.
@@ -546,6 +694,12 @@ struct AddressLoweringState {
 
   InstructionDeleter deleter;
 
+  // IRGenModule for querying type layout (null except in large-loadable mode).
+  irgen::IRGenModule *IGM = nullptr;
+
+  // When true, only lower large loadable types (not address-only types).
+  bool largeLoadableOnly = false;
+
   // All opaque values mapped to their associated storage.
   ValueStorageMap valueStorageMap;
 
@@ -581,9 +735,12 @@ struct AddressLoweringState {
   SILLoopAnalysis *SLA;
 
   AddressLoweringState(SILFunction *function, DominanceInfo *domInfo,
-                       SILLoopAnalysis *SLA)
-      : function(function), loweredFnConv(getLoweredFnConv(function)),
-        domInfo(domInfo), SLA(SLA) {
+                       SILLoopAnalysis *SLA,
+                       irgen::IRGenModule *IGM = nullptr,
+                       bool largeLoadableOnly = false)
+      : function(function), loweredFnConv(getLoweredFnConv(function, IGM)),
+        domInfo(domInfo), IGM(IGM), largeLoadableOnly(largeLoadableOnly),
+        SLA(SLA) {
     for (auto &block : *function) {
       if (block.getTerminator()->isFunctionExiting())
         exitingInsts.push_back(block.getTerminator());
@@ -591,6 +748,17 @@ struct AddressLoweringState {
   }
 
   SILModule *getModule() const { return &function->getModule(); }
+
+  /// Returns true if \p t needs to be lowered to an address in the current
+  /// mode. In normal mode, checks isAddressOnly. In large-loadable-only mode,
+  /// checks isLargeLoadableType.
+  bool needsLowering(SILType t) const {
+    if (t.isAddress())
+      return false;
+    if (largeLoadableOnly)
+      return isLargeLoadableType(t, function, IGM);
+    return t.isAddressOnly(*function);
+  }
 
   SILLocation genLoc() const {
     return RegularLocation::getAutoGeneratedLocation();
@@ -681,7 +849,20 @@ static void convertDirectToIndirectFunctionArgs(AddressLoweringState &pass) {
   for (SILParameterInfo param :
        pass.function->getLoweredFunctionType()->getParameters()) {
 
+    // In normal (opaque-values) mode: convert params that are formally indirect
+    // but not yet SIL-indirect.
+    // In large-loadable mode: params are still Direct_* in the type, but
+    // needsLowering identifies them as needing address conversion.
+    bool needsConversion = false;
     if (param.isFormalIndirect() && !fnConv.isSILIndirect(param)) {
+      needsConversion = true;
+    } else if (pass.largeLoadableOnly && !param.isFormalIndirect()) {
+      SILArgument *arg = pass.function->getArgument(argIdx);
+      if (pass.needsLowering(arg->getType()))
+        needsConversion = true;
+    }
+
+    if (needsConversion) {
       SILArgument *arg = pass.function->getArgument(argIdx);
       SILType addrType = arg->getType().getAddressType();
       auto loc = SILValue(arg).getLoc();
@@ -713,15 +894,17 @@ static void convertDirectToIndirectFunctionArgs(AddressLoweringState &pass) {
       load->setOperand(0, arg);
 
       // Indirect calling convention may be used for loadable types. In that
-      // case, generating the argument loads is sufficient.
-      if (addrType.isAddressOnly(*pass.function)) {
+      // case, generating the argument loads is sufficient unless we are in
+      // large-loadable mode where we want the full machinery.
+      if (pass.needsLowering(addrType.getObjectType())) {
         pass.valueStorageMap.insertValue(load, arg);
       }
     }
     ++argIdx;
   }
   assert(argIdx ==
-         fnConv.getSILArgIndexOfFirstParam() + fnConv.getNumSILArguments());
+         fnConv.getSILArgIndexOfFirstParam()
+             + pass.function->getLoweredFunctionType()->getNumParameters());
 }
 
 /// Before populating the ValueStorageMap, insert function arguments for any
@@ -847,6 +1030,12 @@ void OpaqueValueVisitor::checkForIndirectApply(ApplySite applySite) {
         pass.indirectApplies.insert(applySite);
         return;
       }
+      // In large-loadable mode, also mark applies with large-loadable args.
+      if (pass.largeLoadableOnly
+          && pass.needsLowering(operand.get()->getType())) {
+        pass.indirectApplies.insert(applySite);
+        return;
+      }
     }
     ++calleeArgIdx;
   }
@@ -857,11 +1046,26 @@ void OpaqueValueVisitor::checkForIndirectApply(ApplySite applySite) {
   }
 }
 
-/// If `value` is address-only, add it to the `valueStorageMap`.
+/// If `value` needs address lowering, add it to the `valueStorageMap`.
 void OpaqueValueVisitor::visitValue(SILValue value) {
   if (!value->getType().isObject())
     return;
-  if (!value->getType().isAddressOnly(*pass.function)) {
+
+  // In large-loadable mode, skip values that are already loaded from an
+  // address (load/load_borrow) or forwarded (move_value). These values don't
+  // need new storage — their source address is sufficient. Only function
+  // boundary values (params, apply results) need lowering.
+  if (pass.largeLoadableOnly) {
+    if (isa<LoadInst>(value) || isa<LoadBorrowInst>(value)
+        || isa<MoveValueInst>(value))
+      return;
+  }
+
+  if (!pass.needsLowering(value->getType())) {
+    if (pass.largeLoadableOnly && value->getType().getASTType().getAnyGeneric()) {
+      LLVM_DEBUG(llvm::dbgs() << "  SKIP (not large loadable): ";
+                 value->dump());
+    }
     if (auto *ucci = dyn_cast<UnconditionalCheckedCastInst>(value)) {
       if (ucci->getSourceLoweredType().isAddressOnly(*pass.function))
         return;
@@ -1118,7 +1322,8 @@ static Operand *getReusedStorageOperand(SILValue value) {
 /// forwards its operands to arguments.
 ///
 /// TODO: Handle SwitchValueInst
-static SILValue getProjectedUseValue(Operand *operand) {
+static SILValue getProjectedUseValue(Operand *operand,
+                                     irgen::IRGenModule *IGM = nullptr) {
   auto *user = operand->getUser();
   switch (user->getKind()) {
   default:
@@ -1139,11 +1344,11 @@ static SILValue getProjectedUseValue(Operand *operand) {
   // through function argument storage. Either way, its element can be a
   // use projection.
   case SILInstructionKind::TupleInst:
-    return getTupleStorageValue(operand);
+    return getTupleStorageValue(operand, IGM);
 
   // Return instructions can project into the return value.
   case SILInstructionKind::ReturnInst:
-    return getSingleReturnAddress(operand);
+    return getSingleReturnAddress(operand, IGM);
   }
   return SILValue();
 }
@@ -1436,8 +1641,12 @@ bool OpaqueStorageAllocation::findProjectionIntoUseImpl(
 
   for (Operand *use : value->getUses()) {
     // Get the user's value, whose storage we would project into.
-    SILValue userValue = getProjectedUseValue(use);
+    SILValue userValue = getProjectedUseValue(use, pass.IGM);
     if (!userValue)
+      continue;
+
+    // The user must also be in the storage map for us to project into it.
+    if (!pass.valueStorageMap.contains(userValue))
       continue;
 
     assert(!getProjectedDefOperand(userValue) &&
@@ -1949,6 +2158,10 @@ SILValue AddressMaterialization::materializeDefProjection(SILValue origValue) {
   default:
     llvm_unreachable("Unexpected projection from def.");
 
+  case ValueKind::MoveValueInst:
+    return pass.getMaterializedAddress(
+        cast<MoveValueInst>(origValue)->getOperand());
+
   case ValueKind::CopyValueInst:
     assert(isStoreCopy(origValue) || isMarkUnresolvedCopy(origValue));
     return pass.getMaterializedAddress(
@@ -2346,6 +2559,10 @@ bool CallArgRewriter::rewriteArguments() {
     if (argConv.isIndirectConvention()) {
       rewriteIndirectArgument(&operand);
       changed |= true;
+    } else if (pass.largeLoadableOnly
+               && pass.needsLowering(operand.get()->getType())) {
+      rewriteIndirectArgument(&operand);
+      changed |= true;
     }
   }
   return changed;
@@ -2359,11 +2576,24 @@ bool CallArgRewriter::rewriteArguments() {
 void CallArgRewriter::rewriteIndirectArgument(Operand *operand) {
   SILValue argValue = operand->get();
 
-  if (argValue->getType().isAddressOnly(*pass.function)) {
+  if (pass.valueStorageMap.contains(argValue)) {
     ValueStorage &storage = pass.valueStorageMap.getStorage(argValue);
     assert(storage.isRewritten && "arg source should be rewritten");
     operand->set(storage.storageAddress);
     return;
+  }
+
+  // In large-loadable mode, if the value is a load from an address, pass
+  // that address directly instead of allocating a temporary.
+  if (pass.largeLoadableOnly) {
+    if (auto *load = dyn_cast<LoadInst>(argValue)) {
+      operand->set(load->getOperand());
+      return;
+    }
+    if (auto *loadBorrow = dyn_cast<LoadBorrowInst>(argValue)) {
+      operand->set(loadBorrow->getOperand());
+      return;
+    }
   }
   // Allocate temporary storage for a loadable operand.
   AllocStackInst *allocInst =
@@ -2432,7 +2662,7 @@ public:
         argBuilder(pass.getBuilder(oldCall.getInstruction()->getIterator())),
         resultBuilder(pass.getBuilder(getCallResultInsertionPoint())),
         opaqueCalleeConv(oldCall.getSubstCalleeConv()),
-        loweredCalleeConv(getLoweredCallConv(oldCall)) {}
+        loweredCalleeConv(getLoweredCallConv(oldCall, pass.IGM)) {}
 
   void convertApplyWithIndirectResults();
   void convertBeginApplyWithOpaqueYield();
@@ -2531,10 +2761,9 @@ void ApplyRewriter::convertApplyWithIndirectResults() {
   // Gather information from the old apply before rewriting it and mutating
   // this->apply.
 
-  // Avoid revisiting this apply.
-  bool erased = pass.indirectApplies.erase(apply);
-  assert(erased && "all results should be rewritten at the same time");
-  (void)erased;
+  // Avoid revisiting this apply. In large-loadable mode, the apply may not
+  // have been inserted into indirectApplies.
+  pass.indirectApplies.erase(apply);
 
   // List of new call arguments.
   SmallVector<SILValue, 8> newCallArgs(loweredCalleeConv.getNumSILArguments());
@@ -2623,14 +2852,18 @@ void ApplyRewriter::makeIndirectArgs(MutableArrayRef<SILValue> newCallArgs) {
   unsigned newResultArgIdx =
       loweredCalleeConv.getSILArgIndexOfFirstIndirectResult();
 
-  auto visitCallResult = [&](SILValue result, SILResultInfo resultInfo) {
-    assert(!opaqueCalleeConv.isSILIndirect(resultInfo) &&
-           "canonical call results are always direct");
+  // Track result index to look up the lowered convention's result info.
+  unsigned visitedResultIdx = 0;
+  auto loweredResults = loweredCalleeConv.funcTy->getResults();
 
-    if (loweredCalleeConv.isSILIndirect(resultInfo)) {
+  auto visitCallResult = [&](SILValue result, SILResultInfo resultInfo) {
+    (void)resultInfo;
+    auto loweredResultInfo = loweredResults[visitedResultIdx++];
+
+    if (loweredCalleeConv.isSILIndirect(loweredResultInfo)) {
       SILValue indirectResultAddr = materializeIndirectOutputAddress(
           ApplyOutput::Result,
-          result, loweredCalleeConv.getSILType(resultInfo, typeCtx));
+          result, loweredCalleeConv.getSILType(loweredResultInfo, typeCtx));
       // Record the new indirect call argument.
       newCallArgs[newResultArgIdx++] = indirectResultAddr;
     }
@@ -2686,7 +2919,7 @@ SILBasicBlock::iterator ApplyRewriter::getResultInsertionPoint() {
 SILValue ApplyRewriter::materializeIndirectOutputAddress(ApplyOutput kind,
                                                          SILValue oldResult,
                                                          SILType argTy) {
-  if (oldResult && oldResult->getType().isAddressOnly(*pass.function)) {
+  if (oldResult && pass.needsLowering(oldResult->getType())) {
     // Results that project into their uses have not yet been materialized.
     AddressMaterialization addrMat(pass, oldResult, argBuilder);
     addrMat.materializeAddress(oldResult);
@@ -2723,6 +2956,23 @@ SILValue ApplyRewriter::materializeIndirectOutputAddress(ApplyOutput kind,
 void ApplyRewriter::rewriteApply(ArrayRef<SILValue> newCallArgs) {
   auto *oldCall = cast<ApplyInst>(apply.getInstruction());
 
+  // In large-loadable mode, the callee function's type may differ from the
+  // function_ref's cached type. Recreate the function_ref if needed so the
+  // new apply's argument list matches its callee type.
+  SILValue callee = apply.getCallee();
+  if (pass.IGM) {
+    if (auto *funcRef = dyn_cast<FunctionRefInst>(callee)) {
+      auto *calleeFn = funcRef->getReferencedFunction();
+      auto loweredTy = loweredCalleeConv.funcTy;
+      if (calleeFn->getLoweredFunctionType() != loweredTy)
+        calleeFn->rewriteLoweredTypeUnsafe(loweredTy);
+      auto expectedTy = SILType::getPrimitiveObjectType(loweredTy);
+      if (funcRef->getType() != expectedTy) {
+        callee = argBuilder.createFunctionRef(funcRef->getLoc(), calleeFn);
+      }
+    }
+  }
+
   // Address lowering may change the rewritten apply's argument count
   // when opaque-value lowering inserts or merges operands. Forward the
   // original per-argument SILLocations only when the count is preserved;
@@ -2735,7 +2985,7 @@ void ApplyRewriter::rewriteApply(ArrayRef<SILValue> newCallArgs) {
     argLocs = std::nullopt;
 
   auto *newCall = argBuilder.createApply(
-      callLoc, apply.getCallee(), apply.getSubstitutionMap(), newCallArgs,
+      callLoc, callee, apply.getSubstitutionMap(), newCallArgs,
       oldCall->getApplyOptions(), oldCall->getSpecializationInfo(),
       /*isolationCrossing=*/std::nullopt, argLocs);
 
@@ -3343,10 +3593,10 @@ void ReturnRewriter::rewriteReturn(ReturnInst *returnInst) {
       pass.loweredFnConv.getSILArgIndexOfFirstIndirectResult();
 
   // Initialize the indirect result arguments and populate newDirectResults.
-  for_each(pass.function->getLoweredFunctionType()->getResults(), oldResults,
+  // Use the lowered function type's results to determine which are indirect.
+  auto loweredResults = pass.loweredFnConv.funcTy->getResults();
+  for_each(loweredResults, oldResults,
            [&](SILResultInfo resultInfo, SILValue oldResult) {
-             // Assume that all original results are direct in SIL.
-             assert(!opaqueFnConv.isSILIndirect(resultInfo));
              if (!pass.loweredFnConv.isSILIndirect(resultInfo)) {
                newDirectResults.push_back(oldResult);
                return;
@@ -3660,7 +3910,7 @@ protected:
   void visitCopyableToMoveOnlyWrapperValueInst(
       CopyableToMoveOnlyWrapperValueInst *inst) {
     assert(use == getReusedStorageOperand(inst));
-    assert(inst->getType().isAddressOnly(*pass.function));
+    assert(pass.needsLowering(inst->getType()));
     SILValue srcVal = inst->getOperand();
     SILValue srcAddr = pass.valueStorageMap.getStorage(srcVal).storageAddress;
 
@@ -3677,6 +3927,13 @@ protected:
     SILValue address = pass.valueStorageMap.getStorage(value).storageAddress;
     builder.createFixLifetime(fli->getLoc(), address);
     pass.deleter.forceDelete(fli);
+  }
+
+  void visitExtendLifetimeInst(ExtendLifetimeInst *eli) {
+    SILValue value = eli->getOperand();
+    SILValue address = pass.valueStorageMap.getStorage(value).storageAddress;
+    builder.createFixLifetime(eli->getLoc(), address);
+    pass.deleter.forceDelete(eli);
   }
 
   void visitMarkDependenceInst(MarkDependenceInst *mdi) {
@@ -3797,7 +4054,7 @@ protected:
   void visitMoveOnlyWrapperToCopyableValueInst(
       MoveOnlyWrapperToCopyableValueInst *inst) {
     assert(use == getReusedStorageOperand(inst));
-    assert(inst->getType().isAddressOnly(*pass.function));
+    assert(pass.needsLowering(inst->getType()));
     SILValue srcVal = inst->getOperand();
     SILValue srcAddr = pass.valueStorageMap.getStorage(srcVal).storageAddress;
 
@@ -3935,10 +4192,9 @@ protected:
 
   void visitUnconditionalCheckedCastInst(
       UnconditionalCheckedCastInst *uncondCheckedCast) {
-    assert(uncondCheckedCast->getOperand()->getType().isAddressOnly(
-        *pass.function));
+    assert(pass.needsLowering(uncondCheckedCast->getOperand()->getType()));
     auto *uccai = rewriteUnconditionalCheckedCastInst(uncondCheckedCast, pass);
-    if (uncondCheckedCast->getType().isAddressOnly(*pass.function)) {
+    if (pass.needsLowering(uncondCheckedCast->getType())) {
       markRewritten(uncondCheckedCast, uccai->getDest());
     }
   }
@@ -4062,7 +4318,8 @@ void UseRewriter::rewriteStore(SILValue srcVal, SILValue destAddr,
 void UseRewriter::visitStoreInst(StoreInst *storeInst) {
   IsInitialization_t isInit;
   auto qualifier = storeInst->getOwnershipQualifier();
-  if (qualifier == StoreOwnershipQualifier::Init)
+  if (qualifier == StoreOwnershipQualifier::Init
+      || qualifier == StoreOwnershipQualifier::Trivial)
     isInit = IsInitialization;
   else {
     assert(qualifier == StoreOwnershipQualifier::Assign);
@@ -4127,7 +4384,7 @@ emitEndBorrowsAtEnclosingGuaranteedBoundary(SILValue lifetimeToEnd,
   /// reborrowed.  Then it would appear as an operand of some phi with
   /// guaranteed ownership. And that phi would be of opaque type. But that's
   /// invalid! (See SILVerifier::visitSILPhiArgument.)
-  assert(enclosingValue->getType().isAddressOnly(*pass.function));
+  assert(pass.needsLowering(enclosingValue->getType()));
   TinyPtrVector<SILValue> introducers;
   visitBorrowIntroducers(enclosingValue, [&](SILValue introducer) {
     introducers.push_back(introducer);
@@ -4137,7 +4394,7 @@ emitEndBorrowsAtEnclosingGuaranteedBoundary(SILValue lifetimeToEnd,
   /// representation, there can only be a single introducer.
   assert(introducers.size() == 1);
   auto introducer = introducers[0];
-  assert(introducer->getType().isAddressOnly(*pass.function));
+  assert(pass.needsLowering(introducer->getType()));
   auto borrow = BorrowedValue(introducer);
   borrow.visitLocalScopeEndingUses([&](Operand *use) {
     assert(!PhiOperand(use));
@@ -4256,7 +4513,7 @@ void UseRewriter::visitSwitchEnumInst(SwitchEnumInst * switchEnum) {
     } else {
       assert(defaultBB->getArguments().size() == 1);
       SILArgument *arg = defaultBB->getArgument(0);
-      assert(arg->getType().isAddressOnly(*pass.function));
+      assert(pass.needsLowering(arg->getType()));
       auto builder = pass.getBuilder(defaultBB->begin());
       auto addr = enumAddr;
       auto *load = builder.createTrivialLoadOr(switchEnum->getLoc(), addr,
@@ -4376,7 +4633,7 @@ protected:
 
   void rewriteOpaqueUncheckedCastDef(SingleValueInstruction *uncheckedCast) {
     SILValue srcVal = uncheckedCast->getOperand(0);
-    assert(!srcVal->getType().isAddressOnly(*pass.function) &&
+    assert(!pass.needsLowering(srcVal->getType()) &&
            "opaque operand should share storage via getReusedStorageOperand");
 
     addrMat.materializeAddress(uncheckedCast);
@@ -4397,6 +4654,11 @@ protected:
 
   void visitUncheckedValueCastInst(UncheckedValueCastInst *uncheckedCast) {
     rewriteOpaqueUncheckedCastDef(uncheckedCast);
+  }
+
+  void visitMoveValueInst(MoveValueInst *mvi) {
+    // move_value is a def-projection: it reuses its operand's storage.
+    addrMat.materializeAddress(mvi);
   }
 
   void visitBeginApplyInst(BeginApplyInst *bai) {
@@ -4482,7 +4744,9 @@ protected:
     if (loadInst->getOwnershipQualifier() == LoadOwnershipQualifier::Take)
       isTake = IsTake;
     else {
-      assert(loadInst->getOwnershipQualifier() == LoadOwnershipQualifier::Copy);
+      assert(loadInst->getOwnershipQualifier() == LoadOwnershipQualifier::Copy
+             || loadInst->getOwnershipQualifier()
+                    == LoadOwnershipQualifier::Trivial);
       isTake = IsNotTake;
     }
     // Dummy loads are already mapped to their storage address.
@@ -4514,9 +4778,8 @@ protected:
 
   void visitUnconditionalCheckedCastInst(
       UnconditionalCheckedCastInst *uncondCheckedCast) {
-    assert(!uncondCheckedCast->getOperand()->getType().isAddressOnly(
-        *pass.function));
-    assert(uncondCheckedCast->getType().isAddressOnly(*pass.function));
+    assert(!pass.needsLowering(uncondCheckedCast->getOperand()->getType()));
+    assert(pass.needsLowering(uncondCheckedCast->getType()));
 
     rewriteUnconditionalCheckedCastInst(uncondCheckedCast, pass);
   }
@@ -4565,6 +4828,39 @@ static void rewriteIndirectApply(ApplySite anyApply,
     auto calleeFnTy = apply.getSubstCalleeType();
     if (!calleeFnTy->hasIndirectFormalResults() &&
         !calleeFnTy->hasIndirectErrorResult()) {
+      // In large-loadable mode, if arguments were rewritten to addresses,
+      // recreate the apply so the new function_ref type will match after
+      // the end-of-pass type rewrite.
+      if (pass.largeLoadableOnly) {
+        if (auto *applyInst = dyn_cast<ApplyInst>(apply.getInstruction())) {
+          if (auto *funcRef =
+                  dyn_cast<FunctionRefInst>(applyInst->getCallee())) {
+            auto *calleeFn = funcRef->getReferencedFunction();
+            auto loweredTy = remapLargeLoadableConventions(
+                calleeFn->getLoweredFunctionType(), pass.IGM,
+                calleeFn->getGenericEnvironment());
+            if (calleeFn->getLoweredFunctionType() != loweredTy)
+              calleeFn->rewriteLoweredTypeUnsafe(loweredTy);
+            auto expectedTy = SILType::getPrimitiveObjectType(
+                calleeFn->getLoweredFunctionType());
+            if (funcRef->getType() != expectedTy) {
+              auto builder = pass.getBuilder(applyInst->getIterator());
+              auto *newFuncRef =
+                  builder.createFunctionRef(funcRef->getLoc(), calleeFn);
+              SmallVector<SILValue, 8> args;
+              for (auto &op : applyInst->getArgumentOperands())
+                args.push_back(op.get());
+              auto *newApply = builder.createApply(
+                  applyInst->getLoc(), newFuncRef,
+                  applyInst->getSubstitutionMap(), args,
+                  applyInst->getApplyOptions(),
+                  applyInst->getSpecializationInfo());
+              applyInst->replaceAllUsesWith(newApply);
+              pass.deleter.forceDelete(applyInst);
+            }
+          }
+        }
+      }
       return;
     }
     // If the call has indirect results and wasn't already rewritten, rewrite it
@@ -4644,7 +4940,6 @@ static void rewriteFunction(AddressLoweringState &pass) {
       uses.push_back(use);
     }
     for (auto *oper : uses) {
-      assert(oper->getUser() && isa<DebugValueInst>(oper->getUser()));
       UseRewriter::rewriteUse(oper, pass);
     }
   }
@@ -4668,11 +4963,11 @@ static void rewriteFunction(AddressLoweringState &pass) {
   // Rewrite this function's return value now that all opaque values within the
   // function are rewritten. This still depends on a valid ValueStorage
   // projection operands.
-  if (pass.function->getLoweredFunctionType()->hasIndirectFormalResults())
+  if (pass.loweredFnConv.getNumIndirectSILResults() > 0)
     ReturnRewriter(pass).rewriteReturns();
   if (pass.function->getLoweredFunctionType()->hasIndirectFormalYields())
     YieldRewriter(pass).rewriteYields();
-  if (pass.function->getLoweredFunctionType()->hasIndirectErrorResult())
+  if (pass.loweredFnConv.hasIndirectSILErrorResults())
     ReturnRewriter(pass).rewriteThrows();
 }
 
@@ -4791,6 +5086,15 @@ namespace {
 // Note: the only reason this is not a FunctionTransform is to change the SIL
 // stage for all functions at once.
 class AddressLowering : public SILModuleTransform {
+  bool LargeLoadableOnly;
+
+  // IRGenModule for querying type layout (null except in large-loadable mode).
+  irgen::IRGenModule *IGM = nullptr;
+
+public:
+  AddressLowering(bool largeLoadableOnly)
+      : LargeLoadableOnly(largeLoadableOnly) {}
+
   /// The entry point to this module transformation.
   void run() override;
 
@@ -4815,13 +5119,19 @@ void AddressLowering::runOnFunction(SILFunction *function) {
   auto *dominance = PM->getAnalysis<DominanceAnalysis>();
   auto *SLA = PM->getAnalysis<SILLoopAnalysis>();
 
-  AddressLoweringState pass(function, dominance->get(function), SLA);
+  AddressLoweringState pass(function, dominance->get(function), SLA,
+                            IGM, LargeLoadableOnly);
 
   // ## Step #1: Map opaque values
   //
   // First, rewrite this function's arguments and return values, then populate
   // pass.valueStorageMap with an entry for each opaque value.
   prepareValueStorage(pass);
+
+  // If no values need lowering, skip the rest.
+  if (pass.valueStorageMap.empty() && pass.indirectApplies.empty()
+      && pass.loweredFnConv.getNumIndirectSILResults() == 0)
+    return;
 
   // ## Step #2: Allocate storage
   //
@@ -4859,15 +5169,43 @@ void AddressLowering::runOnFunction(SILFunction *function) {
 
 /// The entry point to this module transformation.
 void AddressLowering::run() {
-  if (getModule()->useLoweredAddresses())
+  if (!LargeLoadableOnly && getModule()->useLoweredAddresses()) {
+    return;
+  }
+
+  IGM = LargeLoadableOnly ? PM->getIRGenModule() : nullptr;
+
+  if (LargeLoadableOnly && !IGM)
     return;
 
   for (auto &F : *getModule()) {
     runOnFunction(&F);
   }
-  // Update the SILModule before the PassManager has a chance to run
-  // verification.
-  getModule()->setLoweredAddresses(true);
+
+  // Rewrite function types at the end — same pattern as setLoweredAddresses
+  // for address-only types. For large-loadable mode, this makes the types
+  // match the rewritten bodies.
+  if (LargeLoadableOnly && IGM) {
+    for (auto &F : *getModule()) {
+      auto *genEnv = F.getGenericEnvironment();
+      auto oldFnType = F.getLoweredFunctionType();
+      auto newFnType = remapLargeLoadableConventions(oldFnType, IGM, genEnv);
+      if (newFnType != oldFnType)
+        F.rewriteLoweredTypeUnsafe(newFnType);
+    }
+  }
+
+  if (!LargeLoadableOnly) {
+    // Update the SILModule before the PassManager has a chance to run
+    // verification.
+    getModule()->setLoweredAddresses(true);
+  }
 }
 
-SILTransform *swift::createAddressLowering() { return new AddressLowering(); }
+SILTransform *swift::createAddressLowering() {
+  return new AddressLowering(false /*largeLoadableOnly*/);
+}
+
+SILTransform *swift::createLargeLoadableTypesAddressLowering() {
+  return new AddressLowering(true /*largeLoadableOnly*/);
+}

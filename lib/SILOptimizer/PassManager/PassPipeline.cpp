@@ -100,7 +100,8 @@ static void addMandatoryDebugSerialization(SILPassPipelinePlan &P) {
 //
 // Any passes not needed for diagnostic emission that need to run at -Onone
 // should be in the -Onone pass pipeline and the prepare optimizations pipeline.
-static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
+static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P,
+                                              const SILOptions &Options) {
   P.startPipeline("Mandatory Diagnostic Passes + Enabling Optimization Passes");
 
   P.addMarkNeverWrittenMutableClosureBoxesAsImmutable();
@@ -130,6 +131,12 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
 
   P.addAddressLowering();
 
+  // When enabled, run address lowering for large loadable types using the
+  // full address lowering infrastructure.
+  if (Options.EnableLargeLoadableTypesAddressLowering) {
+    P.addLargeLoadableTypesAddressLowering();
+  }
+
   // TODO: remove this once CapturePromotion deletes specialized functions itself.
   P.addDiagnosticDeadFunctionElimination();
 
@@ -156,7 +163,6 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
   // and `differentiable_function` instructions.
   P.addDifferentiation();
 
-  const auto &Options = P.getOptions();
   P.addClosureLifetimeFixup();
 
   //===---
@@ -333,7 +339,7 @@ SILPassPipelinePlan::getDiagnosticPassPipeline(const SILOptions &Options) {
   }
 
   // Otherwise run the rest of diagnostics.
-  addMandatoryDiagnosticOptPipeline(P);
+  addMandatoryDiagnosticOptPipeline(P, Options);
 
   if (SILViewCanonicalCFG) {
     addCFGPrinterPipeline(P, "SIL View Canonical CFG");

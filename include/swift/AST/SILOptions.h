@@ -191,6 +191,9 @@ public:
   /// If set to true, compile with the SIL Opaque Values enabled.
   bool EnableSILOpaqueValues = false;
 
+  /// If set to true, run address lowering for large loadable types.
+  bool EnableLargeLoadableTypesAddressLowering = false;
+
   /// Enable pack metadata stack "promotion".
   ///
   /// More accurately, enable skipping mandatory heapification of pack metadata
