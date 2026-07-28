@@ -959,7 +959,8 @@ SILPassPipelinePlan::getIRGenPreparePassPipeline(const SILOptions &Options) {
   P.addAllocStackHoisting();
   // Change large loadable types to be passed indirectly across function
   // boundaries as required by the ABI.
-  P.addLoadableByAddress();
+  if (!Options.EnableLargeLoadableTypesAddressLowering)
+    P.addLoadableByAddress();
 
   if (Options.EnablePackMetadataStackPromotion) {
     // Insert marker instructions indicating where on-stack pack metadata
