@@ -238,7 +238,7 @@ dest(%u2 : $(Builtin.Int64, Builtin.Int64)):
   return %x : $()
 }
 
-// CHECK: define{{( dllexport)?}}{{( protected)?}} swiftcc void @singleton_switch_indirect(ptr captures(none) dereferenceable({{.*}}) %0) {{.*}} {
+// CHECK: define{{( dllexport)?}}{{( protected)?}} swiftcc void @singleton_switch_indirect(ptr noalias captures(none) dereferenceable({{.*}}) %0) {{.*}} {
 // CHECK: entry:
 // CHECK:   br label %[[DEST:[0-9]+]]
 // CHECK: [[DEST]]:
@@ -274,7 +274,7 @@ entry(%0 : $Builtin.Int64, %1 : $Builtin.Int64):
   return %u : $Singleton
 }
 
-// CHECK: define{{( dllexport)?}}{{( protected)?}} swiftcc void @singleton_inject_indirect(i64 %0, i64 %1, ptr captures(none) dereferenceable({{.*}}) %2) {{.*}} {
+// CHECK: define{{( dllexport)?}}{{( protected)?}} swiftcc void @singleton_inject_indirect(i64 %0, i64 %1, ptr noalias captures(none) dereferenceable({{.*}}) %2) {{.*}} {
 // CHECK: entry:
 // CHECK:   [[DATA_0_ADDR:%.*]] = getelementptr inbounds{{.*}} <{ i64, i64 }>, ptr %2, i32 0, i32 0
 // CHECK:   store i64 %0, ptr [[DATA_0_ADDR]]
@@ -992,7 +992,7 @@ entry(%0 : $Builtin.Int63):
   return %u : $SinglePayloadSpareBit
 }
 
-// CHECK-64: define{{( dllexport)?}}{{( protected)?}} swiftcc void @single_payload_spare_bit_inject_x_indirect(i64 %0, ptr captures(none) dereferenceable({{.*}}) %1) {{.*}} {
+// CHECK-64: define{{( dllexport)?}}{{( protected)?}} swiftcc void @single_payload_spare_bit_inject_x_indirect(i64 %0, ptr noalias captures(none) dereferenceable({{.*}}) %1) {{.*}} {
 // CHECK-64: entry:
 // CHECK-64:   [[T:%.*]] = trunc i64 %0 to i63
 // CHECK-64:   [[BYTE:%.*]] = zext i63 [[T]] to i64
