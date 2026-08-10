@@ -240,7 +240,7 @@ struct RetainReleaseInfo {
         sel = isRelease.value() ? 1 /* release function */
                                 : 0 /* retain function */;
       Impl.diagnose(HeaderLoc(loc), diag::retain_release_function_origin, sel,
-                    /*isInherited=*/false, allocateRecordName(Impl));
+                    /*isInherited=*/false, decl);
     }
     // Otherwise: no usable attribute location and not inherited -> omit.
   }
@@ -256,7 +256,7 @@ struct RetainReleaseInfo {
         if (Impl) {
           Impl->diagnose(loc,
                          diag::reference_type_exactly_one_retain_release_attr,
-                         isRelease, allocateRecordName(*Impl));
+                         isRelease, decl);
           for (auto *attr : attrs)
             noteRetainReleaseOrigin(*Impl, attr->getLocation(), isRelease);
         }
@@ -265,7 +265,7 @@ struct RetainReleaseInfo {
       if (name.empty()) {
         if (Impl) {
           Impl->diagnose(loc, diag::reference_type_empty_retain_release_name,
-                         isRelease, allocateRecordName(*Impl));
+                         isRelease, decl);
           noteRetainReleaseOrigin(*Impl, attrs[0]->getLocation(), isRelease);
         }
         return false;
@@ -291,10 +291,6 @@ private:
   const clang::RecordDecl *decl;
   StringRef retainName, releaseName;
   llvm::SmallVector<const clang::SwiftAttrAttr *, 1> retainAttrs, releaseAttrs;
-
-  StringRef allocateRecordName(ClangImporter::Implementation &Impl) const {
-    return Impl.SwiftContext.AllocateCopy(decl->getNameAsString());
-  }
 };
 
 class ForeignReferenceTypeChecker {
@@ -766,9 +762,6 @@ resolveRefCountOperation(const ClassDecl *classDecl,
                          bool isRetain, ClangImporter::Implementation &Impl) {
   auto *record = cast<clang::RecordDecl>(classDecl->getClangDecl());
   HeaderLoc loc(record->getLocation());
-  auto recordName = [&]() -> StringRef {
-    return Impl.SwiftContext.AllocateCopy(record->getNameAsString());
-  };
 
   ASSERT(!name.empty() &&
          "structural check should guarantee a retain/release attr");
@@ -789,7 +782,7 @@ resolveRefCountOperation(const ClassDecl *classDecl,
       if (op) {
         Impl.diagnose(loc,
                       diag::too_many_reference_type_retain_release_operations,
-                      !isRetain, name, recordName());
+                      !isRetain, name, record);
         return nullptr;
       }
       op = candidate;
@@ -798,7 +791,7 @@ resolveRefCountOperation(const ClassDecl *classDecl,
 
   if (!op) {
     Impl.diagnose(loc, diag::foreign_reference_types_cannot_find_retain_release,
-                  !isRetain, name, recordName());
+                  !isRetain, name, record);
     if (!Impl.SwiftContext.LangOpts.DisableExperimentalClangImporterDiagnostics)
       Impl.diagnoseTopLevelValue(
           DeclName(Impl.SwiftContext.getIdentifier(name)));
