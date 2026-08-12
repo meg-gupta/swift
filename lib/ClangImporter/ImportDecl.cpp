@@ -3575,12 +3575,10 @@ namespace {
         if (auto recordType = dyn_cast<clang::RecordType>(
                 param->getType().getCanonicalType())) {
           if (recordHasReferenceSemantics(recordType->getDecl())) {
-            StringRef recordName = Impl.SwiftContext.AllocateCopy(
-                recordType->getDecl()->getNameAsString());
             Impl.addImportDiagnostic(
                 decl,
-                Diagnostic(diag::foreign_reference_type_by_value, recordName,
-                           /*isReturn=*/false),
+                Diagnostic(diag::foreign_reference_type_by_value,
+                           /*isReturn=*/false, recordType->getDecl()),
                 param->getLocation());
             return true;
           }
@@ -3590,12 +3588,10 @@ namespace {
       if (auto recordType = dyn_cast<clang::RecordType>(
               decl->getReturnType().getCanonicalType())) {
         if (recordHasReferenceSemantics(recordType->getDecl())) {
-          StringRef recordName = Impl.SwiftContext.AllocateCopy(
-              recordType->getDecl()->getNameAsString());
           Impl.addImportDiagnostic(
               decl,
-              Diagnostic(diag::foreign_reference_type_by_value, recordName,
-                         /*isReturn=*/true),
+              Diagnostic(diag::foreign_reference_type_by_value,
+                         /*isReturn=*/true, recordType->getDecl()),
               decl->getReturnTypeSourceRange().getBegin());
           return true;
         }
