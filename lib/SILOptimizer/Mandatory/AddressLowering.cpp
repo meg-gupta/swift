@@ -5286,8 +5286,12 @@ static bool runAddressLoweringOnFunction(SILFunction *function,
     prepareValueStorage(pass);
   }
 
-  // If no values need lowering, skip the rest.
+  // If no values need lowering, skip the rest. Loadable checked casts
+  // (nonopaqueResultUCCs / nonopaqueResultCCBs) still need to be rewritten to
+  // their address forms even when there are no opaque values, so account for
+  // them here.
   if (pass.valueStorageMap.empty() && pass.indirectApplies.empty() &&
+      pass.nonopaqueResultUCCs.empty() && pass.nonopaqueResultCCBs.empty() &&
       (skipSignatureLowering ||
        pass.loweredFnConv.getNumIndirectSILResults() == 0))
     return false;
