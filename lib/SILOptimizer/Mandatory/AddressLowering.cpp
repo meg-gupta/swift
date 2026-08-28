@@ -4540,6 +4540,43 @@ void UseRewriter::visitSwitchEnumInst(SwitchEnumInst * switchEnum) {
 
   SILValue enumAddr = pass.getMaterializedAddress(enumVal);
   auto loc = switchEnum->getLoc();
+
+  // When the switched enum is not owned, its payload must be projected without
+  // consuming it (a destructive unchecked_take_enum_data_addr would be an
+  // illegal mutating/consuming use of a borrowed or @in_guaranteed enum). This
+  // covers both a borrowed non-trivial enum (guaranteed) and a borrowed trivial
+  // enum (whose loaded value has "none" ownership). A non-destructive enum
+  // layout is projected in-place; a destructive one (spare-bit tag) is
+  // projected through a scratch buffer (unchecked_borrow_enum_data_addr).
+  // Allocate the scratch lazily and deallocate it at all function exits
+  // (StackNesting fixes the nesting).
+  bool nonConsuming = enumVal->getOwnershipKind() != OwnershipKind::Owned;
+  SILValue scratch;
+  auto getScratch = [&]() -> SILValue {
+    if (!scratch) {
+      auto entryBuilder =
+          pass.getBuilder(pass.function->getEntryBlock()->begin());
+      auto *alloc = entryBuilder.createAllocStack(
+          pass.genLoc(), enumAddr->getType().getObjectType());
+      for (auto *exit : pass.exitingInsts) {
+        auto exitBuilder = pass.getBuilder(exit->getIterator());
+        exitBuilder.createDeallocStack(pass.genLoc(), alloc);
+      }
+      scratch = alloc;
+    }
+    return scratch;
+  };
+  auto projectPayload = [&](SILBuilder &b,
+                            EnumElementDecl *caseDecl) -> SILValue {
+    if (!nonConsuming)
+      return b.createUncheckedEnumDataAddrForTake(loc, enumAddr, caseDecl);
+    if (UncheckedEnumDataAddrInstBase::isDestructive(caseDecl->getParentEnum(),
+                                                     pass.function))
+      return b.createUncheckedBorrowEnumDataAddr(loc, enumAddr, getScratch(),
+                                                 caseDecl);
+    return b.createUncheckedInPlaceEnumDataAddr(loc, enumAddr, caseDecl);
+  };
+
   auto rewriteCase = [&](EnumElementDecl *caseDecl, SILBasicBlock *caseBB) {
     // Nothing to do for unused case payloads.
     if (caseBB->getArguments().size() == 0)
@@ -4552,8 +4589,19 @@ void UseRewriter::visitSwitchEnumInst(SwitchEnumInst * switchEnum) {
     assert(caseDecl->hasAssociatedValues() && "caseBB has a payload argument");
 
     SILBuilder caseBuilder = pass.getBuilder(caseBB->begin());
-    auto *caseAddr =
-        caseBuilder.createUncheckedEnumDataAddrForTake(loc, enumAddr, caseDecl);
+    SILValue caseAddr = projectPayload(caseBuilder, caseDecl);
+
+    // A non-trivial loadable payload of a non-consumed enum must be loaded with
+    // a borrow, not taken, so the borrowed enum is not consumed.
+    if (nonConsuming && !pass.needsLowering(caseArg->getType()) &&
+        !caseArg->getType().isTrivial(*pass.function)) {
+      SILValue borrow = caseBuilder.emitLoadBorrowOperation(loc, caseAddr);
+      caseArg->replaceAllUsesWith(borrow);
+      emitEndBorrows(borrow, pass);
+      caseBB->eraseArgument(0);
+      return;
+    }
+
     auto *caseLoad = caseBuilder.createTrivialLoadOr(
         loc, caseAddr, LoadOwnershipQualifier::Take);
     caseArg->replaceAllUsesWith(caseLoad);
