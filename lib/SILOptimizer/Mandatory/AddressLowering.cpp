@@ -1285,7 +1285,8 @@ static Operand *getProjectedDefOperand(SILValue value) {
 ///
 /// unchecked_enum_data and switch_enum must reuse storage because extracting
 /// the payload destroys the enum value.
-static Operand *getReusedStorageOperand(SILValue value) {
+static Operand *getReusedStorageOperand(SILValue value,
+                                        AddressLoweringState &pass) {
   switch (value->getKind()) {
   default:
     break;
@@ -1298,14 +1299,15 @@ static Operand *getReusedStorageOperand(SILValue value) {
     return &cast<SingleValueInstruction>(value)->getOperandRef(0);
 
   case ValueKind::UncheckedValueCastInst:
-  case ValueKind::UncheckedBitwiseCastInst: {
-    // Only share storage when the source is address-only. A loadable source
-    // has no ValueStorage to share; the DefRewriter materializes fresh storage
-    // for the cast result and stores the loadable source through an
-    // unchecked_addr_cast view.
+  case ValueKind::UncheckedBitwiseCastInst:
+  case ValueKind::UncheckedTrivialBitCastInst: {
+    // Only share storage when the source needs lowering (it is address-only or
+    // large-loadable), in which case it has ValueStorage to share. A source
+    // that is loadable and small has no ValueStorage; the DefRewriter
+    // materializes fresh storage for the cast result and stores the source
+    // through an unchecked_addr_cast view.
     auto *castInst = cast<SingleValueInstruction>(value);
-    if (!castInst->getOperand(0)->getType().isAddressOnly(
-            *castInst->getFunction()))
+    if (!pass.needsLowering(castInst->getOperand(0)->getType()))
       return nullptr;
     return &castInst->getOperandRef(0);
   }
@@ -1563,7 +1565,7 @@ void OpaqueStorageAllocation::allocateValue(SILValue value) {
 
   assert(!storage.isAllocated());
 
-  if (getReusedStorageOperand(value))
+  if (getReusedStorageOperand(value, pass))
     return;
 
   if (doesNotNeedStackAllocation(value))
@@ -1647,7 +1649,7 @@ void AddressLoweringState::getDominandsForUseProjection(
 bool OpaqueStorageAllocation::findProjectionIntoUseImpl(
     SILValue value, ArrayRef<SILValue> incomingValues, bool intoPhi) {
   // Def-projections take precedence.
-  assert(!getProjectedDefOperand(value) && !getReusedStorageOperand(value));
+  assert(!getProjectedDefOperand(value) && !getReusedStorageOperand(value, pass));
 
   for (Operand *use : value->getUses()) {
     // Get the user's value, whose storage we would project into.
@@ -3960,7 +3962,7 @@ protected:
 
   void visitCopyableToMoveOnlyWrapperValueInst(
       CopyableToMoveOnlyWrapperValueInst *inst) {
-    assert(use == getReusedStorageOperand(inst));
+    assert(use == getReusedStorageOperand(inst, pass));
     assert(pass.needsLowering(inst->getType()));
     SILValue srcVal = inst->getOperand();
     SILValue srcAddr = pass.valueStorageMap.getStorage(srcVal).storageAddress;
@@ -4104,7 +4106,7 @@ protected:
 
   void visitMoveOnlyWrapperToCopyableValueInst(
       MoveOnlyWrapperToCopyableValueInst *inst) {
-    assert(use == getReusedStorageOperand(inst));
+    assert(use == getReusedStorageOperand(inst, pass));
     assert(pass.needsLowering(inst->getType()));
     SILValue srcVal = inst->getOperand();
     SILValue srcAddr = pass.valueStorageMap.getStorage(srcVal).storageAddress;
@@ -4210,7 +4212,7 @@ protected:
         uncheckedCastInst->getLoc(), srcAddr,
         uncheckedCastInst->getType().getAddressType());
 
-    if (uncheckedCastInst->getType().isAddressOnly(*pass.function)) {
+    if (pass.needsLowering(uncheckedCastInst->getType())) {
       markRewritten(uncheckedCastInst, destAddr);
       return;
     }
@@ -4332,7 +4334,7 @@ void UseRewriter::visitMoveValueInst(MoveValueInst *mvi) {
 // types.
 void UseRewriter::visitOpenExistentialValueInst(
     OpenExistentialValueInst *openExistential) {
-  assert(use == getReusedStorageOperand(openExistential));
+  assert(use == getReusedStorageOperand(openExistential, pass));
   SILValue srcAddr = pass.valueStorageMap.getStorage(use->get()).storageAddress;
 
   // Replace the module's openedArchetypesDef
@@ -4585,7 +4587,7 @@ void UseRewriter::visitSwitchEnumInst(SwitchEnumInst * switchEnum) {
     assert(caseBB->getArguments().size() == 1);
     SILArgument *caseArg = caseBB->getArgument(0);
 
-    assert(&switchEnum->getOperandRef() == getReusedStorageOperand(caseArg));
+    assert(&switchEnum->getOperandRef() == getReusedStorageOperand(caseArg, pass));
     assert(caseDecl->hasAssociatedValues() && "caseBB has a payload argument");
 
     SILBuilder caseBuilder = pass.getBuilder(caseBB->begin());
@@ -4665,7 +4667,7 @@ void UseRewriter::visitCheckedCastBranchInst(CheckedCastBranchInst *ccb) {
 
 void UseRewriter::visitUncheckedEnumDataInst(
     UncheckedEnumDataInst *enumDataInst) {
-  assert(use == getReusedStorageOperand(enumDataInst));
+  assert(use == getReusedStorageOperand(enumDataInst, pass));
 
   assert(enumDataInst->getOwnershipKind() != OwnershipKind::Guaranteed);
 
