@@ -1075,7 +1075,7 @@ void OpaqueValueVisitor::visitValue(SILValue value) {
                  value->dump());
     }
     if (auto *ucci = dyn_cast<UnconditionalCheckedCastInst>(value)) {
-      if (ucci->getSourceLoweredType().isAddressOnly(*pass.function))
+      if (pass.needsLowering(ucci->getSourceLoweredType()))
         return;
       if (!canIRGenUseScalarCheckedCastInstructions(
               pass.function->getModule(), ucci->getSourceFormalType(),
@@ -1087,7 +1087,7 @@ void OpaqueValueVisitor::visitValue(SILValue value) {
               arg->getTerminatorForResult())) {
         if (ccbi->getSuccessBB() != arg->getParent())
           return;
-        if (ccbi->getSourceLoweredType().isAddressOnly(*pass.function))
+        if (pass.needsLowering(ccbi->getSourceLoweredType()))
           return;
         if (!canIRGenUseScalarCheckedCastInstructions(
                 pass.function->getModule(), ccbi->getSourceFormalType(),
@@ -2075,7 +2075,7 @@ protected:
 /// initializeComposingUse always inserts code immediately before the user.
 void AddressMaterialization::initializeComposingUse(Operand *operand) {
   SILValue def = operand->get();
-  if (def->getType().isAddressOnly(*pass.function)) {
+  if (pass.needsLowering(def->getType())) {
     ValueStorage &storage = pass.valueStorageMap.getStorage(def);
     assert(storage.isRewritten && "Source value should be rewritten");
 
@@ -3079,7 +3079,7 @@ void ApplyRewriter::convertBeginApplyWithOpaqueYield() {
       oldResult.replaceAllUsesWith(&newResult);
       continue;
     }
-    if (oldResult.getType().isAddressOnly(*pass.function)) {
+    if (pass.needsLowering(oldResult.getType())) {
       auto info = newCall->getSubstCalleeConv().getYieldInfoForOperandIndex(i);
       assert(info.isFormalIndirect());
       if (info.isConsumedInCaller()) {
@@ -3411,7 +3411,7 @@ public:
     // getReusedStorageOperand() ensured we do not allocate a separate address
     // for failure block arg. Set the storage address of the failure block arg
     // to be source address here.
-    if (origFailureVal->getType().isAddressOnly(*func)) {
+    if (pass.needsLowering(origFailureVal->getType())) {
       pass.valueStorageMap.setStorageAddress(origFailureVal, srcAddr);
     }
 
@@ -3431,7 +3431,7 @@ private:
   /// Return the storageAddress if \p value is opaque, otherwise create and
   /// return a stack temporary.
   SILValue getAddressForCastEntity(SILValue value, bool needsInit) {
-    if (value->getType().isAddressOnly(*func)) {
+    if (pass.needsLowering(value->getType())) {
       auto builder = pass.getBuilder(ccb->getIterator());
       AddressMaterialization addrMat(pass, value, builder);
       return addrMat.materializeAddress(value);
@@ -3460,7 +3460,7 @@ private:
 
     blockArg->getParent()->eraseArgument(blockArg->getIndex());
 
-    if (blockArg->getType().isAddressOnly(*func)) {
+    if (pass.needsLowering(blockArg->getType())) {
       // In case of opaque block arg, replace the block arg with the dummy load
       // in the valueStorageMap. DefRewriter::visitLoadInst will then rewrite
       // the dummy load to copy_addr.
@@ -3487,8 +3487,8 @@ static UnconditionalCheckedCastAddrInst *rewriteUnconditionalCheckedCastInst(
   // - source address-only, target loadable
   // - source loadable,     target address-only
   // - source loadable,     target loadable
-  auto srcAddrOnly = srcType.isAddressOnly(*pass.function);
-  auto destAddrOnly = destType.isAddressOnly(*pass.function);
+  auto srcAddrOnly = pass.needsLowering(srcType);
+  auto destAddrOnly = pass.needsLowering(destType);
   SILValue srcAddr;
 
   auto loc = uncondCheckedCast->getLoc();
@@ -4271,7 +4271,7 @@ void UseRewriter::rewriteDestructure(SILInstruction *destructure) {
   for (auto result : destructure->getResults()) {
     AddressMaterialization addrMat(pass, result, builder);
     SILValue extractAddr = addrMat.materializeDefProjection(result);
-    if (result->getType().isAddressOnly(*pass.function)) {
+    if (pass.needsLowering(result->getType())) {
       assert(use == getProjectedDefOperand(result));
       markRewritten(result, extractAddr);
     } else {
@@ -5169,9 +5169,7 @@ static void removeOpaquePhis(SILBasicBlock *bb, AddressLoweringState &pass) {
 
   SmallVector<unsigned, 16> deadArgIndices;
   for (auto *bbArg : bb->getArguments()) {
-    if (bbArg->getType().isAddressOnly(*pass.function))
-      deadArgIndices.push_back(bbArg->getIndex());
-    else if (pass.largeLoadableOnly && pass.needsLowering(bbArg->getType()))
+    if (pass.needsLowering(bbArg->getType()))
       deadArgIndices.push_back(bbArg->getIndex());
   }
   if (deadArgIndices.empty())
