@@ -3325,12 +3325,20 @@ void ApplyRewriter::replaceDirectResults(DestructureTupleInst *oldDestructure) {
   }
   unsigned newDirectResultIdx = 0;
 
+  // The opaque call results are all direct in canonical SIL, but the lowered
+  // convention may have remapped some of them to indirect (large-loadable
+  // results). Decide indirect-ness from the lowered result info, looked up by
+  // position, rather than from the opaque result info.
+  auto loweredResults = loweredCalleeConv.funcTy->getResults();
+  unsigned loweredResultIdx = 0;
+
   auto visitOldCallResult = [&](SILValue result, SILResultInfo resultInfo) {
     assert(!opaqueCalleeConv.isSILIndirect(resultInfo) &&
            "canonical call results are always direct");
+    auto loweredResultInfo = loweredResults[loweredResultIdx++];
 
-    if (loweredCalleeConv.isSILIndirect(resultInfo)) {
-      if (result->getType().isAddressOnly(*pass.function)) {
+    if (loweredCalleeConv.isSILIndirect(loweredResultInfo)) {
+      if (pass.needsLowering(result->getType())) {
         // Mark the extract as rewritten now so we don't attempt to convert the
         // call again.
         pass.valueStorageMap.getStorage(result).markRewritten();
@@ -4759,6 +4767,49 @@ protected:
           SILArgument::isTerminatorResult(srcVal)->getTerminatorForResult();
       apply = FullApplySite::isa(termInst);
     }
+    CallArgRewriter(apply, pass).rewriteArguments();
+    ApplyRewriter(apply, pass).convertApplyWithIndirectResults();
+  }
+
+  // A multi-result call whose results are consumed by tuple_extract instead of
+  // a destructure_tuple. The apply-result machinery
+  // (getCallDestructure/replaceDirectResults) only understands the
+  // destructure_tuple form (see getCallDestructure), so normalize to it here:
+  // create a destructure_tuple of the call, move the storage that was allocated
+  // for each tuple_extract onto the matching destructure result, redirect uses,
+  // then rewrite the call.
+  void visitTupleExtractInst(TupleExtractInst *extract) {
+    SILValue srcVal = extract->getOperand();
+    // tuple_extract only reaches the def rewriter (rather than being a use
+    // projection) when its source is the pseudo result of a multi-result call;
+    // see getProjectedDefOperand.
+    assert(isPseudoCallResult(srcVal) &&
+           "tuple_extract of a non-call value should be a use projection");
+    auto *applyInst = cast<ApplyInst>(srcVal);
+
+    // Gather every tuple_extract of this call.
+    SmallVector<TupleExtractInst *, 4> extracts;
+    for (auto *use : applyInst->getUses())
+      extracts.push_back(cast<TupleExtractInst>(use->getUser()));
+
+    // Create a destructure_tuple immediately after the call.
+    auto destrBuilder = pass.getBuilder(std::next(applyInst->getIterator()));
+    auto *destructure =
+        destrBuilder.createDestructureTuple(pass.genLoc(), srcVal);
+
+    // Redirect each extract to the matching destructure result, transferring
+    // any storage that was allocated for the extract so the apply rewriter
+    // fills the destructure result's storage directly.
+    for (auto *tei : extracts) {
+      SILValue result = destructure->getResult(tei->getFieldIndex());
+      if (pass.valueStorageMap.contains(tei))
+        pass.valueStorageMap.replaceValue(tei, result);
+      tei->replaceAllUsesWith(result);
+      pass.deleter.forceDelete(tei);
+    }
+
+    // Rewrite the call using the (now canonical) destructure_tuple form.
+    FullApplySite apply = FullApplySite::isa(applyInst);
     CallArgRewriter(apply, pass).rewriteArguments();
     ApplyRewriter(apply, pass).convertApplyWithIndirectResults();
   }
