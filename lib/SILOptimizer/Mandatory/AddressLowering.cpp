@@ -3685,9 +3685,17 @@ void ReturnRewriter::rewriteElement(SILValue oldResult,
     assert(storage.isRewritten);
     SILValue resultAddr = storage.storageAddress;
     if (resultAddr != newResultArg) {
-      // Copy the result from local storage into the result argument.
+      // Copy the result from local storage into the result argument. Only take
+      // ownership when the result value is owned; otherwise its storage may be
+      // a projection into a borrowed source (e.g. an @in_guaranteed argument),
+      // where a take would be an illegal consuming use. A non-take copy_addr
+      // retains a non-trivial borrowed value and bit-copies a trivial one, both
+      // of which correctly produce an owned value in the @out argument.
+      auto isTake = oldResult->getOwnershipKind() == OwnershipKind::Owned
+                        ? IsTake
+                        : IsNotTake;
       returnBuilder.createCopyAddr(pass.genLoc(), resultAddr, newResultArg,
-                                   IsTake, IsInitialization);
+                                   isTake, IsInitialization);
     }
   } else {
     // Store the result into the result argument.
@@ -4480,7 +4488,7 @@ void UseRewriter::emitExtract(SingleValueInstruction *extractInst) {
   AddressMaterialization addrMat(pass, extractInst, builder);
   SILValue extractAddr = addrMat.materializeDefProjection(extractInst);
 
-  if (extractInst->getType().isAddressOnly(*pass.function)) {
+  if (pass.needsLowering(extractInst->getType())) {
     assert(use == getProjectedDefOperand(extractInst));
     markRewritten(extractInst, extractAddr);
     return;
