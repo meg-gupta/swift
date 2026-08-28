@@ -4557,7 +4557,7 @@ void UseRewriter::visitSwitchEnumInst(SwitchEnumInst * switchEnum) {
     auto *caseLoad = caseBuilder.createTrivialLoadOr(
         loc, caseAddr, LoadOwnershipQualifier::Take);
     caseArg->replaceAllUsesWith(caseLoad);
-    if (caseArg->getType().isAddressOnly(*pass.function)) {
+    if (pass.needsLowering(caseArg->getType())) {
       // Remap caseArg to the new dummy load which will be deleted during
       // deleteRewrittenInstructions.
       pass.valueStorageMap.replaceValue(caseArg, caseLoad);
