@@ -4691,17 +4691,55 @@ void UseRewriter::visitUncheckedEnumDataInst(
     UncheckedEnumDataInst *enumDataInst) {
   assert(use == getReusedStorageOperand(enumDataInst, pass));
 
-  assert(enumDataInst->getOwnershipKind() != OwnershipKind::Guaranteed);
-
-  auto srcAddr = pass.valueStorageMap.getStorage(use->get()).storageAddress;
-
+  SILValue enumVal = use->get();
+  auto srcAddr = pass.valueStorageMap.getStorage(enumVal).storageAddress;
   auto loc = enumDataInst->getLoc();
   auto elt = enumDataInst->getElement();
   auto destTy = enumDataInst->getType().getAddressType();
-  auto *enumAddrInst =
-      builder.createUncheckedEnumDataAddrForTake(loc, srcAddr, elt, destTy);
 
-  markRewritten(enumDataInst, enumAddrInst);
+  // Project the payload address. If the enum is not owned (borrowed), project
+  // non-destructively so the borrowed enum is not consumed: in-place for a
+  // non-destructive layout, or through a scratch buffer for a destructive one.
+  bool nonConsuming = enumVal->getOwnershipKind() != OwnershipKind::Owned;
+  SILValue caseAddr;
+  if (!nonConsuming) {
+    caseAddr = builder.createUncheckedEnumDataAddrForTake(loc, srcAddr, elt,
+                                                          destTy);
+  } else if (UncheckedEnumDataAddrInstBase::isDestructive(elt->getParentEnum(),
+                                                          pass.function)) {
+    auto entryBuilder =
+        pass.getBuilder(pass.function->getEntryBlock()->begin());
+    auto *scratch = entryBuilder.createAllocStack(
+        pass.genLoc(), srcAddr->getType().getObjectType());
+    for (auto *exit : pass.exitingInsts)
+      pass.getBuilder(exit->getIterator())
+          .createDeallocStack(pass.genLoc(), scratch);
+    caseAddr =
+        builder.createUncheckedBorrowEnumDataAddr(loc, srcAddr, scratch, elt);
+  } else {
+    caseAddr = builder.createUncheckedInPlaceEnumDataAddr(loc, srcAddr, elt);
+  }
+
+  if (pass.needsLowering(enumDataInst->getType())) {
+    // The payload also lives in memory; reuse the projected address.
+    markRewritten(enumDataInst, caseAddr);
+    return;
+  }
+
+  // The payload is loadable: load it out of the projected address. A
+  // non-trivial payload of a borrowed enum is loaded with a borrow rather than
+  // taken.
+  SILValue loaded;
+  if (nonConsuming && !enumDataInst->getType().isTrivial(*pass.function)) {
+    loaded = builder.emitLoadBorrowOperation(loc, caseAddr);
+    enumDataInst->replaceAllUsesWith(loaded);
+    emitEndBorrows(loaded, pass);
+  } else {
+    loaded = builder.createTrivialLoadOr(loc, caseAddr,
+                                         LoadOwnershipQualifier::Take);
+    enumDataInst->replaceAllUsesWith(loaded);
+  }
+  pass.deleter.forceDelete(enumDataInst);
 }
 
 //===----------------------------------------------------------------------===//
