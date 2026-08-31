@@ -2093,8 +2093,15 @@ void AddressMaterialization::initializeComposingUse(Operand *operand) {
 
     auto destAddr =
         materializeProjectionIntoUse(operand, /*intoPhiOperand*/ false);
+    // Only take ownership of the composed operand when it is owned. If it is
+    // borrowed (e.g. a field composed from an @in_guaranteed argument) or
+    // trivial, a take would be an illegal consuming use of the source; a
+    // non-take copy_addr retains a non-trivial borrowed value and bit-copies a
+    // trivial one.
+    auto isTake =
+        def->getOwnershipKind() == OwnershipKind::Owned ? IsTake : IsNotTake;
     moveBuilder.createCopyAddr(operand->getUser()->getLoc(),
-                               storage.storageAddress, destAddr, IsTake,
+                               storage.storageAddress, destAddr, isTake,
                                IsInitialization);
     return;
   }
