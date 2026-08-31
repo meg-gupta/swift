@@ -3618,6 +3618,13 @@ void ReturnRewriter::rewriteReturn(ReturnInst *returnInst) {
   unsigned numOldResults = opaqueFnConv.getNumDirectSILResults();
   SmallVector<SILValue, 8> oldResults;
   TupleInst *pseudoReturnVal = nullptr;
+  if (numOldResults == 0) {
+    // The function has no direct results, so nothing the pass converted from
+    // direct to indirect appears here. Any indirect results are pre-existing
+    // (e.g. an address-only @out result on a witness thunk in the
+    // large-loadable path) and the return operand is already the final value.
+    return;
+  }
   if (numOldResults == 1)
     oldResults.push_back(returnInst->getOperand());
   else {
@@ -3632,19 +3639,34 @@ void ReturnRewriter::rewriteReturn(ReturnInst *returnInst) {
       pass.loweredFnConv.getSILArgIndexOfFirstIndirectResult();
 
   // Initialize the indirect result arguments and populate newDirectResults.
-  // Use the lowered function type's results to determine which are indirect.
+  //
+  // Pair each result of the lowered function type with the corresponding
+  // opaque (pre-lowering) result. A result that is already indirect in the
+  // opaque conventions has no direct SIL value among the return operands
+  // (oldResults holds direct results only) and its indirect result argument
+  // already exists; this occurs in the large-loadable path (e.g. an
+  // address-only @out result). Skip such results, accounting only for the
+  // indirect-result argument slot they occupy.
   auto loweredResults = pass.loweredFnConv.funcTy->getResults();
-  for_each(loweredResults, oldResults,
-           [&](SILResultInfo resultInfo, SILValue oldResult) {
-             if (!pass.loweredFnConv.isSILIndirect(resultInfo)) {
-               newDirectResults.push_back(oldResult);
-               return;
-             }
-             SILArgument *newResultArg =
-                 pass.function->getArgument(newResultArgIdx);
-             rewriteElement(oldResult, newResultArg, returnBuilder);
-             ++newResultArgIdx;
-           });
+  auto opaqueResults = opaqueFnConv.funcTy->getResults();
+  assert(loweredResults.size() == opaqueResults.size());
+  unsigned oldResultIdx = 0;
+  for (auto resultIdx : indices(loweredResults)) {
+    SILResultInfo loweredResultInfo = loweredResults[resultIdx];
+    if (opaqueFnConv.isSILIndirect(opaqueResults[resultIdx])) {
+      assert(pass.loweredFnConv.isSILIndirect(loweredResultInfo));
+      ++newResultArgIdx;
+      continue;
+    }
+    SILValue oldResult = oldResults[oldResultIdx++];
+    if (!pass.loweredFnConv.isSILIndirect(loweredResultInfo)) {
+      newDirectResults.push_back(oldResult);
+      continue;
+    }
+    SILArgument *newResultArg = pass.function->getArgument(newResultArgIdx);
+    rewriteElement(oldResult, newResultArg, returnBuilder);
+    ++newResultArgIdx;
+  }
 
   assert(newDirectResults.size() ==
          pass.loweredFnConv.getNumDirectSILResults());
