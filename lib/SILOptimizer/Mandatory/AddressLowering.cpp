@@ -244,6 +244,12 @@ static bool isLargeLoadableType(SILType t, GenericEnvironment *genEnv,
   auto canType = resolveTypeInContext(t.getASTType(), genEnv);
   if (!canType)
     return false;
+  // Generic-dependent types (containing archetypes) are passed via the generic
+  // calling convention, not the large-loadable indirect convention. Lowering
+  // them would disagree with generic callees/callers whose abstract signatures
+  // are not remapped. Leave them alone.
+  if (canType->hasArchetype())
+    return false;
   if (!canType.getAnyGeneric() && !t.is<BuiltinFixedArrayType>())
     return false;
 
@@ -268,6 +274,10 @@ static bool isLargeLoadableReturnType(SILType t, GenericEnvironment *genEnv,
 
   auto canType = resolveTypeInContext(t.getASTType(), genEnv);
   if (!canType)
+    return false;
+  // See isLargeLoadableType: generic-dependent types use the generic calling
+  // convention, so they are not lowered here.
+  if (canType->hasArchetype())
     return false;
   if (!canType.getAnyGeneric() && !t.is<BuiltinFixedArrayType>())
     return false;
