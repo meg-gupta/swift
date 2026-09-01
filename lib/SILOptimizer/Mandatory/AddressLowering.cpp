@@ -1003,6 +1003,12 @@ protected:
 };
 } // end anonymous namespace
 
+// Forward declarations of the storage-projection oracles (defined below), used
+// by OpaqueValueVisitor::visitValue.
+static Operand *getProjectedDefOperand(SILValue value);
+static Operand *getReusedStorageOperand(SILValue value,
+                                        AddressLoweringState &pass);
+
 /// Top-level entry. Populates AddressLoweringState's `valueStorageMap`,
 /// `indirectApplies`, and `exitingInsts`.
 ///
@@ -1113,6 +1119,31 @@ void OpaqueValueVisitor::visitValue(SILValue value) {
     assert(isa<SILFunctionArgument>(
         pass.valueStorageMap.getStorage(value).storageAddress));
     return;
+  }
+  // A guaranteed aggregate composed of loadable fields (e.g. a lazy-sequence
+  // wrapper such as LazyMapSequence built from a Substring and a closure) can
+  // neither project out of nor reuse an operand's storage, and cannot own
+  // storage (that implies a copy). It is itself a valid loadable value, so do
+  // not lower it: leave it loadable and materialize it on demand -- e.g.
+  // CallArgRewriter store_borrows a loadable guaranteed operand into a temporary
+  // when it is passed as an @in_guaranteed argument.
+  //
+  // Restrict this to aggregate compositions with loadable operands. Other
+  // guaranteed values (load_borrow, begin_apply results) are handled specially
+  // by doesNotNeedStackAllocation and must remain mapped so their uses (e.g.
+  // switch_enum) are rewritten. An aggregate operand that is itself lowered
+  // use-projects into this aggregate, so that case must be lowered too.
+  if (value->getOwnershipKind() == OwnershipKind::Guaranteed &&
+      (isa<StructInst>(value) || isa<TupleInst>(value) ||
+       isa<EnumInst>(value)) &&
+      !getProjectedDefOperand(value) && !getReusedStorageOperand(value, pass)) {
+    auto *defInst = value->getDefiningInstruction();
+    bool operandsLoadable =
+        llvm::none_of(defInst->getOperandValues(), [&](SILValue op) {
+          return pass.valueStorageMap.contains(op);
+        });
+    if (operandsLoadable)
+      return;
   }
   pass.valueStorageMap.insertValue(value, SILValue());
 }
