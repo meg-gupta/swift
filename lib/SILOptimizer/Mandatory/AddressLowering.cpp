@@ -2874,24 +2874,45 @@ void ApplyRewriter::makeIndirectArgs(MutableArrayRef<SILValue> newCallArgs) {
   unsigned newResultArgIdx =
       loweredCalleeConv.getSILArgIndexOfFirstIndirectResult();
 
-  // Track result index to look up the lowered convention's result info.
-  unsigned visitedResultIdx = 0;
+  // Collect the SIL values for the opaque call's direct results, in order.
+  // (visitCallResults only visits direct results; pre-existing indirect results
+  // have no SIL value and are handled via the old call's arguments below.)
+  SmallVector<SILValue, 4> directResultValues;
+  visitCallResults(apply, [&](SILValue result, SILResultInfo) {
+    directResultValues.push_back(result);
+    return true;
+  });
+
   auto loweredResults = loweredCalleeConv.funcTy->getResults();
+  auto opaqueResults = opaqueCalleeConv.funcTy->getResults();
+  assert(loweredResults.size() == opaqueResults.size());
 
-  auto visitCallResult = [&](SILValue result, SILResultInfo resultInfo) {
-    (void)resultInfo;
-    auto loweredResultInfo = loweredResults[visitedResultIdx++];
-
-    if (loweredCalleeConv.isSILIndirect(loweredResultInfo)) {
+  // Index of the next pre-existing indirect result argument in the old call.
+  unsigned oldIndirectResultArgIdx =
+      opaqueCalleeConv.getSILArgIndexOfFirstIndirectResult();
+  unsigned directResultIdx = 0;
+  for (auto resultIdx : indices(loweredResults)) {
+    if (opaqueCalleeConv.isSILIndirect(opaqueResults[resultIdx])) {
+      // A result that is already indirect in the opaque convention (e.g. an
+      // @out result that was present before this pass, or one produced by the
+      // earlier opaque-values lowering) already has an indirect result argument
+      // in the old call. Carry it over unchanged.
+      assert(loweredCalleeConv.isSILIndirect(loweredResults[resultIdx]));
+      newCallArgs[newResultArgIdx++] =
+          apply.getArgument(oldIndirectResultArgIdx++);
+      continue;
+    }
+    // Opaque direct result: materialize an indirect output address if the
+    // lowered convention made it indirect.
+    SILValue result = directResultValues[directResultIdx++];
+    if (loweredCalleeConv.isSILIndirect(loweredResults[resultIdx])) {
       SILValue indirectResultAddr = materializeIndirectOutputAddress(
           ApplyOutput::Result, result,
-          loweredCalleeConv.getSILType(loweredResultInfo, typeCtx));
+          loweredCalleeConv.getSILType(loweredResults[resultIdx], typeCtx));
       // Record the new indirect call argument.
       newCallArgs[newResultArgIdx++] = indirectResultAddr;
     }
-    return true;
-  };
-  visitCallResults(apply, visitCallResult);
+  }
 
   // Handle a try_apply for @error_indirect, who in the opaque convention has
   // a direct error result, but needs an indirect error result when lowered.
