@@ -4568,12 +4568,40 @@ emitEndBorrowsAtEnclosingGuaranteedBoundary(SILValue lifetimeToEnd,
   auto introducer = introducers[0];
   assert(pass.needsLowering(introducer->getType()));
   auto borrow = BorrowedValue(introducer);
+
+  // Collect the enclosing borrow scope's local scope-ending uses.
+  SmallVector<Operand *, 4> scopeEndingUses;
   borrow.visitLocalScopeEndingUses([&](Operand *use) {
+    scopeEndingUses.push_back(use);
+    return true;
+  });
+
+  // Ending \p lifetimeToEnd's borrow at the enclosing scope's boundary is only
+  // valid when lifetimeToEnd dominates every scope-ending use; otherwise the
+  // resulting end_borrow would not be dominated by its load_borrow. This holds
+  // for a locally scoped enclosing value (e.g. a begin_borrow) whose end is
+  // dominated by the extract. It does *not* hold when the enclosing value is a
+  // guaranteed function argument -- its borrow scope ends at every function
+  // exit -- and the extract sits in a conditionally executed block that doesn't
+  // dominate those exits. In that case, fall back to placing end_borrows at
+  // lifetimeToEnd's own liveness boundary, which is always dominated by its
+  // definition. (This is safe here because such a load_borrow of a loadable
+  // field has no pointer-escaping uses; see emitEndBorrows.)
+  auto *defInst = lifetimeToEnd->getDefiningInstruction();
+  bool dominatesAll =
+      defInst && llvm::all_of(scopeEndingUses, [&](Operand *use) {
+        return pass.domInfo->dominates(defInst, use->getUser());
+      });
+  if (!dominatesAll) {
+    emitEndBorrows(lifetimeToEnd, pass);
+    return;
+  }
+
+  for (auto *use : scopeEndingUses) {
     assert(!PhiOperand(use));
     pass.getBuilder(use->getUser()->getIterator())
         .createEndBorrow(pass.genLoc(), lifetimeToEnd);
-    return true;
-  });
+  }
 }
 
 // Extract from an opaque struct or tuple.
