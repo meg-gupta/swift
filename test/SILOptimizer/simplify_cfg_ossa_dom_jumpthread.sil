@@ -22,6 +22,10 @@ enum OneCase {
   case First
 }
 
+enum ThreeCases {
+  case a, b, c
+}
+
 struct FakeBool {
   @_hasStorage var value: Builtin.Int1 { get set }
   init(value: Builtin.Int1)
@@ -937,4 +941,120 @@ bb7:
 
 bb8(%19 : $Optional<Int>):
   return %19 : $Optional<Int>
+}
+
+// The latch passes .some to the switch_enum of the loop header. Threading it
+// makes the latch branch to bb2, which dominates the latch.
+//
+// CHECK-LABEL: sil [ossa] @jumpthread_loop_header_backedge_into_loop :
+// CHECK:       bb0(%0 : $Optional<Int32>, %1 : $Builtin.Int32):
+// CHECK:         switch_enum %0 : $Optional<Int32>, case #Optional.some!enumelt: bb1, case #Optional.none!enumelt: bb4
+// CHECK-NOT:     switch_enum
+// CHECK:       bb3:
+// CHECK:         [[E:%[0-9]+]] = enum $Optional<Int32>, #Optional.some!enumelt
+// CHECK-NEXT:    [[P:%[0-9]+]] = unchecked_enum_data [[E]] :
+// CHECK-NEXT:    br bb2([[P]] : $Int32)
+// CHECK-NOT:     switch_enum
+// CHECK-LABEL: } // end sil function 'jumpthread_loop_header_backedge_into_loop'
+sil [ossa] @jumpthread_loop_header_backedge_into_loop : $@convention(thin) (Optional<Int32>, Builtin.Int32) -> Builtin.Int32 {
+bb0(%0 : $Optional<Int32>, %1 : $Builtin.Int32):
+  %2 = integer_literal $Builtin.Int32, 0
+  br bb1(%2 : $Builtin.Int32, %0 : $Optional<Int32>)
+
+bb1(%4 : $Builtin.Int32, %5 : $Optional<Int32>):
+  switch_enum %5 : $Optional<Int32>, case #Optional.some!enumelt: bb2, case #Optional.none!enumelt: bb4
+
+bb2(%7 : $Int32):
+  %8 = struct_extract %7 : $Int32, #Int32._value
+  %9 = builtin "cmp_eq_Int32"(%8 : $Builtin.Int32, %1 : $Builtin.Int32) : $Builtin.Int1
+  cond_br %9, bb5, bb3
+
+bb3:
+  %11 = integer_literal $Builtin.Int32, 1
+  %12 = integer_literal $Builtin.Int1, 0
+  %13 = builtin "sadd_with_overflow_Int32"(%8 : $Builtin.Int32, %11 : $Builtin.Int32, %12 : $Builtin.Int1) : $(Builtin.Int32, Builtin.Int1)
+  %14 = tuple_extract %13 : $(Builtin.Int32, Builtin.Int1), 0
+  %15 = struct $Int32 (%14 : $Builtin.Int32)
+  %16 = enum $Optional<Int32>, #Optional.some!enumelt, %15 : $Int32
+  br bb1(%14 : $Builtin.Int32, %16 : $Optional<Int32>)
+
+bb4:
+  br bb6(%4 : $Builtin.Int32)
+
+bb5:
+  br bb6(%8 : $Builtin.Int32)
+
+bb6(%20 : $Builtin.Int32):
+  return %20 : $Builtin.Int32
+}
+
+// The latch bb3 passes .b, whose destination bb4 doesn't dominate bb3.
+// Threading would make bb2 -> bb3 -> bb4 -> bb5 -> bb2 a loop with two
+// entries.
+//
+// CHECK-LABEL: sil [ossa] @dont_jumpthread_loop_header_to_non_dominating_block :
+// CHECK:       bb1([[ARG:%[0-9]+]] : $ThreeCases):
+// CHECK-NEXT:    switch_enum [[ARG]] : $ThreeCases, case #ThreeCases.a!enumelt: bb2, case #ThreeCases.b!enumelt: bb4, case #ThreeCases.c!enumelt: bb7
+// CHECK:       bb3:
+// CHECK:         [[B:%[0-9]+]] = enum $ThreeCases, #ThreeCases.b!enumelt
+// CHECK-NEXT:    br bb1([[B]] : $ThreeCases)
+// CHECK-LABEL: } // end sil function 'dont_jumpthread_loop_header_to_non_dominating_block'
+sil [ossa] @dont_jumpthread_loop_header_to_non_dominating_block : $@convention(thin) (ThreeCases, Builtin.Int1) -> () {
+bb0(%0 : $ThreeCases, %1 : $Builtin.Int1):
+  br bb1(%0 : $ThreeCases)
+
+bb1(%3 : $ThreeCases):
+  switch_enum %3 : $ThreeCases, case #ThreeCases.a!enumelt: bb8, case #ThreeCases.b!enumelt: bb4, case #ThreeCases.c!enumelt: bb7
+
+bb8:
+  br bb2
+
+bb2:
+  %5 = function_ref @external_f : $@convention(thin) () -> ()
+  %6 = apply %5() : $@convention(thin) () -> ()
+  br bb3
+
+bb3:
+  %8 = enum $ThreeCases, #ThreeCases.b!enumelt
+  br bb1(%8 : $ThreeCases)
+
+bb4:
+  cond_br %1, bb5, bb6
+
+bb5:
+  br bb2
+
+bb6:
+  br bb1(%0 : $ThreeCases)
+
+bb7:
+  %14 = tuple ()
+  return %14 : $()
+}
+
+// The preheader passes .some. Threading it would peel the loop header, which
+// is left to LoopRotate.
+//
+// CHECK-LABEL: sil [ossa] @dont_jumpthread_loop_header_from_preheader :
+// CHECK:         [[S:%[0-9]+]] = enum $Optional<Int32>, #Optional.some!enumelt
+// CHECK-NEXT:    br bb1([[S]] : $Optional<Int32>)
+// CHECK:       bb1([[ARG:%[0-9]+]] : $Optional<Int32>):
+// CHECK-NEXT:    switch_enum [[ARG]] : $Optional<Int32>
+// CHECK-LABEL: } // end sil function 'dont_jumpthread_loop_header_from_preheader'
+sil [ossa] @dont_jumpthread_loop_header_from_preheader : $@convention(thin) (Optional<Int32>) -> () {
+bb0(%0 : $Optional<Int32>):
+  %1 = integer_literal $Builtin.Int32, 0
+  %2 = struct $Int32 (%1 : $Builtin.Int32)
+  %3 = enum $Optional<Int32>, #Optional.some!enumelt, %2 : $Int32
+  br bb1(%3 : $Optional<Int32>)
+
+bb1(%5 : $Optional<Int32>):
+  switch_enum %5 : $Optional<Int32>, case #Optional.some!enumelt: bb2, case #Optional.none!enumelt: bb3
+
+bb2(%7 : $Int32):
+  br bb1(%0 : $Optional<Int32>)
+
+bb3:
+  %9 = tuple ()
+  return %9 : $()
 }

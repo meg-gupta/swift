@@ -36,6 +36,7 @@
 #include "swift/SIL/BasicBlockUtils.h"
 #include "swift/SIL/Dominance.h"
 #include "swift/SIL/InstructionUtils.h"
+#include "swift/SIL/LoopInfo.h"
 #include "swift/SIL/NodeDatastructures.h"
 #include "swift/SIL/Projection.h"
 #include "swift/SIL/SILArgument.h"
@@ -911,6 +912,53 @@ static bool hasInjectedEnumAtEndOfBlock(SILBasicBlock *block, SILValue enumAddr)
   return false;
 }
 
+/// Returns the successor that the switch_enum of the loop header \p header
+/// folds to when \p header is duplicated into the source block of \p branch,
+/// or null if it is not known.
+static SILBasicBlock *getThreadedSwitchEnumSuccessor(BranchInst *branch,
+                                                     SILBasicBlock *header) {
+  auto *switchEnum = dyn_cast<SwitchEnumInst>(header->getTerminator());
+  if (!switchEnum) {
+    return nullptr;
+  }
+  auto *arg = dyn_cast<SILPhiArgument>(switchEnum->getOperand());
+  if (!arg || arg->getParent() != header) {
+    return nullptr;
+  }
+  auto enumCase =
+      getEnumCase(branch->getArg(arg->getIndex()), branch->getParent());
+  if (!enumCase) {
+    return nullptr;
+  }
+  return switchEnum->getCaseDestination(enumCase.get());
+}
+
+/// Returns true if replacing the edge from \p srcBB to the loop header
+/// \p header with an edge from \p srcBB to \p succ cannot make the control flow
+/// irreducible.
+///
+/// That's the case if the new edge leaves the loop, or if it is a backedge to
+/// a block in the loop that dominates \p srcBB. An edge which enters the loop
+/// at \p succ would peel the header, which is left to LoopRotate.
+static bool
+canThreadLoopHeaderEdge(SILBasicBlock *srcBB, SILBasicBlock *header,
+                        SILBasicBlock *succ,
+                        const SmallPtrSetImpl<SILBasicBlock *> &loopHeaders) {
+  SILFunction *function = header->getParent();
+  DominanceInfo domInfo(function);
+  SILLoopInfo loopInfo(function, &domInfo);
+  SILLoop *loop = loopInfo.getLoopFor(header);
+  if (!loop || loop->getHeader() != header) {
+    return false;
+  }
+  if (!loop->contains(succ)) {
+    // Don't thread into another loop header, which could thread back.
+    return !loopHeaders.count(succ);
+  }
+  return succ != header && loop->contains(srcBB) &&
+         domInfo.dominates(succ, srcBB);
+}
+
 /// tryJumpThreading - Check to see if it looks profitable to duplicate the
 /// destination of an unconditional jump into the bottom of this block.
 bool SimplifyCFG::tryJumpThreading(BranchInst *BI) {
@@ -1009,15 +1057,17 @@ bool SimplifyCFG::tryJumpThreading(BranchInst *BI) {
   if (ThreadingBudget <= 0)
     return false;
 
-  // Don't jump thread through a potential header - this can produce irreducible
-  // control flow and lead to infinite loop peeling.
+  // Jump threading through a loop header can produce irreducible control flow
+  // and lead to infinite loop peeling. Only thread a switch_enum header if the
+  // case is known and the resulting edge cannot make the control flow
+  // irreducible.
   bool DestIsLoopHeader = (LoopHeaders.count(DestBB) != 0);
+  SILBasicBlock *threadedHeaderSucc = nullptr;
   if (DestIsLoopHeader) {
-    // Make an exception for switch_enum, but only if it's block was not already
-    // peeled out of it's original loop. In that case, further jump threading
-    // can accomplish nothing, and the loop will be infinitely peeled.
-    if (!isa<SwitchEnumInst>(destTerminator) || ClonedLoopHeaders.count(DestBB))
+    threadedHeaderSucc = getThreadedSwitchEnumSuccessor(BI, DestBB);
+    if (!threadedHeaderSucc) {
       return false;
+    }
   }
 
   // If it looks potentially interesting, decide whether we *can* do the
@@ -1033,6 +1083,13 @@ bool SimplifyCFG::tryJumpThreading(BranchInst *BI) {
     // checking for SSA update.
     if (!Cloner.canCloneInstruction(&inst))
       return false;
+  }
+
+  // This computes the dominator tree and loop info, so check it last.
+  if (DestIsLoopHeader && !canThreadLoopHeaderEdge(SrcBB, DestBB,
+                                                   threadedHeaderSucc,
+                                                   LoopHeaders)) {
+    return false;
   }
   LLVM_DEBUG(llvm::dbgs() << "jump thread from bb" << SrcBB->getDebugID()
                           << " to bb" << DestBB->getDebugID() << '\n');
