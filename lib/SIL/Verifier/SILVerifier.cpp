@@ -37,7 +37,6 @@
 #include "swift/SIL/Dominance.h"
 #include "swift/SIL/DynamicCasts.h"
 #include "swift/SIL/InstructionUtils.h"
-#include "swift/SIL/LoopInfo.h"
 #include "swift/SIL/MemAccessUtils.h"
 #include "swift/SIL/OwnershipLiveness.h"
 #include "swift/SIL/OwnershipUtils.h"
@@ -92,7 +91,7 @@ static llvm::cl::opt<bool> SkipConvertEscapeToNoescapeAttributes(
     "verify-skip-convert-escape-to-noescape-attributes", llvm::cl::init(false));
 
 static llvm::cl::opt<bool> VerifyReducibleLoops(
-    "verify-reducible-loops", llvm::cl::init(false),
+    "verify-reducible-loops", llvm::cl::init(true),
     llvm::cl::desc("Verify that SIL does not contain irreducible loops"));
 
 extern llvm::cl::opt<bool> SILPrintDebugInfo;
@@ -7895,18 +7894,34 @@ public:
     visitSILFunction(const_cast<SILFunction*>(&F));
   }
 
+  /// The control flow is reducible if every retreating edge of a depth-first
+  /// traversal is a backedge, i.e. its destination dominates its source.
   void verifyReducibleLoops(SILFunction *func) {
-    llvm::SmallPtrSet<SILBasicBlock *, 32> loopHeaders;
-    findLoopHeaders(*func, loopHeaders);
+    BasicBlockSet visited(func);
+    BasicBlockSet onStack(func);
+    SmallVector<std::pair<SILBasicBlock *, SILBasicBlock::succ_iterator>, 16>
+        stack;
 
-    SILLoopInfo loopInfo(func, Dominance);
+    SILBasicBlock *entry = func->getEntryBlock();
+    stack.push_back({entry, entry->succ_begin()});
+    visited.insert(entry);
+    onStack.insert(entry);
 
-    for (auto *loopHeader : loopHeaders) {
-      auto *loop = loopInfo.getLoopFor(loopHeader);
-      if (!loop) {
+    while (!stack.empty()) {
+      SILBasicBlock *block = stack.back().first;
+      if (stack.back().second == block->succ_end()) {
+        onStack.erase(block);
+        stack.pop_back();
+        continue;
+      }
+      SILBasicBlock *succ = *stack.back().second++;
+      if (visited.insert(succ)) {
+        onStack.insert(succ);
+        stack.push_back({succ, succ->succ_begin()});
+      } else if (onStack.contains(succ) && !Dominance->dominates(succ, block)) {
         llvm::errs() << "Irreducible loop detected in function "
                      << func->getName() << ":\n";
-        loopHeader->dump();
+        succ->dump();
         require(false, "SIL contains irreducible loop");
       }
     }

@@ -1,11 +1,16 @@
 // RUN: %empty-directory(%t)
-// RUN: not --crash %target-sil-opt -verify-reducible-loops %s 2> %t/err.txt
+// RUN: split-file %s %t
+// RUN: not --crash %target-sil-opt -verify-reducible-loops %t/irreducible.sil 2> %t/err.txt
 // RUN: %FileCheck %s < %t/err.txt
+// RUN: not --crash %target-sil-opt -verify-reducible-loops %t/nested.sil 2> %t/nested_err.txt
+// RUN: %FileCheck %s --check-prefix=NESTED < %t/nested_err.txt
 
 // REQUIRES: asserts
 
-// This test contains an irreducible loop and should fail verification
+// These tests contain an irreducible loop and should fail verification
 // when -sil-verify-reducible-loops is enabled.
+
+//--- irreducible.sil
 
 sil_stage canonical
 
@@ -48,3 +53,45 @@ bb9:
   br bb1
 }
 
+//--- nested.sil
+
+sil_stage canonical
+
+import Builtin
+
+// NESTED: Irreducible loop detected in function irreducible_loop_in_natural_loop
+
+sil @irreducible_loop_in_natural_loop : $@convention(thin) (Builtin.Int1) -> () {
+bb0(%0 : $Builtin.Int1):
+  br bb1
+
+// bb1 is the header of a natural loop. Inside of it, bb3 and bb4 form an
+// irreducible loop: both are entered from bb1.
+bb1:
+  cond_br %0, bb2, bb5
+
+bb2:
+  br bb3
+
+bb3:
+  br bb4
+
+bb4:
+  cond_br %0, bb6, bb7
+
+bb5:
+  br bb4
+
+bb6:
+  br bb3
+
+bb7:
+  cond_br %0, bb8, bb9
+
+bb8:
+  br bb1
+
+bb9:
+  %r = tuple ()
+  return %r : $()
+}
