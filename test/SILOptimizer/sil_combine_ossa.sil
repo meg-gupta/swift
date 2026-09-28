@@ -5898,3 +5898,42 @@ bb0:
   destroy_value %1
   unreachable
 }
+
+// The begin_borrow of an owned value, whose only guaranteed use is a forwarding struct_extract, is
+// shortened by SILCombine: the struct_extract becomes a consuming destructure_struct and the borrow
+// scope is removed. The debug_value of the borrow on the bb1 arm is repointed to the owned value.
+// This must produce valid OSSA (verified by -enable-sil-verify-all) without crashing.
+//
+// CHECK-LABEL: sil [ossa] @debug_value_borrow_shortening :
+// CHECK-NOT:     begin_borrow
+// CHECK:         destructure_struct
+// CHECK:       } // end sil function 'debug_value_borrow_shortening'
+class DebugC {}
+struct DebugSurface { let surface: DebugC }
+struct DebugTensor { let surface: DebugSurface }
+struct DebugOuter { let tensor: DebugTensor }
+
+sil [ossa] @debug_value_borrow_shortening : $@convention(method) (@guaranteed DebugOuter) -> () {
+bb0(%0 : @guaranteed $DebugOuter):
+  %t0 = struct_extract %0 : $DebugOuter, #DebugOuter.tensor
+  %t  = copy_value %t0 : $DebugTensor
+  %2  = destructure_struct %t : $DebugTensor
+  %o2 = begin_borrow %2 : $DebugSurface
+  %s0 = struct_extract %o2 : $DebugSurface, #DebugSurface.surface
+  cond_br undef, bb1, bb2
+
+bb1:
+  debug_value %o2 : $DebugSurface
+  end_borrow %o2 : $DebugSurface
+  destroy_value %2 : $DebugSurface
+  br bb3
+
+bb2:
+  end_borrow %o2 : $DebugSurface
+  destroy_value %2 : $DebugSurface
+  br bb3
+
+bb3:
+  %r = tuple ()
+  return %r
+}
