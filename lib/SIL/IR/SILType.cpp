@@ -757,7 +757,8 @@ bool SILFunctionType::isAddressable(unsigned paramIdx, SILModule &module,
                                     Lowering::TypeConverter &typeConverter,
                                     TypeExpansionContext expansion) {
   SILParameterInfo paramInfo = getParameters()[paramIdx];
-  if (paramIdx == getSelfParameterIndex() && hasGuaranteedAddressResult()) {
+  if (hasSelfParam() && paramIdx == getSelfParameterIndex() &&
+      hasGuaranteedAddressResult()) {
     return getSelfParameter().isFormalIndirect();
   }
   for (auto &depInfo : getLifetimeDependencies()) {

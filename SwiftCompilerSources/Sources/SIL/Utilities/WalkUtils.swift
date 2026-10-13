@@ -862,7 +862,10 @@ extension AddressUseDefWalker {
         return walkUp(address: ia.base, path: path.push(.anyIndexedElement, index: 0))
       }
     case let apply as ApplyInst:
-      let selfArgument = apply.arguments.last!
+      assert(apply.functionConvention.hasAddressResult)
+      guard let selfArgument = apply.selfArgument, selfArgument.type.isAddress else {
+        return rootDef(address: def, path: path)
+      }
       return walkUp(address: selfArgument, path: path.push(.anyValueFields, index: 0))
     case is BeginAccessInst,
          is MarkDependenceInst,

@@ -545,8 +545,10 @@ public final class EnclosingValueIterator : IteratorProtocol {
           let ops = forwardingInst.forwardedOperands
           worklist.pushIfNotVisited(contentsOf: ops.values)
         } else if value.isGuaranteedApplyResult {
-          let selfArgument = (value as! ApplyInst).arguments.last!
-          worklist.pushIfNotVisited(selfArgument)
+          let apply = value as! ApplyInst
+          if let selfArgument = apply.selfArgument {
+            worklist.pushIfNotVisited(selfArgument)
+          }
         } else {
           fatalError("cannot get borrow introducers for unknown guaranteed value")
         }

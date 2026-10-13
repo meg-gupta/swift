@@ -1758,7 +1758,11 @@ Result AccessUseDefChainVisitor<Impl, Result>::visit(SILValue sourceAddr) {
       return asImpl().visitUnidentified(sourceAddr);
 
     if (isAddressReturn(sourceAddr)) {
-      auto *selfOp = &cast<ApplyInst>(sourceAddr)->getSelfArgumentOperand();
+      auto *apply = cast<ApplyInst>(sourceAddr);
+      if (!apply->hasSelfArgument()) {
+        return asImpl().visitUnidentified(sourceAddr);
+      }
+      auto *selfOp = &apply->getSelfArgumentOperand();
       if (selfOp->get()->getType().isObject()) {
         return asImpl().visitUnidentified(sourceAddr);
       }

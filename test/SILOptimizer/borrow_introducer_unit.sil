@@ -434,3 +434,21 @@ bb0(%0 : $Unmanaged<C>):
   return %8
 }
 
+
+// A borrow accessor whose dead self was removed by function signature optimization.
+// The result is borrowed from immortal storage.
+sil [ossa] @borrow_accessor_dead_self : $@convention(thin) () -> @guaranteed C
+
+// CHECK-LABEL: Borrow introducers for:   %1 = apply %0()
+// CHECK-NEXT:  end running test 1 of 2 on testBorrowAccessorDeadSelf: borrow_introducers with: %1
+// CHECK-LABEL: Enclosing values for:   %1 = apply %0()
+// CHECK-NEXT:  end running test 2 of 2 on testBorrowAccessorDeadSelf: enclosing_values with: %1
+sil [ossa] @testBorrowAccessorDeadSelf : $@convention(thin) () -> () {
+bb0:
+  %0 = function_ref @borrow_accessor_dead_self : $@convention(thin) () -> @guaranteed C
+  %1 = apply %0() : $@convention(thin) () -> @guaranteed C
+  specify_test "borrow_introducers %1"
+  specify_test "enclosing_values %1"
+  %4 = tuple ()
+  return %4
+}

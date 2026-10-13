@@ -869,7 +869,7 @@ void swift::findGuaranteedReferenceRoots(SILValue referenceValue,
     // ForwardingOperation.
     if (auto *apply =
             dyn_cast_or_null<ApplyInst>(value->getDefiningInstruction())) {
-      if (apply->hasGuaranteedResult()) {
+      if (apply->hasGuaranteedResult() && apply->hasSelfArgument()) {
         worklist.pushIfNotVisited(apply->getSelfArgument());
         continue;
       }
