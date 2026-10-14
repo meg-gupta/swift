@@ -105,8 +105,9 @@ static bool isScopeAffectingInstructionDead(SILInstruction *inst,
       fun->getEffectiveOptimizationMode() > OptimizationMode::NoOptimization
       || !cast<AllocStackInst>(inst)->getVarInfo();
   }
-  case SILInstructionKind::LoadBorrowInst: {
-    // A load_borrow only used in an end_borrow is dead.
+  case SILInstructionKind::LoadBorrowInst:
+  case SILInstructionKind::BeginOpaqueBorrowInst: {
+    // A load_borrow or begin_opaque_borrow only used in an end_borrow is dead.
     return true;
   }
   case SILInstructionKind::LoadInst: {

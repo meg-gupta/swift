@@ -476,6 +476,7 @@ bool swift::findUsesOfSimpleValue(SILValue value,
 bool swift::visitGuaranteedForwardingPhisForSSAValue(
     SILValue value, function_ref<bool(Operand *)> visitor) {
   assert(isa<BeginBorrowInst>(value) || isa<LoadBorrowInst>(value) ||
+         isa<BeginOpaqueBorrowInst>(value) ||
          (isa<SILPhiArgument>(value) &&
           value->getOwnershipKind() == OwnershipKind::Guaranteed));
   // guaranteedForwardingOps is a collection of all transitive
@@ -950,6 +951,9 @@ void BorrowedValueKind::print(llvm::raw_ostream &os) const {
   case BorrowedValueKind::DereferenceBorrow:
     os << "DereferenceBorrow";
     return;
+  case BorrowedValueKind::OpaqueBorrow:
+    os << "BeginOpaqueBorrowInst";
+    return;
   }
   llvm_unreachable("Covered switch isn't covered?!");
 }
@@ -982,6 +986,7 @@ bool BorrowedValue::visitLocalScopeEndingUses(
   case BorrowedValueKind::LoadBorrow:
   case BorrowedValueKind::BeginBorrow:
   case BorrowedValueKind::DereferenceBorrow:
+  case BorrowedValueKind::OpaqueBorrow:
   case BorrowedValueKind::Phi:
   case BorrowedValueKind::BeginApplyToken:
     for (auto *use : lookThroughBorrowedFromUser(value)->getUses()) {
@@ -1741,7 +1746,8 @@ void swift::visitExtendedGuaranteedForwardingPhiBaseValuePairs(
                               visitGuaranteedForwardingPhiBaseValuePair) {
   assert(borrow.kind == BorrowedValueKind::BeginBorrow ||
          borrow.kind == BorrowedValueKind::LoadBorrow ||
-         borrow.kind == BorrowedValueKind::DereferenceBorrow);
+         borrow.kind == BorrowedValueKind::DereferenceBorrow ||
+         borrow.kind == BorrowedValueKind::OpaqueBorrow);
   // A GuaranteedForwardingPhi can have different base values on different
   // control flow paths.
   // For that reason, worklist stores (GuaranteedForwardingPhi operand, base
@@ -1889,6 +1895,7 @@ public:
 
       case BorrowedValueKind::LoadBorrow:
       case BorrowedValueKind::DereferenceBorrow:
+      case BorrowedValueKind::OpaqueBorrow:
       case BorrowedValueKind::SILFunctionArgument:
       case BorrowedValueKind::BeginApplyToken:
         // There is no enclosing def on this path.
@@ -2109,6 +2116,7 @@ protected:
     }
     case BorrowedValueKind::LoadBorrow:
     case BorrowedValueKind::DereferenceBorrow:
+    case BorrowedValueKind::OpaqueBorrow:
     case BorrowedValueKind::SILFunctionArgument:
     case BorrowedValueKind::BeginApplyToken:
       // There is no enclosing def on this path.

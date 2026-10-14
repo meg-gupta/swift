@@ -403,6 +403,11 @@ public struct Builder {
     return notifyNew(load.getAs(LoadBorrowInst.self))
   }
 
+  public func createBeginOpaqueBorrow(fromAddress: Value) -> BeginOpaqueBorrowInst {
+    let bob = bridged.createBeginOpaqueBorrow(fromAddress.bridged)
+    return notifyNew(bob.getAs(BeginOpaqueBorrowInst.self))
+  }
+
   public func createBeginDeallocRef(reference: Value, allocation: AllocRefInstBase) -> BeginDeallocRefInst {
     let beginDealloc = bridged.createBeginDeallocRef(reference.bridged, allocation.bridged)
     return notifyNew(beginDealloc.getAs(BeginDeallocRefInst.self))

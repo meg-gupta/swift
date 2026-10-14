@@ -42,6 +42,7 @@ bool ForwardingOperation::hasSameRepresentation() const {
     // Operations can be added as needed to participate in SIL opaque values.
     return false;
 
+  case SILInstructionKind::BorrowedFromInst:
   case SILInstructionKind::ConvertFunctionInst:
   case SILInstructionKind::CopyableToMoveOnlyWrapperValueInst:
   case SILInstructionKind::DestructureTupleInst:

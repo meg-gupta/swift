@@ -363,6 +363,11 @@ void DCE::markLive() {
         processBorrow(BorrowedValue(loadBorrowInst));
         break;
       }
+      case SILInstructionKind::BeginOpaqueBorrowInst: {
+        auto *opaqueBorrowInst = cast<BeginOpaqueBorrowInst>(&I);
+        processBorrow(BorrowedValue(opaqueBorrowInst));
+        break;
+      }
       default:
         if (seemsUseful(&I))
           markInstructionLive(&I);
@@ -391,7 +396,8 @@ void DCE::addReverseDependency(SILValue from, SILInstruction *to) {
 void DCE::findGuaranteedPhiDependencies(BorrowedValue borrow) {
   assert(borrow.kind == BorrowedValueKind::BeginBorrow ||
          borrow.kind == BorrowedValueKind::DereferenceBorrow ||
-         borrow.kind == BorrowedValueKind::LoadBorrow);
+         borrow.kind == BorrowedValueKind::LoadBorrow ||
+         borrow.kind == BorrowedValueKind::OpaqueBorrow);
   LLVM_DEBUG(llvm::dbgs() << "Finding @guaranteed phi dependencies of "
                           << borrow << "\n");
   auto visitDependentPhiBaseValuePair = [&](SILPhiArgument *phiArg,

@@ -1302,6 +1302,9 @@ public:
   void visitLoadBorrowInst(LoadBorrowInst *i) {
     llvm_unreachable("unimplemented");
   }
+  void visitBeginOpaqueBorrowInst(BeginOpaqueBorrowInst *i) {
+    llvm_unreachable("begin_opaque_borrow is lowered by OwnershipModelEliminator");
+  }
   void visitDebugValueInst(DebugValueInst *i);
   void visitDebugStepInst(DebugStepInst *i);
   void visitRetainValueInst(RetainValueInst *i);

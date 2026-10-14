@@ -5027,6 +5027,33 @@ inline auto LoadBorrowInst::getEndBorrows() const -> EndBorrowRange {
   return getUsersOfType<EndBorrowInst>();
 }
 
+/// Begins a borrow scope of the value stored at an address and produces that
+/// value as a guaranteed (possibly address-only) "opaque" object value without
+/// loading it.
+///
+/// The result may only be passed as the `@in_guaranteed` self argument of an
+/// apply with a guaranteed result, reborrowed, used as an enclosing value of
+/// `borrowed`, or ended by `end_borrow`. OwnershipModelEliminator replaces the
+/// result with the operand address.
+class BeginOpaqueBorrowInst
+    : public UnaryInstructionBase<SILInstructionKind::BeginOpaqueBorrowInst,
+                                  SingleValueInstruction> {
+  friend class SILBuilder;
+
+  BeginOpaqueBorrowInst(SILDebugLocation DebugLoc, SILValue address)
+      : UnaryInstructionBase(DebugLoc, address,
+                             address->getType().getObjectType()) {}
+
+public:
+  using EndBorrowRange =
+      decltype(std::declval<ValueBase>().getUsersOfType<EndBorrowInst>());
+
+  /// Return a range over all EndBorrow instructions for this scope.
+  EndBorrowRange getEndBorrows() const {
+    return getUsersOfType<EndBorrowInst>();
+  }
+};
+
 /// Represents the begin scope of a borrowed value. Must be paired with an
 /// end_borrow instruction in its use-def list.
 class BeginBorrowInst

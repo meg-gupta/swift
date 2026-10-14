@@ -2970,6 +2970,10 @@ BridgedInstruction BridgedBuilder::createLoadBorrow(BridgedValue op) const {
   return {unbridged().createLoadBorrow(regularLoc(), op.getSILValue())};
 }
 
+BridgedInstruction BridgedBuilder::createBeginOpaqueBorrow(BridgedValue address) const {
+  return {unbridged().createBeginOpaqueBorrow(regularLoc(), address.getSILValue())};
+}
+
 BridgedInstruction BridgedBuilder::createBeginDeallocRef(BridgedValue reference, BridgedValue allocation) const {
   return {unbridged().createBeginDeallocRef(
       regularLoc(), reference.getSILValue(), allocation.getSILValue())};

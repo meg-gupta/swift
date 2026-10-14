@@ -862,6 +862,7 @@ struct ImmutableAddressUseVerifier {
       case SILInstructionKind::MarkDependenceInst:
       case SILInstructionKind::MarkDependenceAddrInst:
       case SILInstructionKind::LoadBorrowInst:
+      case SILInstructionKind::BeginOpaqueBorrowInst:
       case SILInstructionKind::ExistentialMetatypeInst:
       case SILInstructionKind::ValueMetatypeInst:
       case SILInstructionKind::FixLifetimeInst:
@@ -1484,15 +1485,38 @@ public:
     return a->strictlyDominatesInBlock(b);
   }
 
+  /// Returns true if \p value is a begin_opaque_borrow or a reborrow phi that
+  /// transitively reborrows a begin_opaque_borrow.
+  static bool isOpaqueBorrowValue(SILValue value,
+                                  SmallPtrSetImpl<SILPhiArgument *> &visited) {
+    while (auto *bfi = dyn_cast<BorrowedFromInst>(value))
+      value = bfi->getBorrowedValue();
+    if (isa<BeginOpaqueBorrowInst>(value))
+      return true;
+    auto *phi = dyn_cast<SILPhiArgument>(value);
+    if (!phi || !phi->isPhi() || !phi->isReborrow() || !visited.insert(phi).second)
+      return false;
+    for (auto *predBB : phi->getParent()->getPredecessorBlocks()) {
+      if (!isa<BranchInst>(predBB->getTerminator()))
+        return false;
+      if (isOpaqueBorrowValue(phi->getIncomingPhiValue(predBB), visited))
+        return true;
+    }
+    return false;
+  }
+
   void visitSILPhiArgument(SILPhiArgument *arg) {
     // Verify that the `isPhiArgument` property is sound:
     // - Phi arguments come from branches.
     // - Non-phi arguments have a single predecessor.
     assert(arg->isPhi() && "precondition");
+    SmallPtrSet<SILPhiArgument *, 4> visitedPhis;
+    bool isOpaqueBorrowPhi =
+        F.hasOwnership() && isOpaqueBorrowValue(arg, visitedPhis);
     for (SILBasicBlock *predBB : arg->getParent()->getPredecessorBlocks()) {
       auto *TI = predBB->getTerminator();
       require(isa<BranchInst>(TI), "All phi inputs must be branch operands.");
-      if (F.hasOwnership()) {
+      if (F.hasOwnership() && !isOpaqueBorrowPhi) {
         // Address-only values are potentially unmovable when borrowed. See also
         // checkOwnershipForwardingInst. A phi implies a move of its arguments
         // because they can't necessarily all reuse the same storage.
@@ -1500,6 +1524,17 @@ public:
                  || arg->getOwnershipKind() != OwnershipKind::Guaranteed),
                 "Guaranteed address-only phi not allowed--implies a copy");
       }
+    }
+    if (isOpaqueBorrowPhi) {
+      // A reborrow of an opaque borrow only carries the borrow scope. It never
+      // needs storage, so it may be address-only.
+      for (auto *predBB : arg->getParent()->getPredecessorBlocks()) {
+        SmallPtrSet<SILPhiArgument *, 4> visited;
+        require(isOpaqueBorrowValue(arg->getIncomingPhiValue(predBB), visited),
+                "all incoming values of a reborrow of begin_opaque_borrow must "
+                "be begin_opaque_borrow reborrows");
+      }
+      verifyOpaqueBorrowUses(arg, /*allowApply*/ false);
     }
     if (arg->isPhi()) {
       // As a property of well-formed SIL, we disallow address-type
@@ -2294,10 +2329,17 @@ public:
     require(site.getNumArguments() == substConv.getNumSILArguments(),
             "apply doesn't have right number of arguments for function");
     for (size_t i = 0, size = site.getNumArguments(); i < size; ++i) {
-      requireSameType(
-          site.getArguments()[i]->getType(),
-          substConv.getSILArgumentType(i, F.getTypeExpansionContext()),
-          "operand of 'apply' doesn't match function input type");
+      SILValue arg = site.getArguments()[i];
+      SILType paramTy =
+          substConv.getSILArgumentType(i, F.getTypeExpansionContext());
+      // An opaque borrow is passed as an object to an address parameter.
+      if (isa<BeginOpaqueBorrowInst>(arg) && paramTy.isAddress()) {
+        requireSameType(arg->getType().getAddressType(), paramTy,
+                        "operand of 'apply' doesn't match function input type");
+        continue;
+      }
+      requireSameType(arg->getType(), paramTy,
+                      "operand of 'apply' doesn't match function input type");
     }
 
     // If we have any actor isolation, then our callee and caller must be
@@ -3047,6 +3089,59 @@ public:
                     "Load operand type and result type mismatch");
     require(F.getFunctionStage() == SILStage::Raw || !LBI->isUnchecked(),
             "load_borrow's unchecked bit is on");
+  }
+
+  /// Verify the uses of a begin_opaque_borrow or of a reborrow phi of it.
+  ///
+  /// The opaque value may only be passed as the @in_guaranteed self argument of
+  /// an apply with a guaranteed result, reborrowed, used by `borrowed`, ended
+  /// by end_borrow or returned as an enclosing value of return_borrow. Only the
+  /// begin_opaque_borrow itself may be passed to an apply, so that its address
+  /// can always be recovered from its operand.
+  void verifyOpaqueBorrowUses(SILValue value, bool allowApply) {
+    for (auto *use : value->getUses()) {
+      auto *user = use->getUser();
+      if (isa<EndBorrowInst>(user) || PhiOperand(use))
+        continue;
+      if (isa<ReturnBorrowInst>(user)) {
+        require(use->getOperandNumber() != 0,
+                "begin_opaque_borrow must not be returned by return_borrow");
+        continue;
+      }
+      if (auto *bfi = dyn_cast<BorrowedFromInst>(user)) {
+        // The borrowed_from of a reborrow phi carries the reborrow scope.
+        if (use->getOperandNumber() == 0)
+          verifyOpaqueBorrowUses(bfi, /*allowApply*/ false);
+        continue;
+      }
+      if (auto *ai = dyn_cast<ApplyInst>(user)) {
+        FullApplySite apply(ai);
+        require(allowApply,
+                "only a begin_opaque_borrow may be passed to an apply");
+        require(apply.isArgumentOperand(*use) && ai->hasGuaranteedResult() &&
+                    apply.getSubstCalleeType()->hasSelfParam() &&
+                    use == &apply.getArgumentOperands().back() &&
+                    apply.getArgumentConvention(*use) ==
+                        SILArgumentConvention::Indirect_In_Guaranteed,
+                "begin_opaque_borrow must be passed as @in_guaranteed self of "
+                "an apply with a guaranteed result");
+        continue;
+      }
+      require(false, "invalid use of begin_opaque_borrow");
+    }
+  }
+
+  void checkBeginOpaqueBorrowInst(BeginOpaqueBorrowInst *bobi) {
+    require(F.hasOwnership(),
+            "begin_opaque_borrow is only valid in OSSA");
+    require(bobi->getOperand()->getType().isAddress(),
+            "begin_opaque_borrow operand must be an address");
+    requireSameType(bobi->getOperand()->getType().getObjectType(),
+                    bobi->getType(),
+                    "begin_opaque_borrow operand and result type mismatch");
+    require(!bobi->getType().isTrivial(F),
+            "begin_opaque_borrow must not borrow a trivial type");
+    verifyOpaqueBorrowUses(bobi, /*allowApply*/ true);
   }
 
   void checkBeginBorrowInst(BeginBorrowInst *bbi) {

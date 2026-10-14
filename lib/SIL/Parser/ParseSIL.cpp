@@ -429,6 +429,14 @@ SILValue SILParser::getLocalValue(UnresolvedValueName Name, SILType Type,
     // If this value is already defined, check it to make sure types match.
     SILType EntryTy = Entry->getType();
 
+    // A forward referenced begin_opaque_borrow is used both as an object and as
+    // an apply argument of address type. setLocalValue resolves this and the
+    // verifier checks the uses.
+    if (EntryTy != Type && isa<PlaceholderValue>(Entry) &&
+        EntryTy.getObjectType() == Type.getObjectType()) {
+      return SILValue(Entry);
+    }
+
     if (EntryTy != Type) {
       HadError = true;
       P.diagnose(Name.NameLoc, diag::sil_value_use_type_mismatch, Name.Name,
@@ -463,8 +471,13 @@ void SILParser::setLocalValue(ValueBase *Value, StringRef Name,
       return;
     }
 
-    // If the forward reference was of the wrong type, diagnose this now.
-    if (Entry->getType() != Value->getType()) {
+    // If the forward reference was of the wrong type, diagnose this now. A
+    // begin_opaque_borrow may have been referenced as an apply argument of
+    // address type.
+    bool isOpaqueBorrowRef =
+        isa<BeginOpaqueBorrowInst>(Value) &&
+        Entry->getType().getObjectType() == Value->getType();
+    if (Entry->getType() != Value->getType() && !isOpaqueBorrowRef) {
       P.diagnose(NameLoc, diag::sil_value_def_type_mismatch, Name,
                  Entry->getType().getRawASTType(),
                  Value->getType().getRawASTType());
@@ -4234,6 +4247,19 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
     break;
   }
 
+  case SILInstructionKind::BeginOpaqueBorrowInst: {
+    SourceLoc AddrLoc;
+    if (parseTypedValueRef(Val, AddrLoc, B) ||
+        parseSILDebugLocation(InstLoc, B))
+      return true;
+    if (!Val->getType().isAddress()) {
+      P.diagnose(AddrLoc, diag::sil_operand_not_address, "operand", OpcodeName);
+      return true;
+    }
+    ResultVal = B.createBeginOpaqueBorrow(InstLoc, Val);
+    break;
+  }
+
   case SILInstructionKind::BeginBorrowInst: {
     SourceLoc AddrLoc;
 
@@ -7485,6 +7511,16 @@ bool SILParser::parseCallInstruction(SILLocation InstLoc,
     for (auto &ArgName : ArgNames) {
       SILType expectedTy =
           substConv.getSILArgumentType(ArgNo++, B.getTypeExpansionContext());
+      // A begin_opaque_borrow is passed as an object to an address parameter.
+      if (expectedTy.isAddress() && !ArgName.isUndef()) {
+        auto *opaqueBorrow = dyn_cast_or_null<BeginOpaqueBorrowInst>(
+            LocalValues.lookup(ArgName.Name));
+        if (opaqueBorrow &&
+            opaqueBorrow->getType() == expectedTy.getObjectType()) {
+          Args.push_back(opaqueBorrow);
+          continue;
+        }
+      }
       Args.push_back(getLocalValue(ArgName, expectedTy, InstLoc, B));
     }
 

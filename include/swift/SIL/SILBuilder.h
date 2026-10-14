@@ -875,6 +875,15 @@ public:
                       LoadBorrowInst(getSILDebugLocation(Loc), LV));
   }
 
+  BeginOpaqueBorrowInst *createBeginOpaqueBorrow(SILLocation Loc,
+                                                 SILValue address) {
+    ASSERT(getFunction().hasOwnership());
+    ASSERT(address->getType().isAddress() &&
+           !address->getType().isTrivial(getFunction()));
+    return insert(new (getModule()) BeginOpaqueBorrowInst(
+        getSILDebugLocation(Loc), address));
+  }
+
   BeginBorrowInst *createBeginBorrow(
       SILLocation Loc, SILValue LV, IsLexical_t isLexical = IsNotLexical,
       HasPointerEscape_t hasPointerEscape = DoesNotHavePointerEscape,

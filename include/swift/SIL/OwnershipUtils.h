@@ -484,6 +484,7 @@ public:
     Phi,
     BeginApplyToken,
     DereferenceBorrow,
+    OpaqueBorrow,
   };
 
 private:
@@ -523,6 +524,8 @@ public:
       return Kind::Invalid;
     case ValueKind::DereferenceBorrowInst:
       return Kind::DereferenceBorrow;
+    case ValueKind::BeginOpaqueBorrowInst:
+      return Kind::OpaqueBorrow;
     }
        
   }
@@ -544,6 +547,7 @@ public:
     case BorrowedValueKind::BeginBorrow:
     case BorrowedValueKind::LoadBorrow:
     case BorrowedValueKind::DereferenceBorrow:
+    case BorrowedValueKind::OpaqueBorrow:
     case BorrowedValueKind::Phi:
     case BorrowedValueKind::BeginApplyToken:
       return true;

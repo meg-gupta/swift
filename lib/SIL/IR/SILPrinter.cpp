@@ -2041,6 +2041,10 @@ public:
     *this << getIDAndType(LBI->getOperand());
   }
 
+  void visitBeginOpaqueBorrowInst(BeginOpaqueBorrowInst *BOBI) {
+    *this << getIDAndType(BOBI->getOperand());
+  }
+
   void visitBeginBorrowInst(BeginBorrowInst *BBI) {
     if (BBI->isLexical()) {
       *this << "[lexical] ";

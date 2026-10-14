@@ -2538,6 +2538,11 @@ static void visitApplyAccesses(ApplySite apply,
       visitor(&oper);
       continue;
     }
+    // An opaque borrow is passed as an object but accesses its address.
+    if (auto *bob = dyn_cast<BeginOpaqueBorrowInst>(oper.get())) {
+      visitor(&bob->getOperandRef());
+      continue;
+    }
     auto fnType = oper.get()->getType().getAs<SILFunctionType>();
     if (!fnType || !fnType->isNoEscape())
       continue;
@@ -2774,6 +2779,7 @@ void swift::visitAccessedAddress(SILInstruction *I,
 #include "swift/AST/ReferenceStorage.def"
   case SILInstructionKind::LoadInst:
   case SILInstructionKind::LoadBorrowInst:
+  case SILInstructionKind::BeginOpaqueBorrowInst:
   case SILInstructionKind::OpenExistentialAddrInst:
   case SILInstructionKind::SwitchEnumAddrInst:
   case SILInstructionKind::UncheckedTakeEnumDataAddrInst:
@@ -2802,6 +2808,10 @@ void swift::visitAccessedAddress(SILInstruction *I,
       }
       if (auto *sbi = dyn_cast<StoreBorrowInst>(root)) {
         visitor(&sbi->getOperandRef(StoreInst::Dest));
+        return;
+      }
+      if (auto *bob = dyn_cast<BeginOpaqueBorrowInst>(root)) {
+        visitor(&bob->getOperandRef());
         return;
       }
     }

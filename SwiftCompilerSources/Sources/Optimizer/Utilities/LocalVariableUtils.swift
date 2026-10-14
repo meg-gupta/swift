@@ -495,7 +495,7 @@ extension LocalVariableAccessWalker: AddressUseVisitor {
     case is BeginApplyInst:
       visit(LocalVariableAccess(.apply, operand))
       return .continueWalk
-    case is LoadBorrowInst:
+    case is LoadBorrowInst, is BeginOpaqueBorrowInst:
       visit(LocalVariableAccess(.load, operand))
       return .continueWalk
     case is StoreBorrowInst:

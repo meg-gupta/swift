@@ -2037,6 +2037,14 @@ final public class LoadBorrowInst : SingleValueInstruction, LoadInstruction, Beg
   public var scopeEndingOperands: LazyFilterSequence<UseList> { uses.endingLifetime }
 }
 
+/// Begins a borrow scope of the value stored at `address` and produces it as a guaranteed opaque value
+/// without loading it.
+final public class BeginOpaqueBorrowInst : SingleValueInstruction, UnaryInstruction, BeginBorrowInstruction {
+  public var address: Value { operand.value }
+
+  public var scopeEndingOperands: LazyFilterSequence<UseList> { uses.endingLifetime }
+}
+
 final public class StoreBorrowInst : SingleValueInstruction, StoringInstruction, BeginBorrowInstruction {
   public var allocStack: AllocStackInst {
     var dest = destination

@@ -36,6 +36,7 @@
 #include "swift/SILOptimizer/Analysis/BasicCalleeAnalysis.h"
 #include "swift/SILOptimizer/Analysis/SimplifyInstruction.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
+#include "swift/SILOptimizer/Utils/CFGOptUtils.h"
 #include "swift/SILOptimizer/Utils/InstOptUtils.h"
 #include "swift/SILOptimizer/Utils/StackNesting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -778,10 +779,101 @@ bool OwnershipModelEliminatorVisitor::visitDestructureTupleInst(
 //                           Top Level Entry Point
 //===----------------------------------------------------------------------===//
 
+/// Replace each begin_opaque_borrow with its operand address.
+///
+/// The opaque value may only flow into an apply, end_borrow, borrowed,
+/// return_borrow and reborrow phis. The reborrow phis only carry the borrow
+/// scope, so they are erased together with the end_borrow and borrowed
+/// instructions and removed from return_borrow. This must run while the
+/// function is still in OSSA form.
+static bool lowerOpaqueBorrows(SILFunction &func) {
+  SmallVector<BeginOpaqueBorrowInst *, 4> opaqueBorrows;
+  for (auto &block : func) {
+    for (auto &inst : block) {
+      if (auto *bob = dyn_cast<BeginOpaqueBorrowInst>(&inst))
+        opaqueBorrows.push_back(bob);
+    }
+  }
+  if (opaqueBorrows.empty())
+    return false;
+
+  // Gather the opaque values: the begin_opaque_borrows and all reborrow phis
+  // that are transitively reached from them.
+  llvm::SmallSetVector<SILValue, 8> opaqueValues;
+  for (auto *bob : opaqueBorrows)
+    opaqueValues.insert(bob);
+  for (unsigned idx = 0; idx < opaqueValues.size(); ++idx) {
+    for (auto *use : opaqueValues[idx]->getUses()) {
+      if (auto phi = PhiOperand(use))
+        opaqueValues.insert(phi.getValue());
+    }
+  }
+
+  // Erase the scope-ending and borrowed uses. Only the apply and branch uses
+  // remain.
+  // Replacing the borrowed_from of a reborrow phi with the phi exposes new
+  // uses of the phi, so iterate until there are none.
+  for (SILValue value : opaqueValues) {
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (auto *use : value->getUses()) {
+        auto *user = use->getUser();
+        if (isa<EndBorrowInst>(user)) {
+          user->eraseFromParent();
+          changed = true;
+          break;
+        }
+        if (auto *bfi = dyn_cast<BorrowedFromInst>(user)) {
+          bfi->replaceAllUsesWith(bfi->getBorrowedValue());
+          bfi->eraseFromParent();
+          changed = true;
+          break;
+        }
+        if (auto *rbi = dyn_cast<ReturnBorrowInst>(user)) {
+          SmallVector<SILValue, 4> enclosingValues;
+          for (SILValue enclosing : rbi->getEnclosingValues()) {
+            if (!opaqueValues.contains(enclosing))
+              enclosingValues.push_back(enclosing);
+          }
+          SILBuilderWithScope(rbi).createReturnBorrow(
+              rbi->getLoc(), rbi->getReturnValue(), enclosingValues);
+          rbi->eraseFromParent();
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Erase the reborrow phis. Erase arguments in descending index order so that
+  // the indices of the remaining arguments of a block stay valid.
+  SmallVector<SILPhiArgument *, 4> phis;
+  for (SILValue value : opaqueValues) {
+    if (auto *phi = dyn_cast<SILPhiArgument>(value))
+      phis.push_back(phi);
+  }
+  llvm::sort(phis, [](SILPhiArgument *lhs, SILPhiArgument *rhs) {
+    return lhs->getIndex() > rhs->getIndex();
+  });
+  for (auto *phi : phis) {
+    erasePhiArgument(phi->getParent(), phi->getIndex(),
+                     /*cleanupDeadPhiOp*/ false);
+  }
+
+  for (auto *bob : opaqueBorrows) {
+    bob->replaceAllUsesWith(bob->getOperand());
+    bob->eraseFromParent();
+  }
+  return true;
+}
+
 static bool stripOwnership(SILFunction &func) {
   // If F is an external declaration, do not process it.
   if (func.isExternalDeclaration())
     return false;
+
+  bool loweredOpaqueBorrows = lowerOpaqueBorrows(func);
 
   llvm::DenseMap<PartialApplyInst *, SmallVector<SILInstruction *>>
       lifetimeEnds;
@@ -828,7 +920,7 @@ static bool stripOwnership(SILFunction &func) {
     }
   }
 
-  bool madeChange = false;
+  bool madeChange = loweredOpaqueBorrows;
   SmallVector<SILInstruction *, 32> createdInsts;
   OwnershipModelEliminatorVisitor visitor(func);
 
