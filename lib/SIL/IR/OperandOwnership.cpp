@@ -183,6 +183,7 @@ OPERAND_OWNERSHIP(TrivialUse, InjectEnumAddr)
 OPERAND_OWNERSHIP(TrivialUse, IsUnique)
 OPERAND_OWNERSHIP(TrivialUse, Load)
 OPERAND_OWNERSHIP(TrivialUse, LoadBorrow)
+OPERAND_OWNERSHIP(TrivialUse, BeginOpaqueBorrow)
 OPERAND_OWNERSHIP(TrivialUse, MarkFunctionEscape)
 OPERAND_OWNERSHIP(TrivialUse, ObjCExistentialMetatypeToObject)
 OPERAND_OWNERSHIP(TrivialUse, ObjCMetatypeToObject)
@@ -562,6 +563,14 @@ static OperandOwnership getFunctionArgOwnership(SILArgumentConvention argConv,
   // explicit borrow scope in the caller so we must treat arguments passed to it
   // as being borrowed for the entire region of coroutine execution.
   case SILArgumentConvention::Indirect_In_Guaranteed:
+    // An opaque value passed to an @in_guaranteed parameter of a call with a
+    // guaranteed result, e.g. a begin_opaque_borrow passed as the self of a
+    // borrow accessor, is forwarded into the result just like a direct
+    // guaranteed argument.
+    if (!hasScopeInCaller && forwardsGuaranteedValues) {
+      return OperandOwnership::GuaranteedForwarding;
+    }
+    LLVM_FALLTHROUGH;
   case SILArgumentConvention::Pack_Guaranteed:
   case SILArgumentConvention::Pack_Inout:
   case SILArgumentConvention::Pack_Out:

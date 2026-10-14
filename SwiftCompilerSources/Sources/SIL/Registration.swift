@@ -100,6 +100,7 @@ private func registerSILClasses() {
   register(LoadWeakInst.self)
   register(LoadUnownedInst.self)
   register(LoadBorrowInst.self)
+  register(BeginOpaqueBorrowInst.self)
   register(BuiltinInst.self)
   register(UpcastInst.self)
   register(UncheckedRefCastInst.self)

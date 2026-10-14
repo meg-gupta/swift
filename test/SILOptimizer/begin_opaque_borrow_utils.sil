@@ -1,0 +1,74 @@
+// RUN: %target-sil-opt -test-runner %s -o /dev/null 2>&1 | %FileCheck %s --check-prefix=INTRODUCERS
+// RUN: %target-sil-opt -enable-sil-verify-all %s -onone-simplification -simplify-instruction=pointer_to_address | %FileCheck %s --check-prefix=SIMPLIFY
+
+sil_stage canonical
+
+import Builtin
+
+class Klass {
+  @_hasStorage var x: Builtin.Int64
+}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+
+// The guaranteed result of a call with an @in_guaranteed self is introduced by
+// the begin_opaque_borrow of self.
+//
+// INTRODUCERS-LABEL: begin running test 1 of 1 on introducers: borrow_introducers
+// INTRODUCERS:       Borrow introducers for:   %3 = apply
+// INTRODUCERS-NEXT:  beginOpaqueBorrow(  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+// INTRODUCERS-LABEL: end running test 1 of 1 on introducers: borrow_introducers
+sil [ossa] @introducers : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  specify_test "borrow_introducers %3"
+  end_borrow %1 : $GenericContainer<T>
+  %5 = tuple ()
+  return %5 : $()
+}
+
+// The pointer escapes the opaque borrow scope of self, so the
+// address_to_pointer/pointer_to_address pair must not be removed.
+//
+// SIMPLIFY-LABEL: sil [ossa] @escape_opaque_borrow_scope :
+// SIMPLIFY:         address_to_pointer
+// SIMPLIFY:         end_borrow
+// SIMPLIFY:         pointer_to_address
+// SIMPLIFY:       } // end sil function 'escape_opaque_borrow_scope'
+sil [ossa] @escape_opaque_borrow_scope : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> Builtin.Int64 {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %4 = ref_element_addr %3 : $Klass, #Klass.x
+  %5 = address_to_pointer %4 : $*Builtin.Int64 to $Builtin.RawPointer
+  end_borrow %1 : $GenericContainer<T>
+  %7 = pointer_to_address %5 : $Builtin.RawPointer to $*Builtin.Int64
+  %8 = load [trivial] %7 : $*Builtin.Int64
+  return %8 : $Builtin.Int64
+}
+
+// Within the opaque borrow scope the pair is removed.
+//
+// SIMPLIFY-LABEL: sil [ossa] @within_opaque_borrow_scope :
+// SIMPLIFY-NOT:     address_to_pointer
+// SIMPLIFY:       } // end sil function 'within_opaque_borrow_scope'
+sil [ossa] @within_opaque_borrow_scope : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> Builtin.Int64 {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %4 = ref_element_addr %3 : $Klass, #Klass.x
+  %5 = address_to_pointer %4 : $*Builtin.Int64 to $Builtin.RawPointer
+  %6 = pointer_to_address %5 : $Builtin.RawPointer to $*Builtin.Int64
+  %7 = load [trivial] %6 : $*Builtin.Int64
+  end_borrow %1 : $GenericContainer<T>
+  return %7 : $Builtin.Int64
+}

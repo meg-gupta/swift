@@ -1,0 +1,32 @@
+// RUN: %empty-directory(%t)
+// RUN: %target-sil-opt -sil-print-types %s -emit-sib -o %t/tmp.sib -module-name opaque_borrow
+// RUN: %target-sil-opt -sil-print-types %t/tmp.sib -o %t/tmp.2.sib -module-name opaque_borrow
+// RUN: %target-sil-opt -sil-print-types %t/tmp.2.sib -module-name opaque_borrow | %FileCheck %s
+
+sil_stage raw
+
+import Builtin
+
+class Klass {}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+
+// CHECK-LABEL: sil [serialized] [ossa] @begin_opaque_borrow_test :
+// CHECK:         [[B:%.*]] = begin_opaque_borrow %0 : $*GenericContainer<T>
+// CHECK:         apply {{%.*}}<T>([[B]])
+// CHECK:         end_borrow [[B]] : $GenericContainer<T>
+// CHECK:       } // end sil function 'begin_opaque_borrow_test'
+sil [serialized] [ossa] @begin_opaque_borrow_test : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  end_borrow %1 : $GenericContainer<T>
+  %5 = tuple ()
+  return %5 : $()
+}

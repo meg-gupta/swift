@@ -1563,6 +1563,19 @@ void SILCloner<ImplClass>::visitLoadInst(LoadInst *Inst) {
 }
 
 template <typename ImplClass>
+void SILCloner<ImplClass>::visitBeginOpaqueBorrowInst(
+    BeginOpaqueBorrowInst *Inst) {
+  getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
+  // Without ownership, the opaque value is the address itself.
+  if (!getBuilder().hasOwnership()) {
+    return recordFoldedValue(Inst, getOpValue(Inst->getOperand()));
+  }
+  recordClonedInstruction(
+      Inst, getBuilder().createBeginOpaqueBorrow(
+                getOpLocation(Inst->getLoc()), getOpValue(Inst->getOperand())));
+}
+
+template <typename ImplClass>
 void SILCloner<ImplClass>::visitLoadBorrowInst(LoadBorrowInst *Inst) {
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
   // If we are not inlining into an ownership function, just use a load.

@@ -1,0 +1,88 @@
+// RUN: %target-sil-opt -sil-print-types -enable-sil-verify-all -ownership-model-eliminator %s | %FileCheck %s
+
+sil_stage canonical
+
+import Builtin
+
+class Klass {}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+// CHECK-LABEL: sil @lower_opaque_borrow :
+// CHECK-NOT:     begin_opaque_borrow
+// CHECK:         apply {{%.*}}<T>(%0)
+// CHECK-NOT:     end_borrow
+// CHECK:       } // end sil function 'lower_opaque_borrow'
+sil [ossa] @lower_opaque_borrow : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %1 : $GenericContainer<T>
+  %7 = tuple ()
+  return %7 : $()
+}
+
+// The reborrow phi of the opaque borrow is erased; the guaranteed result phi
+// remains.
+//
+// CHECK-LABEL: sil @lower_opaque_borrow_reborrow :
+// CHECK-NOT:     begin_opaque_borrow
+// CHECK:       bb1:
+// CHECK:         [[R1:%.*]] = apply {{%.*}}<T>(%0)
+// CHECK:         br bb3([[R1]] : $Klass)
+// CHECK:       bb2:
+// CHECK:         [[R2:%.*]] = apply {{%.*}}<T>(%1)
+// CHECK:         br bb3([[R2]] : $Klass)
+// CHECK:       bb3([[P:%.*]] : $Klass):
+// CHECK-NOT:     borrowed
+// CHECK:         apply {{%.*}}([[P]])
+// CHECK-NOT:     end_borrow
+// CHECK:       } // end sil function 'lower_opaque_borrow_reborrow'
+sil [ossa] @lower_opaque_borrow_reborrow : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>, @in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>, %1 : $*GenericContainer<T>):
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  %4 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %5 = apply %2<T>(%4) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  br bb3(%4 : $GenericContainer<T>, %5 : $Klass)
+
+bb2:
+  %7 = begin_opaque_borrow %1 : $*GenericContainer<T>
+  %8 = apply %2<T>(%7) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  br bb3(%7 : $GenericContainer<T>, %8 : $Klass)
+
+bb3(%10 : @reborrow $GenericContainer<T>, %11 : @guaranteed $Klass):
+  %12 = borrowed %10 : $GenericContainer<T> from ()
+  %13 = borrowed %11 : $Klass from (%10 : $GenericContainer<T>)
+  %14 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %15 = apply %14(%13) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %12 : $GenericContainer<T>
+  %17 = tuple ()
+  return %17 : $()
+}
+
+// The opaque borrow is removed from the enclosing values of return_borrow.
+//
+// CHECK-LABEL: sil @lower_opaque_borrow_return_borrow :
+// CHECK-NOT:     begin_opaque_borrow
+// CHECK:         [[R:%.*]] = apply {{%.*}}<T>(%0)
+// CHECK:         return [[R]] : $Klass
+// CHECK:       } // end sil function 'lower_opaque_borrow_return_borrow'
+sil [ossa] @lower_opaque_borrow_return_borrow : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  return_borrow %3 : $Klass from_scopes (%1 : $GenericContainer<T>)
+}

@@ -876,6 +876,42 @@ with exactly one [end_borrow](#end_borrow) instruction along any path
 through the program. Until [end_borrow](#end_borrow), it is illegal to
 invalidate or store to `%0`.
 
+### begin_opaque_borrow
+
+```
+sil-instruction ::= 'begin_opaque_borrow' sil-value
+
+%1 = begin_opaque_borrow %0 : $*T
+// %1 has type $T and @guaranteed ownership
+// $T may be loadable or address-only
+```
+
+Begins a borrow scope of the value stored in the memory location `%0`
+and produces it as a guaranteed "opaque" value `%1` without loading it.
+Like a value in opaque values mode, `%1` is an object
+even if `$T` is address-only. It is only valid in OSSA.
+
+`%1` represents the borrowed storage of `%0` and may only be used:
+
+- as the `@in_guaranteed` self argument of an `apply` whose callee has a
+  guaranteed result, e.g. a borrow accessor. The guaranteed result is
+  forwarded from `%1` and must not be used outside of its borrow scope.
+- by [end_borrow](#end_borrow), which ends the scope.
+- as an enclosing value of `return_borrow`, which ends the scope when the
+  guaranteed result is returned.
+- by a branch to a reborrow phi, and as an enclosing value of
+  [borrowed](#borrowed). A reborrow of `begin_opaque_borrow` only carries
+  the borrow scope: it may only be used by `end_borrow`, `borrowed` and
+  further branches, and all of its incoming values must be reborrows of
+  `begin_opaque_borrow`.
+
+Until the end of the borrow scope, it is illegal to invalidate or store
+to `%0`.
+
+This gives a guaranteed result of a call with an `@in_guaranteed` self an
+OSSA borrow introducer. OwnershipModelEliminator replaces `%1` with `%0`
+and removes the reborrows, so `begin_opaque_borrow` never reaches IRGen.
+
 ### store_borrow
 
 ```

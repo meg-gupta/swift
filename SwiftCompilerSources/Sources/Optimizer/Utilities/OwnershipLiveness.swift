@@ -731,6 +731,13 @@ extension InteriorUseWalker: AddressUseVisitor {
       return load.uses.endingLifetime.walk {
         useVisitor($0)
       }
+    case let opaqueBorrow as BeginOpaqueBorrowInst:
+      if handleInner(borrowed: opaqueBorrow) == .abortWalk {
+        return .abortWalk
+      }
+      return opaqueBorrow.uses.endingLifetime.walk {
+        useVisitor($0)
+      }
     default:
       fatalError("Unrecognized scoped address use: \(operand.instruction)")
     }

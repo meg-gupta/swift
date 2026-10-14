@@ -1,0 +1,45 @@
+// RUN: %target-sil-opt -disable-swift-verification -sil-ownership-verifier-enable-testing -ownership-verifier-textual-error-dumper -enable-sil-verify-all=0 %s -o /dev/null 2>&1 | %FileCheck %s
+// REQUIRES: asserts
+
+class Klass {}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+// The guaranteed result of the call is forwarded from the opaque borrow and
+// must not be used after its end_borrow.
+//
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'use_after_end_borrow'
+// CHECK: Found outside of lifetime use?!
+// CHECK: Value:   %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+// CHECK: Non Consuming User:   %6 = apply %5(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+// CHECK-LABEL: Error#: 0. End Error in Function: 'use_after_end_borrow'
+sil [ossa] @use_after_end_borrow : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  end_borrow %1 : $GenericContainer<T>
+  %5 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %6 = apply %5(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  %7 = tuple ()
+  return %7 : $()
+}
+
+// CHECK-NOT: Begin Error in Function: 'use_within_scope'
+sil [ossa] @use_within_scope : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %5 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %6 = apply %5(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %1 : $GenericContainer<T>
+  %7 = tuple ()
+  return %7 : $()
+}

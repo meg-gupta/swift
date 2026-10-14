@@ -445,7 +445,7 @@ extension LifetimeDependence.Scope {
     assert(iter.next() == nil,
            "guaranteed phis not allowed when diagnosing lifetime dependence")
     switch beginBorrow {
-    case .beginBorrow, .loadBorrow, .dereferenceBorrow:
+    case .beginBorrow, .loadBorrow, .beginOpaqueBorrow, .dereferenceBorrow:
       self = .borrowed(beginBorrow)
     case let .beginApply(value):
       self = .yield(value)
@@ -525,8 +525,10 @@ extension LifetimeDependence.Scope {
       return LifetimeDependence.Scope(base: bb.borrowedValue, context).ignoreBorrowScope(context)
     case let .loadBorrow(lb):
       return LifetimeDependence.Scope(base: lb.address, context)
+    case let .beginOpaqueBorrow(bob):
+      return LifetimeDependence.Scope(base: bob.address, context)
     default:
-      fatalError("Scope.borrowed must begin begin_borrow or load_borrow")
+      fatalError("Scope.borrowed must begin begin_borrow, load_borrow or begin_opaque_borrow")
     }
   }
 }
@@ -1029,6 +1031,8 @@ extension LifetimeDependenceDefUseWalker {
       return leafUse(of: operand)
     case let load as LoadBorrowInst:
       return walkDownUses(of: load, using: operand)
+    case let opaqueBorrow as BeginOpaqueBorrowInst:
+      return walkDownUses(of: opaqueBorrow, using: operand)
     default:
       fatalError("Unrecognized scoped address use: \(operand.instruction)")
     }
@@ -1235,6 +1239,8 @@ extension LifetimeDependenceDefUseWalker {
         return loadedAddressUse(of: localAccess.operand!, intoValue: load)
       case let load as LoadBorrowInst:
         return loadedAddressUse(of: localAccess.operand!, intoValue: load)
+      case let opaqueBorrow as BeginOpaqueBorrowInst:
+        return loadedAddressUse(of: localAccess.operand!, intoValue: opaqueBorrow)
       case let copyAddr as SourceDestAddrInstruction:
         return loadedAddressUse(of: localAccess.operand!, intoAddress: copyAddr.destinationOperand)
       case let castAddr as CheckedCastAddrBranchInst:

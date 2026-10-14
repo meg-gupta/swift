@@ -403,8 +403,13 @@ SILValue SILDeserializer::getLocalValue(SILFunction *inContext, ValueID Id,
     // it until we see a real definition.
     Entry = ::new PlaceholderValue(inContext, Type);
   }
-  // If this value was already defined, check it to make sure types match.
-  assert(Entry->getType() == Type && "Value Type mismatch?");
+  // If this value was already defined, check it to make sure types match. A
+  // forward referenced begin_opaque_borrow may also be referenced as an apply
+  // argument of address type.
+  assert((Entry->getType() == Type ||
+          (isa<PlaceholderValue>(Entry) &&
+           Entry->getType().getObjectType() == Type.getObjectType())) &&
+         "Value Type mismatch?");
   return Entry;
 }
 
@@ -2513,13 +2518,22 @@ llvm::Error SILDeserializer::readSILInstruction(
     assert(substConventions.getNumSILArguments() == ListOfValues.size()
            && "Argument number mismatch in ApplyInst.");
     SmallVector<SILValue, 4> Args;
-    for (unsigned I = 0, E = ListOfValues.size(); I < E; ++I)
-      Args.push_back(getLocalValue(Builder.maybeGetFunction(), ListOfValues[I],
-                                   substConventions.getSILArgumentType(
-                                       I, Builder.getTypeExpansionContext())));
+    for (unsigned I = 0, E = ListOfValues.size(); I < E; ++I) {
+      SILType expectedTy = substConventions.getSILArgumentType(
+          I, Builder.getTypeExpansionContext());
     auto SubstitutionsOrErr = MF->getSubstitutionMapChecked(SubID);
     if (!SubstitutionsOrErr)
-      return SubstitutionsOrErr.takeError();
+        auto *opaqueBorrow = dyn_cast_or_null<BeginOpaqueBorrowInst>(
+            LocalValues.lookup(ListOfValues[I]));
+        if (opaqueBorrow &&
+            opaqueBorrow->getType() == expectedTy.getObjectType()) {
+          Args.push_back(opaqueBorrow);
+          continue;
+        }
+      }
+      Args.push_back(
+          getLocalValue(Builder.maybeGetFunction(), ListOfValues[I], expectedTy));
+    }
     SubstitutionMap Substitutions = SubstitutionsOrErr.get();
 
     std::optional<ApplyIsolationCrossing> IsolationCrossing;
@@ -3062,6 +3076,7 @@ llvm::Error SILDeserializer::readSILInstruction(
   UNARY_INSTRUCTION(MakeAddrBorrow)
   UNARY_INSTRUCTION(DereferenceAddrBorrow)
   UNARY_INSTRUCTION(DereferenceBorrowAddr)
+  UNARY_INSTRUCTION(BeginOpaqueBorrow)
 #undef UNARY_INSTRUCTION
 #undef REFCOUNTING_INSTRUCTION
 

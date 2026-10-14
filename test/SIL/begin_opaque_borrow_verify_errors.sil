@@ -1,0 +1,71 @@
+// RUN: %target-sil-opt -verify-continue-on-failure -enable-sil-verify-all=0 %s -o /dev/null 2>&1 | %FileCheck %s
+// REQUIRES: asserts
+
+class Klass {}
+
+struct Container {
+  var k: Klass
+}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @borrow_k : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+sil @use_container : $@convention(thin) (@guaranteed Container) -> ()
+
+// CHECK-LABEL: Begin Error in function copy_opaque_borrow
+// CHECK:       SIL verification failed: invalid use of begin_opaque_borrow
+// CHECK-LABEL: End Error in function copy_opaque_borrow
+sil [ossa] @copy_opaque_borrow : $@convention(thin) (@in_guaranteed Container) -> () {
+bb0(%0 : $*Container):
+  %1 = begin_opaque_borrow %0 : $*Container
+  %2 = copy_value %1 : $Container
+  destroy_value %2 : $Container
+  end_borrow %1 : $Container
+  %5 = tuple ()
+  return %5 : $()
+}
+
+// The opaque value may only be passed to an @in_guaranteed parameter of a call
+// with a guaranteed result.
+//
+// CHECK-LABEL: Begin Error in function pass_to_direct_guaranteed
+// CHECK:       SIL verification failed: begin_opaque_borrow must be passed as @in_guaranteed self of an apply with a guaranteed result
+// CHECK-LABEL: End Error in function pass_to_direct_guaranteed
+sil [ossa] @pass_to_direct_guaranteed : $@convention(thin) (@in_guaranteed Container) -> () {
+bb0(%0 : $*Container):
+  %1 = begin_opaque_borrow %0 : $*Container
+  %2 = function_ref @use_container : $@convention(thin) (@guaranteed Container) -> ()
+  %3 = apply %2(%1) : $@convention(thin) (@guaranteed Container) -> ()
+  end_borrow %1 : $Container
+  %5 = tuple ()
+  return %5 : $()
+}
+
+// All incoming values of a reborrow of an opaque borrow must be opaque
+// borrows, otherwise it cannot be removed by OwnershipModelEliminator.
+//
+// CHECK-LABEL: Begin Error in function mixed_reborrow
+// CHECK:       SIL verification failed: all incoming values of a reborrow of begin_opaque_borrow must be begin_opaque_borrow reborrows
+// CHECK-LABEL: End Error in function mixed_reborrow
+sil [ossa] @mixed_reborrow : $@convention(thin) (@in_guaranteed Container) -> () {
+bb0(%0 : $*Container):
+  cond_br undef, bb1, bb2
+
+bb1:
+  %2 = begin_opaque_borrow %0 : $*Container
+  br bb3(%2 : $Container)
+
+bb2:
+  %4 = load_borrow %0 : $*Container
+  br bb3(%4 : $Container)
+
+bb3(%6 : @reborrow $Container):
+  %7 = borrowed %6 : $Container from ()
+  end_borrow %7 : $Container
+  %9 = tuple ()
+  return %9 : $()
+}

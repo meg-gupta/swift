@@ -347,6 +347,7 @@ static bool isStaticallyLookThroughInst(SILInstruction *inst) {
   case SILInstructionKind::BeginAccessInst:
   case SILInstructionKind::BeginCOWMutationInst:
   case SILInstructionKind::BeginDeallocRefInst:
+  case SILInstructionKind::BeginOpaqueBorrowInst:
   case SILInstructionKind::BridgeObjectToRefInst:
   case SILInstructionKind::CopyValueInst:
   case SILInstructionKind::CopyableToMoveOnlyWrapperAddrInst:
@@ -4070,6 +4071,8 @@ CONSTANT_TRANSLATION(DereferenceBorrowInst, LookThrough)
 CONSTANT_TRANSLATION(MakeAddrBorrowInst, LookThrough)
 CONSTANT_TRANSLATION(DereferenceAddrBorrowInst, LookThrough)
 CONSTANT_TRANSLATION(DereferenceBorrowAddrInst, LookThrough)
+// The opaque value represents the borrowed address.
+CONSTANT_TRANSLATION(BeginOpaqueBorrowInst, LookThrough)
 
 //===---
 // Store

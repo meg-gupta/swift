@@ -1867,6 +1867,7 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
   case SILInstructionKind::DestroyAddrInst:
   case SILInstructionKind::LoadInst:
   case SILInstructionKind::LoadBorrowInst:
+  case SILInstructionKind::BeginOpaqueBorrowInst:
   case SILInstructionKind::BeginBorrowInst:
   case SILInstructionKind::ClassifyBridgeObjectInst:
   case SILInstructionKind::ValueToBridgeObjectInst:

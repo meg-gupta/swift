@@ -1,0 +1,126 @@
+// RUN: %target-sil-opt -sil-print-types -enable-sil-verify-all %s | %target-sil-opt -sil-print-types -enable-sil-verify-all | %FileCheck %s
+
+sil_stage raw
+
+import Builtin
+
+class Klass {}
+
+struct Container {
+  var k: Klass
+}
+
+struct GenericContainer<T> {
+  var k: Klass
+  var t: T
+}
+
+sil @borrow_k : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+sil @generic_borrow_k : $@convention(method) <T> (@in_guaranteed GenericContainer<T>) -> @guaranteed Klass
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+// CHECK-LABEL: sil [ossa] @loadable_self :
+// CHECK:         [[B:%.*]] = begin_opaque_borrow %0 : $*Container
+// CHECK:         [[R:%.*]] = apply {{%.*}}([[B]]) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+// CHECK:         end_borrow [[B]] : $Container
+// CHECK:       } // end sil function 'loadable_self'
+sil [ossa] @loadable_self : $@convention(thin) (@in_guaranteed Container) -> () {
+bb0(%0 : $*Container):
+  %1 = begin_opaque_borrow %0 : $*Container
+  %2 = function_ref @borrow_k : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  %3 = apply %2(%1) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %1 : $Container
+  %7 = tuple ()
+  return %7 : $()
+}
+
+// CHECK-LABEL: sil [ossa] @address_only_self :
+// CHECK:         [[B:%.*]] = begin_opaque_borrow %0 : $*GenericContainer<T>
+// CHECK:         apply {{%.*}}<T>([[B]])
+// CHECK:         end_borrow [[B]] : $GenericContainer<T>
+// CHECK:       } // end sil function 'address_only_self'
+sil [ossa] @address_only_self : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>):
+  %1 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %3 = apply %2<T>(%1) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %1 : $GenericContainer<T>
+  %7 = tuple ()
+  return %7 : $()
+}
+
+// An address-only opaque borrow and the guaranteed result are reborrowed.
+//
+// CHECK-LABEL: sil [ossa] @address_only_reborrow :
+// CHECK:       bb3([[RB:%.*]] : @reborrow $GenericContainer<T>, [[P:%.*]] : @guaranteed $Klass):
+// CHECK:         [[RBF:%.*]] = borrowed [[RB]] : $GenericContainer<T> from ()
+// CHECK:         [[PBF:%.*]] = borrowed [[P]] : $Klass from ([[RB]] : $GenericContainer<T>)
+// CHECK:         end_borrow [[RBF]] : $GenericContainer<T>
+// CHECK:       } // end sil function 'address_only_reborrow'
+sil [ossa] @address_only_reborrow : $@convention(thin) <T> (@in_guaranteed GenericContainer<T>, @in_guaranteed GenericContainer<T>) -> () {
+bb0(%0 : $*GenericContainer<T>, %1 : $*GenericContainer<T>):
+  %2 = function_ref @generic_borrow_k : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  cond_br undef, bb1, bb2
+
+bb1:
+  %4 = begin_opaque_borrow %0 : $*GenericContainer<T>
+  %5 = apply %2<T>(%4) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  br bb3(%4 : $GenericContainer<T>, %5 : $Klass)
+
+bb2:
+  %7 = begin_opaque_borrow %1 : $*GenericContainer<T>
+  %8 = apply %2<T>(%7) : $@convention(method) <τ_0_0> (@in_guaranteed GenericContainer<τ_0_0>) -> @guaranteed Klass
+  br bb3(%7 : $GenericContainer<T>, %8 : $Klass)
+
+bb3(%10 : @reborrow $GenericContainer<T>, %11 : @guaranteed $Klass):
+  %12 = borrowed %10 : $GenericContainer<T> from ()
+  %13 = borrowed %11 : $Klass from (%10 : $GenericContainer<T>)
+  %14 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %15 = apply %14(%13) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %12 : $GenericContainer<T>
+  %17 = tuple ()
+  return %17 : $()
+}
+
+// The begin_opaque_borrow dominates the apply, but its block is printed after
+// the apply's block.
+//
+// CHECK-LABEL: sil [ossa] @forward_reference :
+// CHECK:       bb1:
+// CHECK:         apply {{%.*}}([[B:%.*]]) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+// CHECK:         end_borrow [[B]] : $Container
+// CHECK:       bb2:
+// CHECK:         [[B]] = begin_opaque_borrow %0 : $*Container
+// CHECK:       } // end sil function 'forward_reference'
+sil [ossa] @forward_reference : $@convention(thin) (@in_guaranteed Container) -> () {
+bb0(%0 : $*Container):
+  br bb2
+
+bb1:
+  %2 = function_ref @borrow_k : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  %3 = apply %2(%5) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  end_borrow %5 : $Container
+  %4 = tuple ()
+  return %4 : $()
+
+bb2:
+  %5 = begin_opaque_borrow %0 : $*Container
+  br bb1
+}
+
+// CHECK-LABEL: sil [ossa] @return_borrow_opaque_borrow :
+// CHECK:         [[B:%.*]] = begin_opaque_borrow %0 : $*Container
+// CHECK:         [[R:%.*]] = apply {{%.*}}([[B]])
+// CHECK:         return_borrow [[R]] : $Klass from_scopes ([[B]] : $Container)
+// CHECK:       } // end sil function 'return_borrow_opaque_borrow'
+sil [ossa] @return_borrow_opaque_borrow : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass {
+bb0(%0 : $*Container):
+  %1 = begin_opaque_borrow %0 : $*Container
+  %2 = function_ref @borrow_k : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  %3 = apply %2(%1) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
+  return_borrow %3 : $Klass from_scopes (%1 : $Container)
+}

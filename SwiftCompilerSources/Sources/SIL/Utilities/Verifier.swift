@@ -225,6 +225,21 @@ extension LoadBorrowInst : VerifiableInstruction {
   }
 }
 
+extension BeginOpaqueBorrowInst : VerifiableInstruction {
+  func verify(_ context: VerifierContext) {
+    // Like an unchecked `load_borrow`, the borrowed memory may still be mutated in raw SIL until move-only
+    // checking has diagnosed such errors.
+    guard parentFunction.silStage == .canonical else {
+      return
+    }
+    var mutatingInstructions = MutatingUsesWalker(context)
+    defer { mutatingInstructions.deinitialize() }
+
+    mutatingInstructions.findMutatingUses(of: self.address)
+    mutatingInstructions.verifyNoMutatingUsesInLiverange(of: self)
+  }
+}
+
 extension BeginAccessInst : VerifiableInstruction {
   func verify(_ context: VerifierContext) {
     // Catch violations like
@@ -293,8 +308,8 @@ private struct MutatingUsesWalker : AddressDefUseWalker {
     _ = walkDownUses(ofAddress: address, path: UnusedWalkingPath())
   }
 
-  mutating func verifyNoMutatingUsesInLiverange(of load: LoadBorrowInst) {
-    // The liverange of a `load_borrow` can end in a branch instruction. In such cases we handle the re-borrow liveranges
+  mutating func verifyNoMutatingUsesInLiverange(of load: BeginBorrowInstruction) {
+    // The liverange of a `load_borrow` or `begin_opaque_borrow` can end in a branch instruction. In such cases we handle the re-borrow liveranges
     // (starting at the `borrowed_from` in the successor block) separately.
     // This worklist contains the starts of the individual linear liveranges,
     // i.e. `load_borrow` and `borrowed_from` instructions.
