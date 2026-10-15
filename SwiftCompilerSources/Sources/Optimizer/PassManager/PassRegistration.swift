@@ -116,6 +116,7 @@ private func registerSwiftPasses() {
   registerPass(lifetimeDependenceInsertionPass, { lifetimeDependenceInsertionPass.run($0) })
   registerPass(lifetimeDependenceScopeFixupPass, { lifetimeDependenceScopeFixupPass.run($0) })
   registerPass(removeSILGenLifetimesPass, { removeSILGenLifetimesPass.run($0) })
+  registerPass(opaqueBorrowInsertion, { opaqueBorrowInsertion.run($0) })
   registerPass(lifetimeResolutionPass, { lifetimeResolutionPass.run($0) })
   registerPass(lifetimeResolutionDiagnosePass, { lifetimeResolutionDiagnosePass.run($0) })
   registerPass(copyToBorrowOptimization, { copyToBorrowOptimization.run($0) })

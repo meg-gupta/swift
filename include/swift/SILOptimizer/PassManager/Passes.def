@@ -112,6 +112,8 @@ PASS(LifetimeDependenceInsertion,
 PASS(LifetimeDependenceScopeFixup,
      "lifetime-dependence-scope-fixup",
      "Fixup scope for lifetime dependence")
+PASS(OpaqueBorrowInsertion, "opaque-borrow-insertion",
+     "Insert begin_opaque_borrow scopes for @in_guaranteed self arguments of borrow accessor calls")
 PASS(RemoveSILGenLifetimes, "remove-silgen-lifetimes",
      "Remove SILGen's lifetimes in preparation for LifetimeResolution")
 PASS(LifetimeResolution, "lifetime-resolution",

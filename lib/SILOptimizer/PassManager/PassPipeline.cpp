@@ -294,6 +294,10 @@ SILPassPipelinePlan::getSILGenPassPipeline(const SILOptions &Options) {
 
   P.addSILGenCleanup();
 
+  // Give guaranteed results of borrow accessor calls with an @in_guaranteed
+  // self an OSSA borrow scope.
+  P.addOpaqueBorrowInsertion();
+
   if (P.getOptions().EnableLifetimeResolution) {
     if (P.getOptions().EnableLifetimeDependenceDiagnostics)
       P.addLifetimeDependenceInsertion();
