@@ -2051,7 +2051,8 @@ void BridgedUtilities::registerPhiUpdater(UpdateFunctionFn updateAllGuaranteedPh
 
 static BridgedOptimizerUtilities::UpdateLifetimeFunctionFn completeAllLifetimesFunction;
 static BridgedOptimizerUtilities::UpdateLifetimeValuesFn completeLifetimeFunction;
-static BridgedOptimizerUtilities::FixupBorrowAccessorResultScopesFn fixupBorrowAccessorResultScopesFunction;
+static BridgedOptimizerUtilities::BorrowAccessorFixupFn fixupBorrowAccessorsFunction;
+static BridgedOptimizerUtilities::BorrowAccessorFixupFn fixupBorrowAccessorResultScopesFunction;
 
 void BridgedOptimizerUtilities::registerLifetimeCompletion(UpdateLifetimeFunctionFn completeAllLifetimesFn,
                                                            UpdateLifetimeValuesFn completeLifetimeFn) {
@@ -2060,7 +2061,9 @@ void BridgedOptimizerUtilities::registerLifetimeCompletion(UpdateLifetimeFunctio
 }
 
 void BridgedOptimizerUtilities::registerBorrowAccessorFixup(
-    FixupBorrowAccessorResultScopesFn fixupBorrowAccessorResultScopesFn) {
+    BorrowAccessorFixupFn fixupBorrowAccessorsFn,
+    BorrowAccessorFixupFn fixupBorrowAccessorResultScopesFn) {
+  fixupBorrowAccessorsFunction = fixupBorrowAccessorsFn;
   fixupBorrowAccessorResultScopesFunction = fixupBorrowAccessorResultScopesFn;
 }
 
@@ -2162,6 +2165,12 @@ void swift::completeAllLifetimes(SILPassManager *pm, SILFunction *f, bool includ
     // If SwiftCompilerSources are not enabled or in SourceKit unit tests
     f->setNeedCompleteLifetimes(false);
   }
+}
+
+bool swift::fixupBorrowAccessors(SILPassManager *pm, SILFunction *f) {
+  if (!fixupBorrowAccessorsFunction)
+    return false;
+  return fixupBorrowAccessorsFunction({pm->getSwiftPassInvocation()->getCurrent()}, {f});
 }
 
 bool swift::fixupBorrowAccessorResultScopes(SILPassManager *pm, SILFunction *f) {

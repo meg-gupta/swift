@@ -13,6 +13,94 @@
 import SIL
 import OptimizerBridging
 
+/// SILGen may produce a borrow accessor result from within a local borrow scope. Such as:
+/// ```
+///   %ld = load_borrow %self
+///   %fwd = unchecked_ownership %ld
+///   %ex = struct_extract %fwd, #Struct.storedProperty
+///   end_borrow %ld
+///   return %ex
+/// ```
+/// This is illegal OSSA, since the return uses a value outside its borrow scope. Transform this into valid OSSA:
+/// ```
+///   %ld = load_borrow %self
+///   %ex = struct_extract %ld, #Struct.storedProperty
+///   return_borrow %ex from_scopes (%ld)
+/// ```
+/// The local borrow scopes which enclose the returned value are found transitively with `getEnclosingValues`.
+/// This includes the scopes of the borrowed arguments of a borrow accessor result.
+///
+/// A borrow accessor result has no `end_borrow` in SILGen output. It is added to the `return_borrow`'s scopes
+/// later, by `fixupBorrowAccessorResultScopes`, since its liveness ends at the `return_borrow`:
+/// ```
+///   %ld = load_borrow %self
+///   %fwd = unchecked_ownership %ld
+///   %r = apply %otherBorrowAccessor(%fwd)
+///   end_borrow %ld
+///   return %r
+/// ```
+/// ->
+/// ```
+///   %ld = load_borrow %self
+///   %r = apply %otherBorrowAccessor(%ld)
+///   return_borrow %r from_scopes (%r, %ld)
+/// ```
+///
+/// Returns true if the function was changed.
+func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext) -> Bool {
+  guard function.convention.hasGuaranteedResult,
+        let returnInst = function.returnInstruction as? ReturnInst,
+        returnInst.returnedValue.ownership == .guaranteed
+  else {
+    return false
+  }
+
+  var enclosingScopes = [Value]()
+  var worklist = ValueWorklist(context)
+  defer { worklist.deinitialize() }
+  worklist.pushIfNotVisited(returnInst.returnedValue)
+  while let value = worklist.pop() {
+    if let beginBorrow = BeginBorrowValue(value) {
+      guard beginBorrow.hasLocalScope else {
+        continue
+      }
+      enclosingScopes.append(value)
+    }
+    worklist.pushIfNotVisited(contentsOf: value.getEnclosingValues(context))
+  }
+
+  // For all the local borrow scopes that enclose the return value, delete their end_borrow instructions and use
+  // them as an enclosing value of the return_borrow instruction.
+  var returnBorrowScopes = [Value]()
+  var hasGuaranteedApplyResult = false
+  for scope in enclosingScopes {
+    let endBorrows = Array(scope.uses.users(ofType: EndBorrowInst.self))
+    if !endBorrows.isEmpty {
+      returnBorrowScopes.append(scope)
+    }
+    for endBorrow in endBorrows {
+      context.erase(instruction: endBorrow)
+    }
+    // A borrow accessor result has no end_borrow yet. It is added to the return_borrow's scopes when its lifetime is
+    // completed.
+    if case .borrowAccessorResult = BeginBorrowValue(scope)! {
+      hasGuaranteedApplyResult = true
+    }
+    for uncheckedOwnership in Array(scope.uses.users(ofType: UncheckedOwnershipInst.self)) {
+      uncheckedOwnership.replace(with: scope, context)
+    }
+  }
+
+  if returnBorrowScopes.isEmpty && !hasGuaranteedApplyResult {
+    return false
+  }
+
+  let builder = Builder(before: returnInst, location: returnInst.location, context)
+  builder.createReturnBorrow(of: returnInst.returnedValue, enclosingValues: returnBorrowScopes)
+  context.erase(instruction: returnInst)
+  return true
+}
+
 /// Complete the borrow scopes of borrow accessor results.
 ///
 /// SILGen does not emit `end_borrow`s for the borrowed `@guaranteed` result of a borrow accessor apply. Instead, it
@@ -96,6 +184,12 @@ func fixupBorrowAccessorResultScopes(in function: Function, _ context: FunctionP
 
 func registerBorrowAccessorFixup() {
   BridgedOptimizerUtilities.registerBorrowAccessorFixup(
+    // fixupBorrowAccessors
+    { (bridgedCtxt: BridgedContext, bridgedFunction: BridgedFunction) -> Bool in
+      let context = FunctionPassContext(_bridged: bridgedCtxt)
+      return fixupBorrowAccessors(in: bridgedFunction.function, context)
+    },
+    // fixupBorrowAccessorResultScopes
     { (bridgedCtxt: BridgedContext, bridgedFunction: BridgedFunction) -> Bool in
       let context = FunctionPassContext(_bridged: bridgedCtxt)
       return fixupBorrowAccessorResultScopes(in: bridgedFunction.function, context)

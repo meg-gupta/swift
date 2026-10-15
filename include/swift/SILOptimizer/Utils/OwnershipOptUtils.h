@@ -397,6 +397,12 @@ void completeAllLifetimes(SILPassManager *pm, SILFunction *f, bool includeTrivia
 /// The `values` must be in dominance order.
 void completeLifetimes(SILPassManager *pm, ArrayRef<SILValue> values, ArrayRef<SILInstruction *> deadEnds);
 
+/// Turn the return of a value from within local borrow scopes, as emitted by
+/// SILGen for borrow accessors, into a return_borrow of those scopes. For
+/// details see the swift implementation `fixupBorrowAccessors(in: Function)`.
+/// Returns true if the function was changed.
+bool fixupBorrowAccessors(SILPassManager *pm, SILFunction *f);
+
 /// Complete the borrow scopes of borrow accessor results, which SILGen emits
 /// without end_borrows. For details see the swift implementation
 /// `fixupBorrowAccessorResultScopes(in: Function)`.
