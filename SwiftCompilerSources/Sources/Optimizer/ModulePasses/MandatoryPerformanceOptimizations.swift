@@ -407,6 +407,13 @@ private func shouldInline(apply: FullApplySite, callee: Function, alreadyInlined
     return false
   }
 
+  // Inlining an apply whose borrowed result is reborrowed is not supported (see SILInliner::canInlineApplySite).
+  if let ai = apply as? ApplyInst, ai.hasBorrowedResult,
+     ai.uses.contains(where: { $0.ownership == .reborrow })
+  {
+    return false
+  }
+
   // In embedded Swift, a non-final class conforming to a protocol via a
   // protocol-extension default implementation gets a witness thunk that is
   // generic over its (class-constrained) conforming type — the covariant-Self

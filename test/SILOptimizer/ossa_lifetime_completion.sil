@@ -809,10 +809,14 @@ bb0(%0 : @guaranteed $Wrapper):
   return %2
 }
 
+// The borrow accessor result is completed as an inner scope of the begin_borrow.
 // CHECK-LABEL: sil [ossa] @test_borrow_accessor2 :
+// CHECK:  [[BORROW:%.*]] = begin_borrow
+// CHECK:  [[R:%.*]] = apply {{%.*}}([[BORROW]]) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
 // CHECK:  [[F:%.*]] = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
-// CHECK:  [[A:%.*]] = apply [[F]]({{.*}}) : $@convention(thin) (@guaranteed Klass) -> ()
-// CHECK:  end_borrow {{.*}}
+// CHECK:  [[A:%.*]] = apply [[F]]([[R]]) : $@convention(thin) (@guaranteed Klass) -> ()
+// CHECK-NEXT:  end_borrow [[R]]
+// CHECK-NEXT:  end_borrow [[BORROW]]
 // CHECK:  destroy_value {{.*}}
 // CHECK:  unreachable
 // CHECK-LABEL: } // end sil function 'test_borrow_accessor2'

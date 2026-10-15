@@ -192,8 +192,10 @@ bool ValueBase::isGuaranteedForwarding() const {
   if (phi && phi->isPhi()) {
     return phi->isGuaranteedForwarding();
   }
-
-  return isBorrowAccessorResult();
+  // Note: the @guaranteed result of a borrow accessor apply is not forwarded.
+  // It introduces a new borrow scope
+  // (BorrowedValueKind::GuaranteedApplyResult).
+  return false;
 }
 
 bool ValueBase::isBeginApplyToken() const {

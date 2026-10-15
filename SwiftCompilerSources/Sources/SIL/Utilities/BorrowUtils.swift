@@ -135,6 +135,8 @@
 /// If this instruction produces a borrowed value, then BeginBorrowValue(resultOf: self) != nil.
 ///
 /// This does not include instructions like `apply` and `try_apply` that instantaneously borrow a value from the caller.
+/// An exception is an `apply` with a borrowed `@guaranteed` result, e.g. of a borrow accessor. It borrows its
+/// guaranteed arguments until the end of the result's borrow scope.
 ///
 /// This does not include `load_borrow` because it borrows a memory location, not the value of its operand.
 ///
@@ -157,11 +159,14 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
   case partialApply(PartialApplyInst)
   case markDependence(MarkDependenceInst)
   case startAsyncLet(BuiltinInst)
+  case borrowAccessor(ApplyInst)
 
   public init?(_ inst: Instruction) {
     switch inst {
     case let bbi as BeginBorrowInst:
       self = .beginBorrow(bbi)
+    case let ai as ApplyInst where ai.hasBorrowedResult:
+      self = .borrowAccessor(ai)
     case let bfi as BorrowedFromInst:
       self = .borrowedFrom(bfi)
     case let sbi as StoreBorrowInst:
@@ -199,6 +204,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
       return mdi
     case .startAsyncLet(let bi):
       return bi
+    case .borrowAccessor(let ai):
+      return ai
     }
   }
 
@@ -225,7 +232,7 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
         return nil
       }
       return mdi
-    case .beginBorrow, .storeBorrow, .beginApply, .partialApply, .startAsyncLet:
+    case .beginBorrow, .storeBorrow, .beginApply, .partialApply, .startAsyncLet, .borrowAccessor:
       return nil
     }
   }
@@ -253,6 +260,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
       return mdi
     case .startAsyncLet(let builtin):
       return builtin
+    case .borrowAccessor(let ai):
+      return ai
     }
   }
 
@@ -293,6 +302,9 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
         }
         return .continueWalk
       }
+    case .borrowAccessor:
+      // end_borrow, return_borrow and reborrows end the result's borrow scope.
+      return val.uses.endingLifetime.walk { visitor($0) }
     }
   }
 }
@@ -328,7 +340,8 @@ extension BorrowingInstruction {
 }
 
 /// A value that introduces a borrow scope:
-/// begin_borrow, load_borrow, reborrow, guaranteed function argument, begin_apply, unchecked_ownership_conversion.
+/// begin_borrow, load_borrow, reborrow, guaranteed function argument, begin_apply, unchecked_ownership_conversion,
+/// and the borrowed `@guaranteed` result of an apply (e.g. of a borrow accessor).
 ///
 /// If the value introduces a local scope, then that scope is
 /// terminated by scope ending operands. Function arguments do not
@@ -346,11 +359,14 @@ public enum BeginBorrowValue {
   case uncheckOwnershipConversion(UncheckedOwnershipConversionInst)
   case functionArgument(FunctionArgument)
   case reborrow(Phi)
+  case borrowAccessorResult(ApplyInst)
 
   public init?(_ value: Value) {
     switch value {
     case let bbi as BeginBorrowInst:
       self = .beginBorrow(bbi)
+    case let ai as ApplyInst where ai.hasBorrowedResult:
+      self = .borrowAccessorResult(ai)
     case let lbi as LoadBorrowInst:
       self = .loadBorrow(lbi)
     case let dbi as DereferenceBorrowInst:
@@ -379,6 +395,7 @@ public enum BeginBorrowValue {
     case .uncheckOwnershipConversion(let uoci): return uoci
     case .functionArgument(let arg): return arg
     case .reborrow(let phi): return phi.value
+    case .borrowAccessorResult(let ai): return ai
     }
   }
 
@@ -390,6 +407,8 @@ public enum BeginBorrowValue {
       self = .loadBorrow(lbi)
     case let dbi as DereferenceBorrowInst:
       self = .dereferenceBorrow(dbi)
+    case let ai as ApplyInst where ai.hasBorrowedResult && operand.ownership == .borrow:
+      self = .borrowAccessorResult(ai)
     case is BranchInst:
       guard let phi = Phi(using: operand) else {
         return nil
@@ -412,6 +431,8 @@ public enum BeginBorrowValue {
       self.init(borrowedFrom.borrowedPhi.value)
     case let .beginApply(beginApply):
       self.init(beginApply.token)
+    case let .borrowAccessor(apply):
+      self = .borrowAccessorResult(apply)
     case .storeBorrow, .partialApply, .markDependence, .startAsyncLet:
       return nil
     }
@@ -419,7 +440,8 @@ public enum BeginBorrowValue {
 
   public var hasLocalScope: Bool {
     switch self {
-    case .beginBorrow, .loadBorrow, .dereferenceBorrow, .beginApply, .reborrow, .uncheckOwnershipConversion:
+    case .beginBorrow, .loadBorrow, .dereferenceBorrow, .beginApply, .reborrow, .uncheckOwnershipConversion,
+         .borrowAccessorResult:
       return true
     case .functionArgument:
       return false
@@ -429,7 +451,7 @@ public enum BeginBorrowValue {
   // Return the value borrowed by begin_borrow or address borrowed by
   // load_borrow.
   //
-  // Return nil for begin_apply and reborrow, which need special handling.
+  // Return nil for begin_apply, reborrow and borrow accessor results, which need special handling.
   public var baseOperand: Operand? {
     switch self {
     case let .beginBorrow(beginBorrow):
@@ -438,7 +460,7 @@ public enum BeginBorrowValue {
       return loadBorrow.operand
     case let .dereferenceBorrow(derefBorrow):
       return derefBorrow.operand
-    case .beginApply, .functionArgument, .reborrow, .uncheckOwnershipConversion:
+    case .beginApply, .functionArgument, .reborrow, .uncheckOwnershipConversion, .borrowAccessorResult:
       return nil
     }
   }
@@ -511,6 +533,9 @@ public final class EnclosingValueIterator : IteratorProtocol {
         break
       case .reborrow(let phi):
         worklist.pushIfNotVisited(contentsOf: phi.borrowedFrom!.enclosingValues)
+      case .borrowAccessorResult(let apply):
+        // Gather the outer enclosing borrow scopes of the borrowed arguments.
+        worklist.pushIfNotVisited(contentsOf: apply.borrowedArguments)
       }
     } else {
       // Handle forwarded guaranteed values.
@@ -544,9 +569,6 @@ public final class EnclosingValueIterator : IteratorProtocol {
           // Recurse through guaranteed forwarding non-phi instructions.
           let ops = forwardingInst.forwardedOperands
           worklist.pushIfNotVisited(contentsOf: ops.values)
-        } else if value.isGuaranteedApplyResult {
-          let selfArgument = (value as! ApplyInst).arguments.last!
-          worklist.pushIfNotVisited(selfArgument)
         } else {
           fatalError("cannot get borrow introducers for unknown guaranteed value")
         }
@@ -630,6 +652,8 @@ extension Value {
     return self
   }
 
+  /// True if this is the result of an apply with a `@guaranteed` result convention, even if the result is an
+  /// address (`@guaranteed_address` in lowered-address mode).
   public var isGuaranteedApplyResult: Bool {
     guard let definingInstruction = self.definingInstruction else {
       return false
@@ -641,6 +665,18 @@ extension Value {
       return false
     }
     return apply.hasGuaranteedResult
+  }
+}
+
+extension ApplyInst {
+  /// True if the result is a borrowed `@guaranteed` value (e.g. of a borrow accessor), which introduces a borrow
+  /// scope ended by `end_borrow` or `return_borrow`. The arguments with a `.borrow` operand ownership are borrowed
+  /// for the duration of that scope.
+  public var hasBorrowedResult: Bool { ownership == .guaranteed }
+
+  /// The arguments that are borrowed for the duration of the borrowed result's scope.
+  public var borrowedArguments: LazyMapSequence<LazyFilterSequence<OperandArray>, Value> {
+    argumentOperands.lazy.filter { $0.ownership == .borrow }.map { $0.value }
   }
 }
 

@@ -27,8 +27,10 @@
 #include "swift/SIL/DebugUtils.h"
 #include "swift/SIL/InstructionUtils.h"
 #include "swift/SIL/OptimizationRemark.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/PrettyStackTrace.h"
 #include "swift/SILOptimizer/Utils/GenericCloner.h"
+#include "swift/SILOptimizer/Utils/OwnershipOptUtils.h"
 #include "swift/SILOptimizer/Utils/SILOptFunctionBuilder.h"
 #include "swift/SILOptimizer/Utils/SpecializationMangler.h"
 #include "swift/Serialization/SerializedSILLoader.h"
@@ -2604,6 +2606,14 @@ bool swift::specializeClassMethodInst(ClassMethodInst *cm) {
   if (!astType->isSpecialized() || astType->hasPrimaryArchetype())
     return false;
 
+  // Reabstracted arguments cannot be borrowed over a reborrowed borrow
+  // accessor result.
+  if (llvm::any_of(cm->getUses(), [](Operand *use) {
+        return isBorrowAccessorResultReborrowed(use->getUser());
+      })) {
+    return false;
+  }
+
   SubstitutionMap subs = astType->getContextSubstitutionMap();
 
   SILType funcTy = cm->getType();
@@ -2652,6 +2662,14 @@ bool swift::specializeWitnessMethodInst(WitnessMethodInst *wm) {
   // This should not happen. Just to be on the safe side.
   if (wm->use_empty())
     return false;
+
+  // Reabstracted arguments cannot be borrowed over a reborrowed borrow
+  // accessor result.
+  if (llvm::any_of(wm->getUses(), [](Operand *use) {
+        return isBorrowAccessorResultReborrowed(use->getUser());
+      })) {
+    return false;
+  }
 
   // In Embedded Swift, refuse to specialize when the requirement is more
   // generic than the protocol itself. Such calls required unspecialized
@@ -2782,11 +2800,18 @@ swift::replaceWithSpecializedCallee(ApplySite applySite, SILValue callee,
   }
   case ApplySiteKind::ApplyInst: {
     auto *ai = cast<ApplyInst>(applySite);
-    FullApplySite(ai).insertAfterApplication(
-        [&](SILBuilder &argBuilder) {
-          cleanupCallArguments(argBuilder, loc, arguments,
-                               argsNeedingEndBorrow);
-        });
+    // A borrowed @guaranteed result (e.g. of a borrow accessor) borrows the
+    // arguments until the end of the result's borrow scope. Their end_borrows
+    // are inserted by replaceBorrowAccessorApply below.
+    bool hasBorrowedResult = BorrowedValueKind::get(ai) ==
+                             BorrowedValueKind::GuaranteedApplyResult;
+    if (!hasBorrowedResult) {
+      FullApplySite(ai).insertAfterApplication(
+          [&](SILBuilder &argBuilder) {
+            cleanupCallArguments(argBuilder, loc, arguments,
+                                 argsNeedingEndBorrow);
+          });
+    }
     auto *newAI =
         builder.createApply(loc, callee, subs, arguments,
                             ai->getApplyOptions());
@@ -2812,7 +2837,16 @@ swift::replaceWithSpecializedCallee(ApplySite applySite, SILValue callee,
       returnValue = fixSpecializedReturnType(
           newAI, *typeReplacements.getResultType(), loc, builder);
     }
-    ai->replaceAllUsesWith(returnValue);
+    if (hasBorrowedResult) {
+      assert(!resultOut && "a borrowed result is never indirect");
+      SmallVector<SILValue, 4> argBorrows;
+      for (unsigned index : argsNeedingEndBorrow) {
+        argBorrows.push_back(arguments[index]);
+      }
+      replaceBorrowAccessorApply(ai, newAI, returnValue, argBorrows);
+    } else {
+      ai->replaceAllUsesWith(returnValue);
+    }
 
     return newAI;
   }
@@ -3522,6 +3556,11 @@ void swift::trySpecializeApplyOfGeneric(
   LLVM_DEBUG(llvm::dbgs() << "\n\n*** ApplyInst in function " << F->getName()
                           << ":\n";
              Apply.getInstruction()->dumpInContext());
+
+  // Reabstracted arguments cannot be borrowed over a reborrowed borrow
+  // accessor result.
+  if (isBorrowAccessorResultReborrowed(Apply.getInstruction()))
+    return;
 
   // If the caller is fragile but the callee is not, bail out.
   // Specializations have shared linkage, which means they do

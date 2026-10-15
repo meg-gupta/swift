@@ -192,10 +192,6 @@ bool findUsesOfSimpleValue(SILValue value,
 bool visitGuaranteedForwardingPhisForSSAValue(
     SILValue value, function_ref<bool(Operand *)> func);
 
-/// Visit all GuaranteedForwardingPhis of \p value, following phi uses.
-bool visitExtendedGuaranteedForwardingPhis(
-    SILValue value, function_ref<bool(Operand *)> visitor);
-
 //===----------------------------------------------------------------------===//
 //                                Abstractions
 //===----------------------------------------------------------------------===//
@@ -484,6 +480,10 @@ public:
     Phi,
     BeginApplyToken,
     DereferenceBorrow,
+    /// The @guaranteed result of an apply, e.g. of a borrow accessor. Its
+    /// borrow scope is ended by end_borrow (or return_borrow) and its
+    /// guaranteed arguments are borrowed for the duration of the scope.
+    GuaranteedApplyResult,
   };
 
 private:
@@ -523,8 +523,11 @@ public:
       return Kind::Invalid;
     case ValueKind::DereferenceBorrowInst:
       return Kind::DereferenceBorrow;
+    case ValueKind::ApplyInst:
+      // An apply only produces a guaranteed result if the callee has a
+      // @guaranteed result convention.
+      return Kind::GuaranteedApplyResult;
     }
-       
   }
 
   BorrowedValueKind(Kind newValue) : value(newValue) {}
@@ -546,6 +549,7 @@ public:
     case BorrowedValueKind::DereferenceBorrow:
     case BorrowedValueKind::Phi:
     case BorrowedValueKind::BeginApplyToken:
+    case BorrowedValueKind::GuaranteedApplyResult:
       return true;
     case BorrowedValueKind::SILFunctionArgument:
       return false;
@@ -771,6 +775,10 @@ bool getAllBorrowIntroducingValues(SILValue value,
 /// we are able to understand all of the def-use graph and only find a single
 /// introducer, then we return a .some(BorrowScopeIntroducingValue).
 BorrowedValue getSingleBorrowIntroducingValue(SILValue inputValue);
+
+/// Returns true if \p inst is an apply with a borrowed @guaranteed result
+/// (BorrowedValueKind::GuaranteedApplyResult) that is reborrowed by a phi.
+bool isBorrowAccessorResultReborrowed(SILInstruction *inst);
 
 /// The algorithm that is used to determine what the verifier will consider to
 /// be transitive uses of the given address. Used to implement \see

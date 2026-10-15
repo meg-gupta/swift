@@ -75,7 +75,9 @@ func noncopyableResult() {
 // mark_unresolved_non_copyable_value + begin_borrow for the move-only checker.
 // Inner.nc is still called directly on the result of Outer.inner rather than on
 // that begin_borrow. The begin_borrow of the owned makeOuter() result is kept
-// as the self operand of Outer.inner.
+// as the self operand of Outer.inner. The uses of the borrowed result of
+// Outer.inner go through unchecked_ownership until SILGenCleanup ends its borrow
+// scope.
 //
 // CHECK-LABEL: sil hidden [ossa] @$s27borrow_accessor_rvalue_base7chainedyyF :
 // CHECK:   [[OUTER:%.*]] = apply {{%.*}}() : $@convention(thin) () -> @owned Outer
@@ -84,12 +86,13 @@ func noncopyableResult() {
 // CHECK-NOT: mark_unresolved_non_copyable_value
 // CHECK:   [[INNERFN:%.*]] = function_ref @$s27borrow_accessor_rvalue_base5OuterV5innerAA5InnerVvb :
 // CHECK:   [[INNER:%.*]] = apply [[INNERFN]]([[BORROW]])
-// CHECK:   [[COPY:%.*]] = copy_value [[INNER]]
+// CHECK:   [[INNER_U:%.*]] = unchecked_ownership [[INNER]]
+// CHECK:   [[COPY:%.*]] = copy_value [[INNER_U]]
 // CHECK:   [[MARK:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[COPY]]
 // CHECK:   [[INNER_BORROW:%.*]] = begin_borrow [[MARK]]
 // CHECK:   [[NCFN:%.*]] = function_ref @$s27borrow_accessor_rvalue_base5InnerV2ncAA2NCVvb :
 // CHECK-NOT: apply [[NCFN]]([[INNER_BORROW]])
-// CHECK:   apply [[NCFN]]([[INNER]])
+// CHECK:   apply [[NCFN]]([[INNER_U]])
 // CHECK: } // end sil function '$s27borrow_accessor_rvalue_base7chainedyyF'
 func chained() {
   use(makeOuter().inner.nc)

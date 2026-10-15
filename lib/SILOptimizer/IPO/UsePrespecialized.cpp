@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "use-prespecialized"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/SILFunction.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILModule.h"
@@ -79,6 +80,11 @@ bool UsePrespecialized::replaceByPrespecialized(SILFunction &F) {
     // available for it already and use this specialization
     // instead of the generic version.
     if (!AI.hasSubstitutions())
+      continue;
+
+    // Reabstracted arguments cannot be borrowed over a reborrowed borrow
+    // accessor result.
+    if (isBorrowAccessorResultReborrowed(AI.getInstruction()))
       continue;
 
     SubstitutionMap Subs = AI.getSubstitutionMap();

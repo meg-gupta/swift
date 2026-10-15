@@ -476,6 +476,8 @@ bool swift::findUsesOfSimpleValue(SILValue value,
 bool swift::visitGuaranteedForwardingPhisForSSAValue(
     SILValue value, function_ref<bool(Operand *)> visitor) {
   assert(isa<BeginBorrowInst>(value) || isa<LoadBorrowInst>(value) ||
+         BorrowedValueKind::get(value) ==
+             BorrowedValueKind::GuaranteedApplyResult ||
          (isa<SILPhiArgument>(value) &&
           value->getOwnershipKind() == OwnershipKind::Guaranteed));
   // guaranteedForwardingOps is a collection of all transitive
@@ -510,40 +512,6 @@ bool swift::visitGuaranteedForwardingPhisForSSAValue(
           }
           guaranteedForwardingOps.insert(valUse);
         }
-      }
-    }
-  }
-  return true;
-}
-
-bool swift::visitExtendedGuaranteedForwardingPhis(
-    SILValue value, function_ref<bool(Operand *)> visitor) {
-  assert(value->getOwnershipKind() == OwnershipKind::Guaranteed);
-
-  ValueWorklist worklist(value);
-
-  while (auto val = worklist.pop()) {
-    for (auto *use : val->getUses()) {
-      if (use->getOperandOwnership() !=
-          OperandOwnership::GuaranteedForwarding) {
-        continue;
-      }
-      if (auto phiOperand = PhiOperand(use)) {
-        if (!visitor(use)) {
-          return false;
-        }
-        // Look through BorrowedFromInst to find further forwarding uses
-        // that go through the phi's borrowed_from result.
-        SILValue phiVal = phiOperand.getValue();
-        if (auto *bfi = getBorrowedFromUser(phiVal))
-          worklist.pushIfNotVisited(SILValue(bfi));
-      } else {
-        ForwardingOperand(use).visitForwardedValues([&](SILValue result) {
-          if (result->getOwnershipKind() == OwnershipKind::None)
-            return true;
-          worklist.pushIfNotVisited(result);
-          return true;
-        });
       }
     }
   }
@@ -680,6 +648,18 @@ llvm::raw_ostream &swift::operator<<(llvm::raw_ostream &os,
   return os;
 }
 
+/// If \p user is an apply that produces a borrowed @guaranteed result, return
+/// that result. Such an apply borrows its guaranteed arguments until the end of
+/// the result's borrow scope.
+static SILValue getBorrowedApplyResult(SILInstruction *user) {
+  auto *apply = dyn_cast<ApplyInst>(user);
+  if (!apply)
+    return SILValue();
+  if (BorrowedValueKind::get(apply) != BorrowedValueKind::GuaranteedApplyResult)
+    return SILValue();
+  return apply;
+}
+
 bool BorrowingOperand::hasEmptyRequiredEndingUses() const {
   switch (kind) {
   case BorrowingOperandKind::Invalid:
@@ -697,9 +677,13 @@ bool BorrowingOperand::hasEmptyRequiredEndingUses() const {
     auto *br = cast<BranchInst>(op->getUser());
     return br->getArgForOperand(op)->use_empty();
   }
+  case BorrowingOperandKind::Apply:
+    // An apply with a borrowed result has a local borrow scope.
+    if (getBorrowedApplyResult(op->getUser()))
+      return op->getUser()->hasUsesOfAnyResult();
+    return false;
   // These are instantaneous borrow scopes so there aren't any special end
   // scope instructions.
-  case BorrowingOperandKind::Apply:
   case BorrowingOperandKind::TryApply:
   case BorrowingOperandKind::Yield:
     return false;
@@ -797,9 +781,29 @@ bool BorrowingOperand::visitScopeEndingUses(
     }
     return true;
   }
+  case BorrowingOperandKind::Apply: {
+    // An apply with a borrowed result borrows its arguments until the end of
+    // the result's borrow scope. Otherwise, it is an instantaneous borrow.
+    SILValue result = getBorrowedApplyResult(op->getUser());
+    if (!result)
+      return true;
+    bool deadBorrow = true;
+    for (auto *use : result->getUses()) {
+      if (use->isLifetimeEnding()) {
+        deadBorrow = false;
+        if (!visitScopeEnd(use))
+          return false;
+      }
+    }
+    // Note: special case for dead borrows. This is dangerous because it could
+    // cause unsuspecting clients to infinitely recurse.
+    if (deadBorrow) {
+      return visitUnknownUse(op);
+    }
+    return true;
+  }
   // These are instantaneous borrow scopes so there aren't any special end
   // scope instructions.
-  case BorrowingOperandKind::Apply:
   case BorrowingOperandKind::TryApply:
   case BorrowingOperandKind::Yield:
     return true;
@@ -838,8 +842,10 @@ bool BorrowingOperand::visitExtendedScopeEndingUses(
 // This should be equivalent to SwiftCompilerSources, BorrowedValue.
 SILValue BorrowingOperand::getBorrowIntroducingUserResult() const {
   switch (kind) {
-  case BorrowingOperandKind::Invalid:
   case BorrowingOperandKind::Apply:
+    return getBorrowedApplyResult(op->getUser());
+
+  case BorrowingOperandKind::Invalid:
   case BorrowingOperandKind::TryApply:
   case BorrowingOperandKind::BeginApply:
   case BorrowingOperandKind::Yield:
@@ -950,6 +956,9 @@ void BorrowedValueKind::print(llvm::raw_ostream &os) const {
   case BorrowedValueKind::DereferenceBorrow:
     os << "DereferenceBorrow";
     return;
+  case BorrowedValueKind::GuaranteedApplyResult:
+    os << "GuaranteedApplyResult";
+    return;
   }
   llvm_unreachable("Covered switch isn't covered?!");
 }
@@ -984,6 +993,7 @@ bool BorrowedValue::visitLocalScopeEndingUses(
   case BorrowedValueKind::DereferenceBorrow:
   case BorrowedValueKind::Phi:
   case BorrowedValueKind::BeginApplyToken:
+  case BorrowedValueKind::GuaranteedApplyResult:
     for (auto *use : lookThroughBorrowedFromUser(value)->getUses()) {
       if (isa<ExtendLifetimeInst>(use->getUser())) {
         if (!visitor(use))
@@ -1384,6 +1394,15 @@ BorrowedValue swift::getSingleBorrowIntroducingValue(SILValue inputValue) {
   llvm_unreachable("Should never hit this");
 }
 
+bool swift::isBorrowAccessorResultReborrowed(SILInstruction *inst) {
+  SILValue result = getBorrowedApplyResult(inst);
+  if (!result)
+    return false;
+  return llvm::any_of(result->getUses(), [](Operand *use) {
+    return use->getOperandOwnership() == OperandOwnership::Reborrow;
+  });
+}
+
 bool swift::getAllOwnedValueIntroducers(
     SILValue inputValue, SmallVectorImpl<OwnedValueIntroducer> &out) {
   if (inputValue->getOwnershipKind() != OwnershipKind::Owned)
@@ -1741,7 +1760,8 @@ void swift::visitExtendedGuaranteedForwardingPhiBaseValuePairs(
                               visitGuaranteedForwardingPhiBaseValuePair) {
   assert(borrow.kind == BorrowedValueKind::BeginBorrow ||
          borrow.kind == BorrowedValueKind::LoadBorrow ||
-         borrow.kind == BorrowedValueKind::DereferenceBorrow);
+         borrow.kind == BorrowedValueKind::DereferenceBorrow ||
+         borrow.kind == BorrowedValueKind::GuaranteedApplyResult);
   // A GuaranteedForwardingPhi can have different base values on different
   // control flow paths.
   // For that reason, worklist stores (GuaranteedForwardingPhi operand, base
@@ -1887,6 +1907,19 @@ public:
         return std::move(*this).visitBorrowIntroducers(
             cast<BeginBorrowInst>(value)->getOperand(), visitor);
 
+      case BorrowedValueKind::GuaranteedApplyResult: {
+        // The apply's borrowed arguments enclose its result.
+        StackList<SILValue> introducers(function);
+        LocalValueSetVector visitedValues;
+        findBorrowedApplyArgumentIntroducers(cast<ApplyInst>(value),
+                                             introducers, visitedValues);
+        for (SILValue introducer : introducers) {
+          if (!visitor(introducer))
+            return false;
+        }
+        return true;
+      }
+
       case BorrowedValueKind::LoadBorrow:
       case BorrowedValueKind::DereferenceBorrow:
       case BorrowedValueKind::SILFunctionArgument:
@@ -1915,6 +1948,19 @@ public:
   }
 
 protected:
+  // Find the borrow introducers of the arguments that \p apply borrows for the
+  // duration of its borrowed result's scope.
+  void findBorrowedApplyArgumentIntroducers(ApplyInst *apply,
+                                            StackList<SILValue> &introducers,
+                                            LocalValueSetVector &visitedValues) {
+    for (Operand &argOper : apply->getArgumentOperands()) {
+      if (argOper.getOperandOwnership() != OperandOwnership::Borrow)
+        continue;
+      recursivelyFindBorrowIntroducers(argOper.get(), introducers,
+                                       visitedValues);
+    }
+  }
+
   // This is the identity function (i.e. just adds \p value to \p introducers)
   // when:
   // - \p value is owned
@@ -2105,6 +2151,12 @@ protected:
       recursivelyFindBorrowIntroducers(
         cast<BeginBorrowInst>(incomingValue)->getOperand(), enclosingDefs,
         visitedValues);
+      break;
+    }
+    case BorrowedValueKind::GuaranteedApplyResult: {
+      LocalValueSetVector visitedValues;
+      findBorrowedApplyArgumentIntroducers(cast<ApplyInst>(incomingValue),
+                                           enclosingDefs, visitedValues);
       break;
     }
     case BorrowedValueKind::LoadBorrow:

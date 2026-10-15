@@ -543,9 +543,14 @@ OperandOwnershipClassifier::visitDropDeinitInst(DropDeinitInst *i) {
 // Get the OperandOwnership for instantaneous apply, yield, and return uses.
 // This does not apply to uses that begin an explicit borrow scope in the
 // caller, such as begin_apply.
+//
+// \p hasScopeInCaller is true if the call begins a borrow scope in the caller
+// that outlives the call itself: either a begin_apply or an apply whose
+// @guaranteed result is a borrow introducer (e.g. a borrow accessor). In the
+// latter case, guaranteed arguments are borrowed until the end of the result's
+// borrow scope.
 static OperandOwnership getFunctionArgOwnership(SILArgumentConvention argConv,
-                                                bool hasScopeInCaller,
-                                                bool forwardsGuaranteedValues) {
+                                                bool hasScopeInCaller) {
 
   switch (argConv) {
   case SILArgumentConvention::Indirect_In_CXX:
@@ -573,9 +578,6 @@ static OperandOwnership getFunctionArgOwnership(SILArgumentConvention argConv,
   case SILArgumentConvention::Direct_Guaranteed: {
     if (hasScopeInCaller) {
       return OperandOwnership::Borrow;
-    }
-    if (forwardsGuaranteedValues) {
-      return OperandOwnership::GuaranteedForwarding;
     }
     return OperandOwnership::InstantaneousUse;
   }
@@ -610,9 +612,19 @@ OperandOwnershipClassifier::visitFullApply(FullApplySite apply) {
     }
   }();
 
+  // An apply whose result is a borrowed @guaranteed value (e.g. a borrow
+  // accessor) borrows its guaranteed arguments for the duration of the result's
+  // borrow scope. The callee operand is still an instantaneous use.
+  bool borrowsIntoResult = false;
+  if (!apply.isCalleeOperand(op)) {
+    if (auto *ai = dyn_cast<ApplyInst>(apply.getInstruction())) {
+      borrowsIntoResult =
+          ai->getOwnershipKind() == OwnershipKind::Guaranteed;
+    }
+  }
   auto argOwnership = getFunctionArgOwnership(
-      argConv, /*hasScopeInCaller*/ apply.beginsCoroutineEvaluation(),
-      /*forwardsGuaranteedValues*/ apply.hasGuaranteedResult());
+      argConv, /*hasScopeInCaller*/ apply.beginsCoroutineEvaluation() ||
+                   borrowsIntoResult);
 
   // OSSA cleanup needs to handle each of these callee ownership cases.
   //
@@ -684,8 +696,7 @@ OperandOwnership OperandOwnershipClassifier::visitYieldInst(YieldInst *i) {
   auto fnType = i->getFunction()->getLoweredFunctionType();
   SILArgumentConvention argConv(
     fnType->getYields()[getOperandIndex()].getConvention());
-  return getFunctionArgOwnership(argConv, /*hasScopeInCaller*/ false,
-                                 /*forwardsGuaranteedValues*/ false);
+  return getFunctionArgOwnership(argConv, /*hasScopeInCaller*/ false);
 }
 
 OperandOwnership OperandOwnershipClassifier::visitReturnInst(ReturnInst *i) {

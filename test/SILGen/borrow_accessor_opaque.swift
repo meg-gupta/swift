@@ -75,7 +75,8 @@ func useValue<T>(_ t: T) {}
 // CHECK:   [[FN:%.*]] = function_ref @$s22borrow_accessor_opaque13SimpleWrapperV4propxvb : $@convention(method) <τ_0_0> (@in_guaranteed SimpleWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
 // CHECK:   [[SELF:%.*]] = load_borrow [[ACCESS]]
 // CHECK:   [[RESULT:%.*]] = apply [[FN]]<T>([[SELF]]) : $@convention(method) <τ_0_0> (@in_guaranteed SimpleWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
-// CHECK:   [[COPY:%.*]] = copy_value [[RESULT]]
+// CHECK:   [[RESULT_U:%.*]] = unchecked_ownership [[RESULT]]
+// CHECK:   [[COPY:%.*]] = copy_value [[RESULT_U]]
 // CHECK:   end_access [[ACCESS]]
 // CHECK:   end_borrow [[SELF]]
 // CHECK: }
@@ -89,7 +90,8 @@ func readGenericInout<T>(_ w: inout SimpleWrapper<T>) {
 // CHECK: bb0([[W:%.*]] : @noImplicitCopy @guaranteed $SimpleWrapper<T>):
 // CHECK:   [[FN:%.*]] = function_ref @$s22borrow_accessor_opaque13SimpleWrapperV4propxvb : $@convention(method) <τ_0_0> (@in_guaranteed SimpleWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
 // CHECK:   [[RESULT:%.*]] = apply [[FN]]<T>([[W]]) : $@convention(method) <τ_0_0> (@in_guaranteed SimpleWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
-// CHECK:   [[COPY:%.*]] = copy_value [[RESULT]]
+// CHECK:   [[RESULT_U:%.*]] = unchecked_ownership [[RESULT]]
+// CHECK:   [[COPY:%.*]] = copy_value [[RESULT_U]]
 // CHECK: }
 func readGenericBorrowed<T>(_ w: borrowing SimpleWrapper<T>) {
   useValue(w.prop)

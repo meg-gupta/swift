@@ -866,7 +866,9 @@ bool SILValueOwnershipChecker::checkUses() {
     }
   }
 
-  if (isa<LoadBorrowInst>(value) || isa<BeginBorrowInst>(value)) {
+  if (isa<LoadBorrowInst>(value) || isa<BeginBorrowInst>(value) ||
+      BorrowedValueKind::get(value) ==
+          BorrowedValueKind::GuaranteedApplyResult) {
     guaranteedPhiVerifier.verifyGuaranteedForwardingPhis(BorrowedValue(value));
   }
   return true;

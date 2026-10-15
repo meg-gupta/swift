@@ -150,7 +150,8 @@ func test() {
 // CHECK:   [[REG2:%.*]] = struct_element_addr [[REG0]], #Wrapper._s
 // CHECK:   [[REG3:%.*]] = function_ref @$s25borrow_accessor_evolution1SV1kAA5KlassCvb : $@convention(method) (@in_guaranteed S) -> @guaranteed Klass
 // CHECK:   [[REG4:%.*]] = apply [[REG3]]([[REG2]]) : $@convention(method) (@in_guaranteed S) -> @guaranteed Klass
-// CHECK:   return [[REG4]]
+// CHECK:   [[REG4_U:%.*]] = unchecked_ownership [[REG4]]
+// CHECK:   return [[REG4_U]]
 // CHECK: }
 
 // CHECK-LABEL: sil hidden [ossa] @$s25borrow_accessor_evolution7WrapperV7nested2AA5KlassCvb : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed Klass {
@@ -158,7 +159,8 @@ func test() {
 // CHECK:   debug_value [[REG0]], let, name "self", argno 1, expr op_deref
 // CHECK:   [[REG2:%.*]] = function_ref @$s25borrow_accessor_evolution7WrapperV1kAA5KlassCvb : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed Klass
 // CHECK:   [[REG3:%.*]] = apply [[REG2]]([[REG0]]) : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK:   return [[REG3]]
+// CHECK:   [[REG3_U:%.*]] = unchecked_ownership [[REG3]]
+// CHECK:   return [[REG3_U]]
 // CHECK: }
 
 // CHECK-LABEL: sil hidden [ossa] @$s25borrow_accessor_evolution7WrapperVyAA5KlassCSicib : $@convention(method) (Int, @in_guaranteed Wrapper) -> @guaranteed Klass {
@@ -188,7 +190,8 @@ func test() {
 // CHECK:   [[REG5:%.*]] = apply [[REG4]]([[REG2]], [[REG3]]) : $@convention(method) (Builtin.IntLiteral, @thin Int.Type) -> Int
 // CHECK:   [[REG6:%.*]] = function_ref @$s25borrow_accessor_evolution7WrapperVyAA5KlassCSicib : $@convention(method) (Int, @in_guaranteed Wrapper) -> @guaranteed Klass
 // CHECK:   [[REG7:%.*]] = apply [[REG6]]([[REG5]], [[REG0]]) : $@convention(method) (Int, @in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK:   return [[REG7]]
+// CHECK:   [[REG7_U:%.*]] = unchecked_ownership [[REG7]]
+// CHECK:   return [[REG7_U]]
 // CHECK: }
 
 // CHECK: sil hidden [ossa] @$s25borrow_accessor_evolution3NCSV2ncAA2NCVvb : $@convention(method) (@in_guaranteed NCS) -> @guaranteed_address NC {

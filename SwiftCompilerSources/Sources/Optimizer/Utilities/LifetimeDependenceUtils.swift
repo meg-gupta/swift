@@ -445,7 +445,7 @@ extension LifetimeDependence.Scope {
     assert(iter.next() == nil,
            "guaranteed phis not allowed when diagnosing lifetime dependence")
     switch beginBorrow {
-    case .beginBorrow, .loadBorrow, .dereferenceBorrow:
+    case .beginBorrow, .loadBorrow, .dereferenceBorrow, .borrowAccessorResult:
       self = .borrowed(beginBorrow)
     case let .beginApply(value):
       self = .yield(value)
@@ -1114,6 +1114,9 @@ extension LifetimeDependenceDefUseWalker {
       return walkDownUses(of: bbi, using: operand)
     case let .borrowedFrom(bfi):
       return walkDownUses(of: bfi, using: operand)
+    case let .borrowAccessor(apply):
+      // The borrowed result of a borrow accessor depends on the borrowed argument.
+      return walkDownUses(of: apply, using: operand)
     case let .storeBorrow(sbi):
       return walkDownAddressUses(of: sbi)
     case let .beginApply(bai):

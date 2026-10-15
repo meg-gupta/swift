@@ -1,5 +1,12 @@
 // RUN: %target-sil-opt -enable-sil-verify-all %s -inline | %FileCheck %s
 
+// The @guaranteed result of a borrow accessor apply is a borrow scope which is
+// ended by end_borrow (or return_borrow). After inlining, the result is a
+// forwarded guaranteed value, so these scope-ending uses are rewritten:
+// - If the callee returned with return_borrow, they end the callee's enclosing
+//   scopes instead.
+// - Otherwise they are deleted.
+
 sil_stage canonical
 
 import Builtin
@@ -24,8 +31,22 @@ bb0(%0 : $*Container):
   return_borrow %2 from_scopes (%1)
 }
 
+sil [transparent] [ossa] @direct_borrow_accessor : $@convention(method) (@guaranteed Container) -> @guaranteed Klass {
+bb0(%0 : @guaranteed $Container):
+  %1 = struct_extract %0 : $Container, #Container._k
+  return %1
+}
+
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
 // CHECK-LABEL: sil [ossa] @test_simple_borrow : $@convention(thin) (@in_guaranteed Container) -> Int {
 // CHECK-NOT: apply
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   [[K:%.*]] = struct_extract [[LB]], #Container._k
+// CHECK:   ref_element_addr [[K]], #Klass.id
+// CHECK:   load [trivial]
+// CHECK-NEXT:   end_borrow [[LB]]
+// CHECK-NEXT:   return
 // CHECK: } // end sil function 'test_simple_borrow'
 sil [ossa] @test_simple_borrow : $@convention(thin) (@in_guaranteed Container) -> Int {
 bb0(%0 : $*Container):
@@ -33,11 +54,47 @@ bb0(%0 : $*Container):
   %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   %3 = ref_element_addr %2 : $Klass, #Klass.id
   %4 = load [trivial] %3 : $*Int
+  end_borrow %2 : $Klass
   return %4 : $Int
 }
 
-// CHECK-LABEL: sil [ossa] @test_phi_usage : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> Int {
+// CHECK-LABEL: sil [ossa] @test_direct_borrow : $@convention(thin) (@guaranteed Container) -> Int {
 // CHECK-NOT: apply
+// CHECK-NOT: end_borrow
+// CHECK: } // end sil function 'test_direct_borrow'
+sil [ossa] @test_direct_borrow : $@convention(thin) (@guaranteed Container) -> Int {
+bb0(%0 : @guaranteed $Container):
+  %1 = function_ref @direct_borrow_accessor : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  %3 = ref_element_addr %2 : $Klass, #Klass.id
+  %4 = load [trivial] %3 : $*Int
+  end_borrow %2 : $Klass
+  return %4 : $Int
+}
+
+// CHECK-LABEL: sil [ossa] @test_owned_argument : $@convention(thin) (@owned Container) -> Int {
+// CHECK-NOT: apply
+// CHECK:   [[B:%.*]] = begin_borrow %0
+// CHECK:   [[K:%.*]] = struct_extract [[B]], #Container._k
+// CHECK:   load [trivial]
+// CHECK-NEXT:   end_borrow [[B]]
+// CHECK-NEXT:   destroy_value %0
+// CHECK: } // end sil function 'test_owned_argument'
+sil [ossa] @test_owned_argument : $@convention(thin) (@owned Container) -> Int {
+bb0(%0 : @owned $Container):
+  %1 = function_ref @direct_borrow_accessor : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  %3 = ref_element_addr %2 : $Klass, #Klass.id
+  %4 = load [trivial] %3 : $*Int
+  end_borrow %2 : $Klass
+  destroy_value %0 : $Container
+  return %4 : $Int
+}
+
+// A reborrowed result is not inlined.
+// CHECK-LABEL: sil [ossa] @test_phi_usage : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> Int {
+// CHECK: apply
+// CHECK: apply
 // CHECK: } // end sil function 'test_phi_usage'
 sil [ossa] @test_phi_usage : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> Int {
 bb0(%0 : $*Container, %1 : $Builtin.Int1):
@@ -53,10 +110,11 @@ bb2:
   %7 = apply %6(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   br bb3(%7 : $Klass)
 
-bb3(%9 : @guaranteed $Klass):
+bb3(%9 : @reborrow $Klass):
   %10 = borrowed %9 : $Klass from ()
   %11 = ref_element_addr %10 : $Klass, #Klass.id
   %12 = load [trivial] %11 : $*Int
+  end_borrow %10 : $Klass
   return %12 : $Int
 }
 
@@ -69,6 +127,9 @@ bb0(%0 : $*Container):
 
 // CHECK-LABEL: sil [ossa] @test_load_borrow : $@convention(thin) (@in_guaranteed Container) -> Int {
 // CHECK-NOT: apply
+// CHECK:   [[LB:%.*]] = load_borrow
+// CHECK:   load [trivial]
+// CHECK-NEXT:   end_borrow [[LB]]
 // CHECK: } // end sil function 'test_load_borrow'
 sil [ossa] @test_load_borrow : $@convention(thin) (@in_guaranteed Container) -> Int {
 bb0(%0 : $*Container):
@@ -76,6 +137,7 @@ bb0(%0 : $*Container):
   %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   %3 = ref_element_addr %2 : $Klass, #Klass.id
   %4 = load [trivial] %3 : $*Int
+  end_borrow %2 : $Klass
   return %4 : $Int
 }
 
@@ -99,16 +161,25 @@ bb3(%8 : @guaranteed $Klass):
 
 // CHECK-LABEL: sil [ossa] @test_conditional_paths : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass {
 // CHECK-NOT: apply
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK: bb3([[PHI:%.*]] : @guaranteed $Klass):
+// CHECK:   [[BF:%.*]] = borrowed [[PHI]] from ([[LB]])
+// CHECK:   return_borrow [[BF]] from_scopes ([[LB]])
 // CHECK: } // end sil function 'test_conditional_paths'
 sil [ossa] @test_conditional_paths : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass {
 bb0(%0 : $*Container, %1 : $Builtin.Int1):
   %2 = function_ref @conditional_borrow_accessor : $@convention(method) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass
   %3 = apply %2(%0, %1) : $@convention(method) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass
-  return %3 : $Klass
+  return_borrow %3 from_scopes (%3)
 }
 
 // CHECK-LABEL: sil [ossa] @test_split_use : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> Int {
-// CHECK-NOT: apply
+// CHECK-NOT: apply %{{.*}}(%0)
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK: bb1:
+// CHECK:   end_borrow [[LB]]
+// CHECK: bb2:
+// CHECK:   end_borrow [[LB]]
 // CHECK: } // end sil function 'test_split_use'
 sil [ossa] @test_split_use : $@convention(thin) (@in_guaranteed Container, Builtin.Int1) -> Int {
 bb0(%0 : $*Container, %1 : $Builtin.Int1):
@@ -119,15 +190,15 @@ bb0(%0 : $*Container, %1 : $Builtin.Int1):
 bbLeft:
   %addr1 = ref_element_addr %result : $Klass, #Klass.id
   %val1 = load [trivial] %addr1 : $*Int
+  end_borrow %result : $Klass
   br exitBB(%val1 : $Int)
 
 bbRight:
-  br mergeBlock(%result : $Klass)
-
-mergeBlock(%phi : @guaranteed $Klass):
-  %bphi = borrowed %phi : $Klass from ()
-  %addr2 = ref_element_addr %bphi : $Klass, #Klass.id
+  %u = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %c = apply %u(%result) : $@convention(thin) (@guaranteed Klass) -> ()
+  %addr2 = ref_element_addr %result : $Klass, #Klass.id
   %val2 = load [trivial] %addr2 : $*Int
+  end_borrow %result : $Klass
   br exitBB(%val2 : $Int)
 
 exitBB(%ret : $Int):
@@ -136,16 +207,33 @@ exitBB(%ret : $Int):
 
 // CHECK-LABEL: sil [ossa] @test_return_borrow_caller : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass {
 // CHECK-NOT: apply
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   [[K:%.*]] = struct_extract [[LB]], #Container._k
+// CHECK:   return_borrow [[K]] from_scopes ([[LB]])
 // CHECK: } // end sil function 'test_return_borrow_caller'
 sil [ossa] @test_return_borrow_caller : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass {
 bb0(%0 : $*Container):
   %1 = function_ref @simple_borrow_accessor : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
-  return_borrow %2 from_scopes ()
+  return_borrow %2 from_scopes (%2)
 }
 
-// CHECK-LABEL: sil [ossa] @test_conditional_return_borrow : $@convention(method) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass {
+// CHECK-LABEL: sil [ossa] @test_direct_return_borrow_caller : $@convention(method) (@guaranteed Container) -> @guaranteed Klass {
 // CHECK-NOT: apply
+// CHECK:   [[K:%.*]] = struct_extract %0, #Container._k
+// CHECK:   return_borrow [[K]] from_scopes ()
+// CHECK: } // end sil function 'test_direct_return_borrow_caller'
+sil [ossa] @test_direct_return_borrow_caller : $@convention(method) (@guaranteed Container) -> @guaranteed Klass {
+bb0(%0 : @guaranteed $Container):
+  %1 = function_ref @direct_borrow_accessor : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Container) -> @guaranteed Klass
+  return_borrow %2 from_scopes (%2)
+}
+
+// A reborrowed result is not inlined.
+// CHECK-LABEL: sil [ossa] @test_conditional_return_borrow : $@convention(method) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass {
+// CHECK: apply
+// CHECK: apply
 // CHECK: } // end sil function 'test_conditional_return_borrow'
 sil [ossa] @test_conditional_return_borrow : $@convention(method) (@in_guaranteed Container, Builtin.Int1) -> @guaranteed Klass {
 bb0(%0 : $*Container, %1 : $Builtin.Int1):
@@ -161,19 +249,22 @@ bb2:
   %7 = apply %6(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   br bb3(%7 : $Klass)
 
-bb3(%9 : @guaranteed $Klass):
+bb3(%9 : @reborrow $Klass):
   %10 = borrowed %9 : $Klass from ()
-  return_borrow %10 from_scopes ()
+  return_borrow %10 from_scopes (%10)
 }
 
 // CHECK-LABEL: sil [ossa] @test_return_owned_convention : $@convention(thin) (@in_guaranteed Container) -> @owned Klass {
 // CHECK-NOT: apply
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   copy_value
+// CHECK-NEXT:   end_borrow [[LB]]
 // CHECK: } // end sil function 'test_return_owned_convention'
 sil [ossa] @test_return_owned_convention : $@convention(thin) (@in_guaranteed Container) -> @owned Klass {
 bb0(%0 : $*Container):
   %1 = function_ref @simple_borrow_accessor : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed Klass
   %3 = copy_value %2 : $Klass
+  end_borrow %2 : $Klass
   return %3 : $Klass
 }
-

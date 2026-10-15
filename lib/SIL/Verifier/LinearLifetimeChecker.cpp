@@ -38,7 +38,12 @@ using namespace swift;
 bool isParallelOperand(Operand *operand) {
   return isa<MarkDependenceInst>(operand->getUser()) //!!! why???
     || operand->getOperandOwnership() == OperandOwnership::Reborrow
-    || operand->getOperandOwnership() == OperandOwnership::GuaranteedForwarding;
+    || operand->getOperandOwnership() == OperandOwnership::GuaranteedForwarding
+    // A return_borrow ends all of its enclosing scopes at once, including
+    // nested scopes, e.g. a borrow accessor result and the scope of its
+    // borrowed argument.
+    || (isa<ReturnBorrowInst>(operand->getUser()) &&
+        operand->getOperandOwnership() == OperandOwnership::EndBorrow);
 }
 
 //===----------------------------------------------------------------------===//

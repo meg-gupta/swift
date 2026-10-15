@@ -3166,6 +3166,13 @@ BridgedInstruction BridgedBuilder::createReturn(BridgedValue op) const {
   return {unbridged().createReturn(returnLoc(), op.getSILValue())};
 }
 
+BridgedInstruction BridgedBuilder::createReturnBorrow(BridgedValue returnValue,
+                                                      BridgedValueArray enclosingValues) const {
+  llvm::SmallVector<swift::SILValue, 8> enclosingValueArray;
+  return {unbridged().createReturnBorrow(returnLoc(), returnValue.getSILValue(),
+                                         enclosingValues.getValues(enclosingValueArray))};
+}
+
 BridgedInstruction BridgedBuilder::createThrow(BridgedValue op) const {
   return {unbridged().createThrow(regularLoc(), op.getSILValue())};
 }

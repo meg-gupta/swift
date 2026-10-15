@@ -585,6 +585,13 @@ public struct Builder {
   }
 
   @discardableResult
+  public func createReturnBorrow(of value: Value, enclosingValues: [Value]) -> ReturnBorrowInst {
+    return enclosingValues.withBridgedValues { valuesRef in
+      return notifyNew(bridged.createReturnBorrow(value.bridged, valuesRef).getAs(ReturnBorrowInst.self))
+    }
+  }
+
+  @discardableResult
   public func createThrow(of value: Value) -> ThrowInst {
     return notifyNew(bridged.createThrow(value.bridged).getAs(ThrowInst.self))
   }

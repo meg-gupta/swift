@@ -358,6 +358,25 @@ bool extendStoreBorrow(StoreBorrowInst *sbi,
                        SmallVectorImpl<Operand *> &newUses,
                        InstModCallbacks callbacks = InstModCallbacks());
 
+/// Replace \p oldApply, whose result is a borrowed @guaranteed value
+/// (BorrowedValueKind::GuaranteedApplyResult), with \p newApply, which also has
+/// a borrowed result.
+///
+/// \p newResult is either \p newApply or a value forwarded from it, such as a
+/// cast. It replaces all uses of \p oldApply except for the scope-ending uses
+/// (end_borrow, extend_lifetime, return_borrow operands, reborrows). Those are
+/// moved to \p newApply, since only the borrowed value itself can end its
+/// scope.
+///
+/// \p argBorrows are borrow scopes that were introduced for the arguments of
+/// \p newApply. They are ended after the borrow scope of \p newApply's result.
+///
+/// Precondition: if \p argBorrows is not empty, the result of \p oldApply is
+/// not reborrowed (see isBorrowAccessorResultReborrowed).
+void replaceBorrowAccessorApply(ApplyInst *oldApply, ApplyInst *newApply,
+                                SILValue newResult,
+                                ArrayRef<SILValue> argBorrows);
+
 /// Updates the reborrow flags and the borrowed-from instructions for all
 /// guaranteed phis in function `f`.
 void updateAllGuaranteedPhis(SILPassManager *pm, SILFunction *f);
@@ -377,6 +396,12 @@ void completeAllLifetimes(SILPassManager *pm, SILFunction *f, bool includeTrivia
 /// complete at custom `deadEnd` points.
 /// The `values` must be in dominance order.
 void completeLifetimes(SILPassManager *pm, ArrayRef<SILValue> values, ArrayRef<SILInstruction *> deadEnds);
+
+/// Complete the borrow scopes of borrow accessor results, which SILGen emits
+/// without end_borrows. For details see the swift implementation
+/// `fixupBorrowAccessorResultScopes(in: Function)`.
+/// Returns true if the function was changed.
+bool fixupBorrowAccessorResultScopes(SILPassManager *pm, SILFunction *f);
 
 bool hasOwnershipOperandsOrResults(SILInstruction *inst);
 

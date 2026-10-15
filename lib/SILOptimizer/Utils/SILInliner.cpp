@@ -17,14 +17,12 @@
 #include "swift/Basic/Defer.h"
 #include "swift/SIL/MemAccessUtils.h"
 #include "swift/SIL/PrettyStackTrace.h"
-#include "swift/SIL/PrunedLiveness.h"
 #include "swift/SIL/SILDebugScope.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/TypeSubstCloner.h"
 #include "swift/SILOptimizer/Utils/CFGOptUtils.h"
 #include "swift/SILOptimizer/Utils/OwnershipOptUtils.h"
 #include "swift/SILOptimizer/Utils/SILOptFunctionBuilder.h"
-#include "swift/SILOptimizer/Utils/SILSSAUpdater.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace swift;
@@ -76,6 +74,12 @@ bool SILInliner::canInlineApplySite(FullApplySite apply) {
 
   if (auto BA = dyn_cast<BeginApplyInst>(apply))
     return canInlineBeginApply(BA);
+
+  // Inlining an apply whose borrowed result is reborrowed is not supported.
+  // The borrow scopes enclosing the inlined result would need to be reborrowed
+  // on all incoming paths of the reborrow phi.
+  if (isBorrowAccessorResultReborrowed(apply.getInstruction()))
+    return false;
 
   return true;
 }
@@ -374,9 +378,20 @@ class SILInlineCloner
   // before the yield.
   llvm::SmallVector<SILValue, 16> valuesToComplete;
 
-  // Mapped enclosing values from a ReturnBorrowInst. These need end_borrow
-  // inserted at the lifetime boundary of the inlined result.
+  // Mapped enclosing values from a ReturnBorrowInst. Their borrow scopes end
+  // where the borrow scope of the apply's borrowed result ended.
   SmallVector<SILValue, 4> returnBorrowEnclosingValues;
+
+  // True if the apply has a borrowed @guaranteed result, e.g. of a borrow
+  // accessor. The scope-ending uses of the result (end_borrow, extend_lifetime,
+  // return_borrow) must be rewritten after inlining because the inlined result
+  // is a forwarded guaranteed value.
+  bool hasBorrowedResult = false;
+
+  // Guaranteed arguments that were borrowed in the caller for the inlined
+  // body. If the apply has a borrowed result, their scopes end together with
+  // the result's borrow scope.
+  SmallVector<SILValue, 4> borrowedArgsForResult;
 
   // Block in the original caller serving as the successor of the inlined
   // control path.
@@ -421,9 +436,9 @@ protected:
   /// SIL before cloning.
   void postFixUp(SILFunction *calleeFunction);
 
-  /// Insert end_borrow for the enclosing values of an inlined return_borrow
-  /// at the lifetime boundary of the inlined result.
-  void fixupReturnBorrow();
+  /// Rewrite the scope-ending uses of the inlined borrowed result to end the
+  /// enclosing values of the inlined return_borrow and the borrowed arguments.
+  void fixupBorrowedResult();
 
   const SILDebugScope *getOrCreateInlineScope(const SILDebugScope *DS);
 
@@ -638,6 +653,8 @@ void SILInlineCloner::cloneInline(ArrayRef<SILValue> AppliedArgs) {
     } else if (AI->hasAddressResult()) {
       resultOwnership = OwnershipKind::None;
     }
+    hasBorrowedResult = BorrowedValueKind::get(AI) ==
+                        BorrowedValueKind::GuaranteedApplyResult;
 
     // Create an argument on the return-to BB representing the returned value.
     auto *retArg =
@@ -669,6 +686,13 @@ void SILInlineCloner::cloneInline(ArrayRef<SILValue> AppliedArgs) {
   if (borrowedArgs.any()) {
     for (unsigned i : indices(AppliedArgs)) {
       if (!borrowedArgs.test(i)) {
+        continue;
+      }
+
+      // The borrowed result depends on the borrowed arguments. End their
+      // scopes together with the result's borrow scope.
+      if (hasBorrowedResult) {
+        borrowedArgsForResult.push_back(entryArgs[i]);
         continue;
       }
 
@@ -738,7 +762,7 @@ void SILInlineCloner::visitTerminator(SILBasicBlock *BB) {
 
   // Handle return_borrow terminators: branch to the return-to BB with the
   // mapped return value, and collect the mapped enclosing values so we can
-  // insert end_borrow for them at the result's lifetime boundary.
+  // end their borrow scopes where the borrowed result's scope ended.
   if (auto *RBI = dyn_cast<ReturnBorrowInst>(Terminator)) {
     auto returnedValue = getMappedValue(RBI->getReturnValue());
     // Collect the mapped enclosing values.
@@ -806,125 +830,77 @@ void SILInlineCloner::preFixUp(SILFunction *calleeFunction) {
   if (BeginApply)
     BeginApply->complete(valuesToComplete, &FuncBuilder.getPassManager());
 
-  if (!returnBorrowEnclosingValues.empty()) {
-    fixupReturnBorrow();
+  if (hasBorrowedResult) {
+    fixupBorrowedResult();
   }
 }
 
-/// For inlined return_borrow, insert end_borrow for all enclosing values
-/// at the lifetime boundary of the inlined result.
-void SILInlineCloner::fixupReturnBorrow() {
-  assert(ReturnToBB && "Expected ReturnToBB for return_borrow inlining");
-  // The result is the phi argument of ReturnToBB.
-  auto *resultArg = ReturnToBB->getArgument(0);
+/// The apply's borrowed result introduced a borrow scope in the caller. After
+/// inlining, the apply's uses are replaced by the inlined result, which is a
+/// guaranteed forwarding phi in ReturnToBB. That value does not introduce a
+/// borrow scope, so rewrite the old scope-ending uses:
+///
+/// - If the callee returned with return_borrow, end the scopes of its
+///   (mapped) enclosing values instead.
+/// - End the scopes of the arguments that were borrowed for the inlined body.
+/// - Otherwise, simply delete the scope-ending uses.
+///
+/// The apply's result is not reborrowed (see
+/// SILInliner::canInlineApplySite). So all of its scope-ending
+/// uses are dominated by ReturnToBB, and therefore by the enclosing values.
+void SILInlineCloner::fixupBorrowedResult() {
+  assert(ReturnToBB && "Expected ReturnToBB for an apply");
+  auto *resultArg = cast<SILPhiArgument>(ReturnToBB->getArgument(0));
 
-  // Insert end_borrow for the enclosing values at the lifetime boundary
-  // of the inlined result. The algorithm:
-  //
-  // 1. Collect all guaranteed forwarding phis that the result flows through
-  //    (transitively, looking through BorrowedFromInst). This gives us the
-  //    full set of values whose uses define where the borrow must end.
-  //
-  // 2. For each phi (including resultArg), compute SSA liveness and examine
-  //    the boundary's last users:
-  //    - If a last user is a branch forwarding into another guaranteed phi,
-  //      skip it — liveness continues through that phi and will be handled
-  //      when we process that phi.
-  //    - Otherwise, the last user is a genuine end-of-use point. Insert
-  //      end_borrow for the enclosing values after it, using SILSSAUpdater
-  //      to create phi arguments for enclosing values that don't dominate
-  //      the insertion point.
+  // Values whose borrow scopes end with the inlined result's scope, ordered
+  // from innermost to outermost.
+  SmallVector<SILValue, 8> enclosingValues(returnBorrowEnclosingValues.begin(),
+                                           returnBorrowEnclosingValues.end());
+  enclosingValues.append(borrowedArgsForResult.begin(),
+                         borrowedArgsForResult.end());
 
-  SmallVector<SILPhiArgument *, 1> phisToUpdate;
-  phisToUpdate.push_back(cast<SILPhiArgument>(resultArg));
-
-  updateGuaranteedPhis(&FuncBuilder.getPassManager(), phisToUpdate);
-  // Step 1: Collect all guaranteed forwarding phis.
-  SmallVector<SILPhiArgument *, 4> guaranteedForwardingPhis;
-  guaranteedForwardingPhis.push_back(cast<SILPhiArgument>(resultArg));
-  visitExtendedGuaranteedForwardingPhis(resultArg, [&](Operand *op) {
-    auto *phiArg = cast<SILPhiArgument>(PhiOperand(op).getValue());
-    guaranteedForwardingPhis.push_back(phiArg);
-    return true;
-  });
-
-  // Set up SILSSAUpdater for each enclosing value. This handles the case
-  // where the end_borrow insertion point is not dominated by the enclosing
-  // value's definition — the updater creates phi arguments to carry the
-  // enclosing value through the CFG.
-  SmallVector<std::unique_ptr<SILSSAUpdater>, 4> updaters;
-  for (auto enclosingValue : returnBorrowEnclosingValues) {
-    auto updater = std::make_unique<SILSSAUpdater>();
-    updater->initialize(Apply.getFunction(), enclosingValue->getType(),
-                        enclosingValue->getOwnershipKind());
-    updater->addAvailableValue(enclosingValue->getParentBlock(),
-                               enclosingValue);
-    updaters.push_back(std::move(updater));
-  }
-
-  // Step 2: For each phi, compute liveness and insert end_borrow at
-  // non-phi last users.
-  for (auto *phi : guaranteedForwardingPhis) {
-    SmallVector<SILBasicBlock *, 8> phiDiscoveredBlocks;
-    SSAPrunedLiveness phiLiveness(Apply.getFunction(), &phiDiscoveredBlocks);
-    phiLiveness.initializeDef(phi);
-    phiLiveness.computeSimple();
-
-    PrunedLivenessBoundary phiBoundary;
-    phiLiveness.computeBoundary(phiBoundary);
-
-    for (auto *lastUser : phiBoundary.lastUsers) {
-      // If the last user is a branch into a guaranteed phi, liveness
-      // continues through that phi — skip it.
-      if (isa<BranchInst>(lastUser)) {
-        continue;
-      }
-
-      // If the last user is a return instruction and the caller returns
-      // @guaranteed, transform it into return_borrow with the enclosing
-      // values from the SSAUpdater.
-      if (auto *RI = dyn_cast<ReturnInst>(lastUser)) {
-        assert(Apply.getFunction()->getConventions().hasGuaranteedResult());
-        auto *block = RI->getParent();
-        SmallVector<SILValue, 4> enclosingValues;
-        for (auto &updater : updaters) {
-          enclosingValues.push_back(updater->getValueInMiddleOfBlock(block));
-        }
-        SILBuilderWithScope builder(RI, getBuilder());
-        builder.createReturnBorrow(Loc, RI->getOperand(), enclosingValues);
-        RI->eraseFromParent();
-        continue;
-      }
-
-      // If the last user is an existing return_borrow, add our enclosing
-      // values to it.
-      if (auto *RBI = dyn_cast<ReturnBorrowInst>(lastUser)) {
-        auto *block = RBI->getParent();
-        SmallVector<SILValue, 4> enclosingValues;
-        // Preserve existing enclosing values.
-        for (auto val : RBI->getEnclosingValues()) {
-          enclosingValues.push_back(val);
-        }
-        // Add new enclosing values from the SSAUpdater.
-        for (auto &updater : updaters) {
-          enclosingValues.push_back(updater->getValueInMiddleOfBlock(block));
-        }
-        SILBuilderWithScope builder(RBI, getBuilder());
-        builder.createReturnBorrow(Loc, RBI->getReturnValue(), enclosingValues);
-        RBI->eraseFromParent();
-        continue;
-      }
-
-      // Insert end_borrow for all enclosing values after this last user.
-      SILBuilderWithScope::insertAfter(lastUser, [&](SILBuilder &builder) {
-        auto *block = lastUser->getParent();
-        for (auto &updater : updaters) {
-          SILValue val = updater->getValueInMiddleOfBlock(block);
-          builder.createEndBorrow(Loc, val);
-        }
-      });
+  SmallVector<Operand *, 8> scopeEndingUses;
+  for (auto *use : resultArg->getUses()) {
+    auto *user = use->getUser();
+    if (isa<EndBorrowInst>(user) || isa<ExtendLifetimeInst>(user) ||
+        (isa<ReturnBorrowInst>(user) && use->getOperandNumber() != 0)) {
+      scopeEndingUses.push_back(use);
     }
   }
+
+  for (auto *use : scopeEndingUses) {
+    auto *user = use->getUser();
+    SILBuilderWithScope builder(user, getBuilder());
+    auto loc = RegularLocation::getAutoGeneratedLocation(user->getLoc());
+
+    if (auto *rbi = dyn_cast<ReturnBorrowInst>(user)) {
+      llvm::SmallSetVector<SILValue, 8> newEnclosingValues;
+      for (auto &oper : rbi->getEnclosingValueOperands()) {
+        if (oper.get() != resultArg)
+          newEnclosingValues.insert(oper.get());
+      }
+      newEnclosingValues.insert(enclosingValues.begin(),
+                                enclosingValues.end());
+      builder.createReturnBorrow(rbi->getLoc(), rbi->getReturnValue(),
+                                 newEnclosingValues.getArrayRef());
+      rbi->eraseFromParent();
+      continue;
+    }
+
+    for (SILValue enclosingValue : enclosingValues) {
+      if (isa<ExtendLifetimeInst>(user)) {
+        builder.createExtendLifetime(loc, enclosingValue);
+      } else {
+        builder.createEndBorrow(loc, enclosingValue);
+      }
+    }
+    user->eraseFromParent();
+  }
+
+  // Create the borrowed-from instruction for the inlined result.
+  SmallVector<SILPhiArgument *, 1> phisToUpdate;
+  phisToUpdate.push_back(resultArg);
+  updateGuaranteedPhis(&FuncBuilder.getPassManager(), phisToUpdate);
 }
 
 void SILInlineCloner::postFixUp(SILFunction *calleeFunction) {

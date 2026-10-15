@@ -1,6 +1,10 @@
 // RUN: %target-sil-opt -disable-swift-verification -sil-ownership-verifier-enable-testing -ownership-verifier-textual-error-dumper -enable-sil-verify-all=0 %s -o /dev/null 2>&1 | %FileCheck %s
 // REQUIRES: asserts
 
+// The @guaranteed result of a borrow accessor apply introduces a borrow scope
+// which must be ended by end_borrow. Its guaranteed arguments are borrowed for
+// the duration of that scope.
+
 class Klass {}
 
 public struct Wrapper {
@@ -10,28 +14,21 @@ public struct Wrapper {
 
 sil [ossa] @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass {
 bb0(%0 : @guaranteed $Wrapper):
-  %2 = struct_extract %0, #Wrapper._k             
-  return %2                                       
+  %2 = struct_extract %0, #Wrapper._k
+  return %2
 }
 
 sil @get_wrapper : $@convention(thin) () -> @owned Klass
 sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
 
-// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_end_borrow_on_guaranteed_return_value'
-// CHECK: Invalid End Borrow!
-// CHECK: Original Value:   %1 = begin_borrow %0 : $Wrapper
-// CHECK: End Borrow:   end_borrow %3 : $Klass
-// CHECK-LABEL: Error#: 0. End Error in Function: 'test_end_borrow_on_guaranteed_return_value'
-// CHECK-LABEL: Error#: 1. Begin Error in Function: 'test_end_borrow_on_guaranteed_return_value'
-// CHECK: Subobject projection with lifetime ending uses!
-// CHECK: Value:   %3 = apply %2(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: Lifetime Ending User:   end_borrow %3 : $Klass
-// CHECK-LABEL: Error#: 1. End Error in Function: 'test_end_borrow_on_guaranteed_return_value'
-sil [ossa] @test_end_borrow_on_guaranteed_return_value : $@convention(thin) (@owned Wrapper) -> () {
+// CHECK-NOT: Function: 'test_end_borrow_on_borrow_accessor_result'
+sil [ossa] @test_end_borrow_on_borrow_accessor_result : $@convention(thin) (@owned Wrapper) -> () {
 bb0(%0 : @owned $Wrapper):
   %1 = begin_borrow %0
   %2 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
   %3 = apply %2(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
   end_borrow %3
   end_borrow %1
   destroy_value %0
@@ -39,17 +36,23 @@ bb0(%0 : @owned $Wrapper):
   return %10
 }
 
-// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_inconsistent_guaranteed_phi1'
-// CHECK: Invalid End Borrow!
-// CHECK: Original Value:   %1 = begin_borrow %0 : $Wrapper
-// CHECK: End Borrow:   br bb3(%4 : $Klass)
-// CHECK-LABEL: Error#: 0. End Error in Function: 'test_inconsistent_guaranteed_phi1'
-// CHECK-LABEL: Error#: 1. Begin Error in Function: 'test_inconsistent_guaranteed_phi1'
-// CHECK: Subobject projection with lifetime ending uses!
-// CHECK: Value:   %4 = apply %3(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: Lifetime Ending User:   br bb3(%4 : $Klass)
-// CHECK-LABEL: Error#: 1. End Error in Function: 'test_inconsistent_guaranteed_phi1'
-sil [ossa] @test_inconsistent_guaranteed_phi1 : $@convention(thin) (@owned Wrapper) -> () {
+// An owned value can be passed directly to a borrow accessor. It is borrowed
+// until the end of the result's borrow scope.
+// CHECK-NOT: Function: 'test_owned_argument'
+sil [ossa] @test_owned_argument : $@convention(thin) (@owned Wrapper) -> () {
+bb0(%0 : @owned $Wrapper):
+  %1 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %3 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %3(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %2
+  destroy_value %0
+  %6 = tuple ()
+  return %6
+}
+
+// CHECK-NOT: Function: 'test_reborrow'
+sil [ossa] @test_reborrow : $@convention(thin) (@owned Wrapper) -> () {
 bb0(%0 : @owned $Wrapper):
   %1 = begin_borrow %0
   cond_br undef, bb1, bb2
@@ -73,41 +76,45 @@ bb3(%9 : @reborrow $Klass):
   return %14
 }
 
-// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_inconsistent_guaranteed_phi2'
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_missing_end_borrow'
 // CHECK: Non trivial values, non address values, and non guaranteed function args must have at least one lifetime ending use?!
-// CHECK: Value:   %7 = begin_borrow %6 : $Klass
-// CHECK-LABEL: Error#: 0. End Error in Function: 'test_inconsistent_guaranteed_phi2'
-sil [ossa] @test_inconsistent_guaranteed_phi2 : $@convention(thin) (@owned Wrapper) -> () {
+// CHECK: Value:   %3 = apply %2(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_missing_end_borrow'
+sil [ossa] @test_missing_end_borrow : $@convention(thin) (@owned Wrapper) -> () {
 bb0(%0 : @owned $Wrapper):
   %1 = begin_borrow %0
-  cond_br undef, bb1, bb2
-
-bb1:
-  %3 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
-  %4 = apply %3(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
-  br bb3(%4)
-
-bb2:
-  %6 = struct_extract %1, #Wrapper._k
-  %7 = begin_borrow %6
-  br bb3(%7)
-
-bb3(%9 : @guaranteed $Klass):
+  %2 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
   end_borrow %1
   destroy_value %0
-  %12 = tuple ()
-  return %12
+  %10 = tuple ()
+  return %10
 }
 
-// CHECK: Error#: 0. Begin Error in Function: 'test_use_after_free_loadable1'
-// CHECK: Have operand with incompatible ownership?!
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_use_after_end_borrow'
+// CHECK: Found outside of lifetime use?!
+// CHECK: Value:   %2 = apply %1(%0) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+// CHECK: Consuming User:   end_borrow %2 : $Klass
+// CHECK: Non Consuming User:   %5 = apply %4(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_use_after_end_borrow'
+sil [ossa] @test_use_after_end_borrow : $@convention(thin) (@guaranteed Wrapper) -> () {
+bb0(%0 : @guaranteed $Wrapper):
+  %1 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
+  end_borrow %2
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  %6 = tuple ()
+  return %6
+}
+
+// The borrowed argument must outlive the result's borrow scope.
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_use_after_free_loadable1'
+// CHECK: Found outside of lifetime use?!
 // CHECK: Value: %0 = argument of bb0 : $Wrapper
-// CHECK: User:   %2 = apply %1(%0) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: Operand Number: 1
-// CHECK: Conv: owned
-// CHECK: Constraint:
-// CHECK: <Constraint Kind:guaranteed LifetimeConstraint:NonLifetimeEnding>
-// CHECK: Error#: 0. End Error in Function: 'test_use_after_free_loadable1'
+// CHECK: Consuming User:   destroy_value %0 : $Wrapper
+// CHECK: Non Consuming User:   end_borrow %2 : $Klass
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_use_after_free_loadable1'
 sil [ossa] @test_use_after_free_loadable1 : $@convention(thin) (@owned Wrapper) -> () {
 bb0(%0 : @owned $Wrapper):
   %1 = function_ref @borrow_loadable_prop : $@convention(method) (@guaranteed Wrapper) -> @guaranteed Klass
@@ -115,17 +122,17 @@ bb0(%0 : @owned $Wrapper):
   destroy_value %0
   %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
   %5 = apply %4(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %2
   %6 = tuple ()
   return %6
 }
 
-// CHECK: Error#: 0. Begin Error in Function: 'test_use_after_free_loadable2'
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_use_after_free_loadable2'
 // CHECK: Found outside of lifetime use?!
 // CHECK: Value:   %1 = begin_borrow %0 : $Wrapper
 // CHECK: Consuming User:   end_borrow %1 : $Wrapper
-// CHECK: Non Consuming User:   %6 = apply %5(%3) : $@convention(thin) (@guaranteed Klass) -> ()
-// CHECK: Block: bb0
-// CHECK: Error#: 0. End Error in Function: 'test_use_after_free_loadable2'
+// CHECK: Non Consuming User:   end_borrow %3 : $Klass
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_use_after_free_loadable2'
 sil [ossa] @test_use_after_free_loadable2 : $@convention(thin) (@owned Wrapper) -> () {
 bb0(%0 : @owned $Wrapper):
   %1 = begin_borrow %0
@@ -134,8 +141,8 @@ bb0(%0 : @owned $Wrapper):
   end_borrow %1
   %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
   %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %3
   destroy_value %0
   %6 = tuple ()
   return %6
 }
-

@@ -22,6 +22,7 @@
 #include "swift/SIL/CalleeCache.h"
 #include "swift/SIL/InstructionUtils.h"
 #include "swift/SIL/OptimizationRemark.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/SILDeclRef.h"
 #include "swift/SIL/SILFunction.h"
 #include "swift/SIL/SILInstruction.h"
@@ -30,6 +31,7 @@
 #include "swift/SIL/SILValue.h"
 #include "swift/SILOptimizer/Analysis/ClassHierarchyAnalysis.h"
 #include "swift/SILOptimizer/Utils/InstOptUtils.h"
+#include "swift/SILOptimizer/Utils/OwnershipOptUtils.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 using namespace swift;
@@ -520,19 +522,26 @@ replaceApplyInst(SILBuilder &builder, SILPassManager *pm, SILLocation loc, Apply
       builder.createApply(loc, newFn, newSubs, newArgs,
                           oldAI->getApplyOptions());
 
-  if (!newArgBorrows.empty()) {
+  // A borrowed @guaranteed result (e.g. of a borrow accessor) borrows the
+  // arguments until the end of the result's borrow scope.
+  bool hasBorrowedResult = BorrowedValueKind::get(newAI) ==
+                           BorrowedValueKind::GuaranteedApplyResult;
+  if (!hasBorrowedResult) {
     for (SILValue arg : newArgBorrows) {
       builder.createEndBorrow(loc, arg);
     }
   }
 
-  // Check if any casting is required for the return value.  newAI cannot be a
-  // guaranteed value, so this cast cannot generate borrow scopes and it can be
-  // used anywhere the original oldAI was used.
+  // Check if any casting is required for the return value. If newAI is a
+  // guaranteed value, the cast forwards it.
   auto castRes = castValueToABICompatibleType(
       &builder, pm, loc, newAI, newAI->getType(), oldAI->getType());
 
-  oldAI->replaceAllUsesWith(castRes.first);
+  if (hasBorrowedResult) {
+    replaceBorrowAccessorApply(oldAI, newAI, castRes.first, newArgBorrows);
+  } else {
+    oldAI->replaceAllUsesWith(castRes.first);
+  }
   return {newAI, castRes.second};
 }
 
@@ -749,6 +758,11 @@ bool swift::canDevirtualizeClassMethod(FullApplySite applySite, ClassDecl *cd,
 
   LLVM_DEBUG(llvm::dbgs() << "    Trying to devirtualize : "
                           << *applySite.getInstruction());
+
+  // Arguments that need a new borrow scope cannot be borrowed over a reborrowed
+  // borrow accessor result.
+  if (isBorrowAccessorResultReborrowed(applySite.getInstruction()))
+    return false;
 
   SILModule &module = applySite.getModule();
 
@@ -1240,6 +1254,11 @@ static bool isNonGenericThunkOfGenericExternalFunction(SILFunction *thunk) {
 static bool canDevirtualizeWitnessMethod(ApplySite applySite, bool isMandatory) {
   SILFunction *f;
   SILWitnessTable *wt;
+
+  // Arguments that need a new borrow scope cannot be borrowed over a reborrowed
+  // borrow accessor result.
+  if (isBorrowAccessorResultReborrowed(applySite.getInstruction()))
+    return false;
 
   auto *wmi = cast<WitnessMethodInst>(applySite.getCallee());
 

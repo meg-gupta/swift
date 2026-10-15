@@ -139,9 +139,11 @@ struct BridgedOptimizerUtilities {
   typedef void (* _Nonnull UpdateFunctionFn)(BridgedContext, BridgedFunction);
   typedef void (* _Nonnull UpdateLifetimeFunctionFn)(BridgedContext, BridgedFunction, bool);
   typedef void (* _Nonnull UpdateLifetimeValuesFn)(BridgedContext, BridgedArrayRef, BridgedArrayRef);
+  typedef bool (* _Nonnull FixupBorrowAccessorResultScopesFn)(BridgedContext, BridgedFunction);
 
   static void registerLifetimeCompletion(UpdateLifetimeFunctionFn completeAllLifetimesFn,
                                          UpdateLifetimeValuesFn completeLifetimeFn);
+  static void registerBorrowAccessorFixup(FixupBorrowAccessorResultScopesFn fixupBorrowAccessorResultScopesFn);
   static void registerControlFlowUtils(UpdateFunctionFn breakInfiniteLoopsFn);
 };
 

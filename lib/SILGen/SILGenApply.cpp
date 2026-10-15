@@ -5773,6 +5773,14 @@ ManagedValue SILGenFunction::applyBorrowMutateAccessor(
   assert(rawResults.size() == 1);
   auto rawResult = rawResults[0];
 
+  // A borrowed @guaranteed result introduces a borrow scope, which SILGen
+  // does not end. SILGenCleanup ends it at the liveness boundary of the result
+  // (or adds it to a return_borrow). Until then, leave the result's uses
+  // unchecked.
+  if (rawResult->getOwnershipKind() == OwnershipKind::Guaranteed) {
+    rawResult = B.createUncheckedOwnership(loc, rawResult);
+  }
+
   if (rawResult->getType().isMoveOnly()) {
     if (rawResult->getType().isAddress()) {
       SILFunctionConventions substFnConv(
@@ -6693,7 +6701,12 @@ SILValue SILGenFunction::emitApplyWithRethrow(SILLocation loc, SILValue fn,
                                 SILAddressConventions::forFunction(F));
   SILType resultType = fnConv.getSILResultType(getTypeExpansionContext());
   if (!silFnType->hasErrorResult()) {
-    return B.createApply(loc, fn, subs, args);
+    auto *apply = B.createApply(loc, fn, subs, args);
+    // A borrowed @guaranteed result introduces a borrow scope, which is ended
+    // by SILGenCleanup. Until then, leave the result's uses unchecked.
+    if (apply->getOwnershipKind() == OwnershipKind::Guaranteed)
+      return B.createUncheckedOwnership(loc, apply);
+    return apply;
   }
 
   SILBasicBlock *errorBB = createBasicBlock();

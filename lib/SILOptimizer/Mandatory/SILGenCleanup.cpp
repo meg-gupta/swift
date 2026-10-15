@@ -17,6 +17,7 @@
 #define DEBUG_TYPE "silgen-cleanup"
 
 #include "swift/SIL/BasicBlockUtils.h"
+#include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/PrettyStackTrace.h"
 #include "swift/SIL/PrunedLiveness.h"
 #include "swift/SIL/SILInstruction.h"
@@ -107,6 +108,44 @@ struct SILGenCleanup : SILFunctionTransform {
   bool removeAccessToNonDestructiveEnumProjection(SILFunction *function);
 };
 
+/// Find the local borrow scopes that enclose \p value, looking through
+/// guaranteed forwarding instructions.
+///
+/// The result of a borrow accessor apply is itself a local borrow scope that
+/// is nested within the scopes of the apply's borrowed arguments. Those outer
+/// scopes are found as well.
+static void
+findEnclosingLocalBorrowScopes(SILValue value,
+                               SmallVectorImpl<BorrowedValue> &scopes) {
+  ValueWorklist worklist(value->getFunction());
+  worklist.pushIfNotVisited(value);
+  while (auto current = worklist.pop()) {
+    if (current->getOwnershipKind() != OwnershipKind::Guaranteed)
+      continue;
+
+    if (auto borrow = BorrowedValue(current)) {
+      if (!borrow.isLocalScope())
+        continue;
+      scopes.push_back(borrow);
+      if (borrow.kind == BorrowedValueKind::GuaranteedApplyResult) {
+        for (auto &argOper :
+             cast<ApplyInst>(current)->getArgumentOperands()) {
+          if (argOper.getOperandOwnership() == OperandOwnership::Borrow)
+            worklist.pushIfNotVisited(argOper.get());
+        }
+      }
+      continue;
+    }
+    // Guaranteed forwarding phis are not expected in SILGen output here.
+    if (SILArgument::asPhi(current))
+      continue;
+
+    visitForwardedGuaranteedOperands(current, [&](Operand *operand) {
+      worklist.pushIfNotVisited(operand->get());
+    });
+  }
+}
+
 /*  SILGen may produce a borrow accessor result from within a local borrow
  * scope. Such as:
  *
@@ -127,6 +166,27 @@ struct SILGenCleanup : SILFunctionTransform {
  *      %ex = struct_extract %ld, #Struct.storedProperty
  *      return_borrow %ex from_scopes %ld
  *    ```
+ *
+ *    The result of a borrow accessor apply is a local borrow scope which has
+ *    no end_borrow in SILGen output. If such a result encloses the returned
+ *    value, the local scopes enclosing its borrowed arguments are added to the
+ *    return_borrow's scopes. The borrow accessor result itself is added later,
+ *    by fixupBorrowAccessorResultScopes, since its liveness ends at the
+ *    return_borrow:
+ *
+ *    ```
+ *      %ld = load_borrow %self
+ *      %fwd = unchecked_ownership %ld
+ *      %r = apply %otherBorrowAccessor(%fwd)
+ *      end_borrow %ld
+ *      return %r
+ *    ```
+ *    ->
+ *    ```
+ *      %ld = load_borrow %self
+ *      %r = apply %otherBorrowAccessor(%ld)
+ *      return_borrow %r from_scopes (%r, %ld)
+ *    ```
  */
 bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
   if (!function->getConventions().hasGuaranteedResult()) {
@@ -143,28 +203,29 @@ bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
     return false;
   }
 
-  SmallVector<SILValue, 8> enclosingValues;
-  findGuaranteedReferenceRoots(returnInst->getOperand(),
-                               /*lookThroughNestedBorrows=*/false,
-                               enclosingValues);
+  SmallVector<BorrowedValue, 8> enclosingScopes;
+  findEnclosingLocalBorrowScopes(returnInst->getOperand(), enclosingScopes);
   SmallVector<SILInstruction *> scopeEnds;
-  SmallVector<SILValue> operands;
+  llvm::SmallSetVector<SILValue, 8> operands;
   SmallVector<SILInstruction *> toDelete;
+  bool hasBorrowAccessorResult = false;
 
   // For all the local borrow scopes that enclose the return value, delete
   // their end_borrow instructions and use them as an enclosing value in
   // return_borrow instruction.
-  for (auto enclosingValue : enclosingValues) {
-    BorrowedValue borrow(enclosingValue);
-    if (!borrow.isLocalScope()) {
-      continue;
-    }
+  for (auto borrow : enclosingScopes) {
+    scopeEnds.clear();
     borrow.getLocalScopeEndingInstructions(scopeEnds);
     for (auto *scopeEnd : scopeEnds) {
       if (auto *endBorrow = dyn_cast<EndBorrowInst>(scopeEnd)) {
-        operands.push_back(endBorrow->getOperand());
+        operands.insert(endBorrow->getOperand());
         endBorrow->eraseFromParent();
       }
+    }
+    // A borrow accessor result has no end_borrow yet. It is added to the
+    // return_borrow's scopes when its lifetime is completed.
+    if (borrow.kind == BorrowedValueKind::GuaranteedApplyResult) {
+      hasBorrowAccessorResult = true;
     }
     for (auto *uncheckedOwnership :
          borrow->getUsersOfType<UncheckedOwnershipInst>()) {
@@ -177,13 +238,13 @@ bool SILGenCleanup::fixupBorrowAccessors(SILFunction *function) {
     inst->eraseFromParent();
   }
 
-  if (operands.empty()) {
+  if (operands.empty() && !hasBorrowAccessorResult) {
     return false;
   }
 
   SILBuilderWithScope(returnInst)
       .createReturnBorrow(returnInst->getLoc(), returnInst->getOperand(),
-                          operands);
+                          operands.getArrayRef());
   returnInst->eraseFromParent();
   return true;
 }
@@ -273,6 +334,7 @@ void SILGenCleanup::run() {
   bool changed = fixupBorrowAccessors(function);
   changed |= removeAccessToNonDestructiveEnumProjection(function);
   breakInfiniteLoops(getPassManager(), function);
+  changed |= fixupBorrowAccessorResultScopes(getPassManager(), function);
   completeAllLifetimes(getPassManager(), function,
                        /*includeTrivialVars=*/true);
   function->verifyOwnership(/*deadEndBlocks=*/nullptr);

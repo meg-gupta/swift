@@ -546,6 +546,8 @@ bool MoveOnlyObjectCheckerPImpl::eraseMarkWithCopiedOperand(
   // invalidation when cleaning up destroy_value of guaranteed checked values.
   SmallVector<DestroyValueInst *, 8> destroys;
 
+  // NOTE: endBorrows collects end_borrow's of a @guaranteed apply result.
+  SmallVector<EndBorrowInst *, 8> endBorrows;
   // Handle:
   //
   // bb(%arg : @guaranteed $Type):
@@ -598,19 +600,42 @@ bool MoveOnlyObjectCheckerPImpl::eraseMarkWithCopiedOperand(
   //   %copy = copy_value %yield
   //   %mark = mark_unresolved_noncopyable_value [no_consume_or_assign]
   //   %copy
-  //   Borrow accessors:
-  //   %borrowed_return = apply
-  //   %copy = copy_value %borrowed_return
-  //   %mark = mark_unresolved_noncopyable_value [no_consume_or_assign]
-  //   %copy
-  if (isa_and_nonnull<BeginApplyInst>(orig->getDefiningInstruction()) ||
-      isa_and_nonnull<ApplyInst>(orig->getDefiningInstruction())) {
+  if (isa_and_nonnull<BeginApplyInst>(orig->getDefiningInstruction())) {
     if (orig->getOwnershipKind() == OwnershipKind::Guaranteed) {
       for (auto *use : markedInst->getConsumingUses()) {
         destroys.push_back(cast<DestroyValueInst>(use->getUser()));
       }
       while (!destroys.empty())
         destroys.pop_back_val()->eraseFromParent();
+      markedInst->replaceAllUsesWith(replacement);
+      markedInst->eraseFromParent();
+      cvi->eraseFromParent();
+      return true;
+    }
+  }
+
+  //   Borrow accessors:
+  //   %borrowed_return = apply
+  //   %copy = copy_value %borrowed_return
+  //   end_borrow %borrowed_return
+  //   %mark = mark_unresolved_noncopyable_value [no_consume_or_assign]
+  //   %copy
+  if (isa_and_nonnull<ApplyInst>(orig->getDefiningInstruction())) {
+    if (orig->getOwnershipKind() == OwnershipKind::Guaranteed) {
+      for (auto *user : orig->getUsersOfType<EndBorrowInst>()) {
+        endBorrows.push_back(user);
+      }
+      for (auto *use : markedInst->getConsumingUses()) {
+        destroys.push_back(cast<DestroyValueInst>(use->getUser()));
+      }
+      while (!destroys.empty()) {
+        auto *destroy = destroys.pop_back_val();
+        SILBuilderWithScope(destroy).createEndBorrow(destroy->getLoc(), orig);
+        destroy->eraseFromParent();
+      }
+      while (!endBorrows.empty()) {
+        endBorrows.pop_back_val()->eraseFromParent();
+      }
       markedInst->replaceAllUsesWith(replacement);
       markedInst->eraseFromParent();
       cvi->eraseFromParent();
