@@ -1669,10 +1669,12 @@ bool ForwardingOperand::visitForwardedValues(
         });
   }
 
-  // If our terminator is function exiting, we do not have a value to visit, so
-  // just return.
-  if (ti->isFunctionExiting())
+  // If our terminator is function exiting, or a yield, which hands an owned
+  // value to the coroutine's caller, we do not have a value to visit, so just
+  // return.
+  if (ti->isFunctionExiting() || isa<YieldInst>(ti)) {
     return true;
+  }
 
   auto *succArg = PhiOperand(use).getValue();
   return visitor(succArg);
