@@ -557,11 +557,8 @@ public:
       addAsyncFunctionPointer(SILDeclRef(AFD));
     }
 
-    auto *accessor = dyn_cast<AccessorDecl>(AFD);
-    if (accessor &&
-        requiresFeatureCoroutineAccessors(accessor->getAccessorKind()) &&
-        accessor->getASTContext().SILOpts.CoroutineAccessorsUseYieldOnce2) {
-      addCoroFunctionPointer(SILDeclRef(accessor));
+    if (SILDeclRef(AFD).isCalleeAllocatedCoroutine()) {
+      addCoroFunctionPointer(SILDeclRef(AFD));
     }
 
     // Skip non objc compatible methods or non-public methods.

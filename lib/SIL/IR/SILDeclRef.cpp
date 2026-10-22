@@ -2076,6 +2076,15 @@ bool SILDeclRef::isCalleeAllocatedCoroutine() const {
   if (!hasDecl())
     return false;
 
+  // Single-yield functions always use the callee-allocated coroutine ABI.
+  if (kind == Kind::Func) {
+    if (auto *fn = dyn_cast<FuncDecl>(getDecl())) {
+      if (fn->isSingleYieldFunction()) {
+        return true;
+      }
+    }
+  }
+
   auto *accessor = dyn_cast<AccessorDecl>(getDecl());
   if (!accessor)
     return false;

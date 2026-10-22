@@ -6883,6 +6883,14 @@ void SILGenFunction::emitYield(SILLocation loc,
   if (!delayedArgs.empty())
     emitDelayedArguments(*this, delayedArgs, yieldArgs);
 
+  // The yield consumes the values it yields owned.
+  for (auto i : indices(yieldArgs)) {
+    if (substYieldTys[i].isConsumedInCallee() && yieldArgs[i].hasCleanup()) {
+      yieldArgs[i] =
+          ManagedValue::forUnmanagedOwnedValue(yieldArgs[i].forward(*this));
+    }
+  }
+
   emitRawYield(loc, yieldArgs, unwindDest, /*unique*/ false);
 
   evalScope.pop();

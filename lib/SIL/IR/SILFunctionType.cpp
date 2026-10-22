@@ -2653,6 +2653,53 @@ getAsCoroutineAccessor(std::optional<SILDeclRef> constant) {
   return accessor;
 }
 
+/// If \p constant refers to a single-yield function (`-> yield T`), return it.
+static FuncDecl *
+getAsSingleYieldFunction(std::optional<SILDeclRef> constant) {
+  if (!constant || !constant->hasDecl() ||
+      constant->kind != SILDeclRef::Kind::Func) {
+    return nullptr;
+  }
+
+  auto *fn = dyn_cast<FuncDecl>(constant->getDecl());
+  if (!fn || !fn->isSingleYieldFunction()) {
+    return nullptr;
+  }
+
+  return fn;
+}
+
+static void destructureYieldsForSingleYieldFunction(
+    TypeConverter &TC, TypeExpansionContext expansion,
+    AbstractionPattern origType, CanType valueType, ParamSpecifier specifier,
+    SmallVectorImpl<SILYieldInfo> &yields) {
+  auto &tlConv =
+      TC.getTypeLowering(origType, valueType, TypeExpansionContext::minimal());
+  auto &tl = TC.getTypeLowering(origType, valueType, expansion);
+  bool indirect = isFormallyPassedIndirectly(TC, origType, valueType, tlConv);
+
+  ParameterConvention convention;
+  switch (specifier) {
+  case ParamSpecifier::InOut:
+    convention = ParameterConvention::Indirect_Inout;
+    break;
+  case ParamSpecifier::Borrowing:
+    convention = indirect ? ParameterConvention::Indirect_In_Guaranteed
+                 : tlConv.isTrivial() ? ParameterConvention::Direct_Unowned
+                                      : ParameterConvention::Direct_Guaranteed;
+    break;
+  case ParamSpecifier::Consuming:
+    convention = indirect ? ParameterConvention::Indirect_In
+                          : ParameterConvention::Direct_Owned;
+    break;
+  default:
+    llvm_unreachable("single-yield functions yield owned, borrowed or inout "
+                     "values");
+  }
+
+  yields.push_back(SILYieldInfo(tl.getLoweredType().getASTType(), convention));
+}
+
 static void destructureYieldsForReadAccessor(TypeConverter &TC,
                                          TypeExpansionContext expansion,
                                          AbstractionPattern origType,
@@ -2694,6 +2741,13 @@ static void destructureYieldsForCoroutine(TypeConverter &TC,
                                           CanType canValueType,
                                           SmallVectorImpl<SILYieldInfo> &yields,
                                           SILCoroutineKind &coroutineKind) {
+  if (auto *fn = getAsSingleYieldFunction(constant)) {
+    destructureYieldsForSingleYieldFunction(
+        TC, expansion, origType, canValueType,
+        fn->getSingleYieldType().getFlags().getOwnershipSpecifier(), yields);
+    return;
+  }
+
   auto accessor = getAsCoroutineAccessor(constant);
   if (!accessor)
     return;
@@ -2867,6 +2921,12 @@ static CanSILFunctionType getSILFunctionType(
       coroutineSubstYieldType = valueType->getReducedType(
           accessor->getGenericSignature());
     }
+  } else if (auto *fn = getAsSingleYieldFunction(constant)) {
+    // Single-yield functions always use the callee-allocated coroutine ABI.
+    coroutineKind = SILCoroutineKind::YieldOnce2;
+    coroutineSubstYieldType =
+        fn->getSingleYieldType().getType()->getCanonicalType();
+    coroutineOrigYieldType = AbstractionPattern(coroutineSubstYieldType);
   }
 
   bool shouldBuildSubstFunctionType = [&]{
