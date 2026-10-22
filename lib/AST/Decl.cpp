@@ -4726,6 +4726,16 @@ static Type mapSignatureFunctionType(ASTContext &ctx, Type type,
   AnyFunctionType::ExtInfo info = mapSignatureExtInfo(
       funcTy->getExtInfo(), topLevelFunction);
 
+  // A single-yield function conflicts with an ordinary function, or with a
+  // single-yield function using another yield convention, that has the same
+  // parameters and yields the type the other one returns.
+  if (topLevelFunction && curryLevels == 1 && funcTy->isCoroutine() &&
+      newYields.size() == 1 && resultTy->isVoid()) {
+    resultTy = newYields.front().getType();
+    newYields.clear();
+    info = info.withCoroutine(false);
+  }
+
   // Rebuild the resulting function type.
   if (auto genericFuncTy = dyn_cast<GenericFunctionType>(funcTy))
     return GenericFunctionType::get(genericFuncTy->getGenericSignature(),

@@ -367,6 +367,16 @@ FIXIT(insert_type_coercion,
 
 ERROR(bad_yield_count,none,
       "expected %0 yield value(s)", (unsigned))
+ERROR(single_yield_effect,none,
+      "single-yield functions cannot be %select{'async'|'throws'}0",
+      (unsigned))
+ERROR(single_yield_with_yield_once,none,
+      "'@yield_once' cannot be applied to a single-yield function", ())
+ERROR(single_yield_not_yet_supported,none,
+      "single-yield functions %select{in generic contexts|"
+      "as protocol requirements|as non-final class methods|"
+      "as actor methods|as overrides|marked 'dynamic'|marked '@objc'|"
+      "yielding a non-Escapable type}0 are not yet supported", (unsigned))
 
 ERROR(cannot_throw_nil,none,
       "cannot infer concrete Error for thrown 'nil' value", ())

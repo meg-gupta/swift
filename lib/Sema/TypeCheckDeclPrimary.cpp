@@ -4527,6 +4527,57 @@ void TypeChecker::checkParameterList(ParameterList *params,
 
 void TypeChecker::checkYieldList(YieldList *yields, AbstractFunctionDecl *AFD) {
   // TODO: Reject yields on non-coroutines
+  auto *FD = dyn_cast<FuncDecl>(AFD);
+  if (!FD || !FD->isSingleYieldFunction()) {
+    return;
+  }
+
+  auto &diags = FD->getASTContext().Diags;
+  SourceLoc loc = yields->getYieldLoc();
+
+  if (FD->getAttrs().hasAttribute<CoroutineAttr>()) {
+    diags.diagnose(loc, diag::single_yield_with_yield_once);
+  }
+  if (FD->hasAsync()) {
+    diags.diagnose(FD->getAsyncLoc(), diag::single_yield_effect, 0);
+  }
+  if (FD->hasThrows()) {
+    diags.diagnose(FD->getThrowsLoc(), diag::single_yield_effect, 1);
+  }
+
+  // Forms of single-yield functions that aren't supported yet.
+  enum Unsupported : unsigned {
+    GenericContext, ProtocolRequirement, NonFinalClassMethod, ActorMethod,
+    Override, Dynamic, ObjC, NonEscapableYield,
+  };
+  std::optional<Unsupported> unsupported;
+  auto *DC = FD->getDeclContext();
+  if (isa<ProtocolDecl>(DC)) {
+    unsupported = ProtocolRequirement;
+  } else if (FD->getGenericSignature()) {
+    unsupported = GenericContext;
+  } else if (auto *classDecl = DC->getSelfClassDecl()) {
+    if (classDecl->isActor()) {
+      unsupported = ActorMethod;
+    } else if (!FD->isFinal() && !classDecl->isFinal()) {
+      unsupported = NonFinalClassMethod;
+    }
+  }
+  if (!unsupported) {
+    if (FD->getOverriddenDecl()) {
+      unsupported = Override;
+    } else if (FD->isDynamic()) {
+      unsupported = Dynamic;
+    } else if (FD->isObjC()) {
+      unsupported = ObjC;
+    } else if (auto yieldTy = FD->getSingleYieldType().getType();
+               !yieldTy->hasError() && !yieldTy->isEscapable()) {
+      unsupported = NonEscapableYield;
+    }
+  }
+  if (unsupported) {
+    diags.diagnose(loc, diag::single_yield_not_yet_supported, *unsupported);
+  }
 }
 
 std::optional<unsigned>
