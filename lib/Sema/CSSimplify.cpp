@@ -13977,8 +13977,21 @@ ConstraintSystem::SolutionKind ConstraintSystem::simplifyApplicableFnConstraint(
       break;
     }
 
-    // Erase all of the opened existentials.
+    // A call to a single-yield function has the yielded type.
     Type result2 = func2->getResult();
+    if (func2->isCoroutine()) {
+      auto overload = findSelectedOverloadFor(getCalleeLocator(argumentsLoc));
+      auto *FD = overload ? dyn_cast_or_null<FuncDecl>(
+                                overload->choice.getDeclOrNull())
+                          : nullptr;
+      if (FD && FD->isSingleYieldFunction()) {
+        auto yield = func2->getYields().front();
+        result2 = yield.isInOut() ? LValueType::get(yield.getType())
+                                  : yield.getType();
+      }
+    }
+
+    // Erase all of the opened existentials.
     if (result2->hasTypeVariable() && !openedExistentials.empty()) {
       for (const auto &opened : openedExistentials) {
         auto originalTy = result2;

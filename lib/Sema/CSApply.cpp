@@ -8723,7 +8723,15 @@ Expr *ExprRewriter::finishApply(ApplyExpr *apply, Type openedType,
       return nullptr;
 
     apply->setArgs(args);
-    cs.setType(apply, fnType->getResult());
+    // A call to a single-yield function has the yielded type.
+    Type resultTy = fnType->getResult();
+    auto *FD = dyn_cast_or_null<FuncDecl>(callee.getDecl());
+    if (fnType->isCoroutine() && FD && FD->isSingleYieldFunction()) {
+      auto yield = fnType->getYields().front();
+      resultTy = yield.isInOut() ? LValueType::get(yield.getType())
+                                 : yield.getType();
+    }
+    cs.setType(apply, resultTy);
 
     // If this is a call to a distributed method thunk,
     // let's mark the call as implicitly throwing.

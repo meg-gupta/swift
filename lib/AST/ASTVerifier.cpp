@@ -1965,18 +1965,27 @@ public:
         Out << "\n";
         abort();
       }
-      if (FT->isCoroutine()) {
-        Out << "cannot apply a coroutine yet:";
-        E->getFn()->getType().print(Out);
-        Out << "\n";
-        abort();
-      }
       Type ResultExprTy = E->getType();
-      if (!ResultExprTy->isEqual(FT->getResult())) {
+      // A call to a single-yield function has the yielded type.
+      Type CallResultTy = FT->getResult();
+      if (FT->isCoroutine()) {
+        auto *FD = dyn_cast_or_null<FuncDecl>(
+            E->getCalledValue(/*skipFunctionConversions=*/true));
+        if (!FD || !FD->isSingleYieldFunction()) {
+          Out << "cannot apply a coroutine yet:";
+          E->getFn()->getType().print(Out);
+          Out << "\n";
+          abort();
+        }
+        auto yield = FT->getYields().front();
+        CallResultTy = yield.isInOut() ? LValueType::get(yield.getType())
+                                       : yield.getType();
+      }
+      if (!ResultExprTy->isEqual(CallResultTy)) {
         Out << "result of ApplyExpr does not match result type of callee:";
         E->getType().print(Out);
         Out << " vs. ";
-        FT->getResult()->print(Out);
+        CallResultTy->print(Out);
         Out << "\n";
         abort();
       }
