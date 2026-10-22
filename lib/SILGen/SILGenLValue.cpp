@@ -335,6 +335,8 @@ public:
                               LValueOptions options);
   LValue visitApplyExpr(ApplyExpr *e, SGFAccessKind accessKind,
                         LValueOptions options);
+  LValue visitSingleYieldCall(ApplyExpr *e, FuncDecl *fn,
+                              SGFAccessKind accessKind, LValueOptions options);
 
   // Nodes that make up components of lvalue paths
   
@@ -2257,6 +2259,10 @@ namespace {
     }
 
     std::optional<AccessStorage> getAccessStorage() const override {
+      // A call to a single-yield function doesn't access storage.
+      if (!Storage) {
+        return std::nullopt;
+      }
       return AccessStorage{Storage, IsSuper,
                              PeekedIndices.isNull() ? nullptr : &PeekedIndices,
                              ArgListForDiagnostics};
@@ -2372,6 +2378,75 @@ namespace {
 
     void dump(raw_ostream &OS, unsigned indent) const override {
       printBase(OS, indent, "CoroutineAccessorComponent");
+    }
+  };
+
+  /// A physical component which calls a single-yield function and projects
+  /// the value it yields. The coroutine resumes at writeback, when the
+  /// enclosing formal evaluation scope ends.
+  class CoroutineCallComponent : public PhysicalPathComponent {
+    SILDeclRef Function;
+    CanType BaseFormalType;
+    PreparedArguments Args;
+
+  public:
+    CoroutineCallComponent(SILDeclRef function, CanType baseFormalType,
+                           LValueTypeData typeData, PreparedArguments &&args)
+        : PhysicalPathComponent(typeData, CoroutineCallKind),
+          Function(function), BaseFormalType(baseFormalType),
+          Args(std::move(args)) {}
+
+    ManagedValue project(SILGenFunction &SGF, SILLocation loc,
+                         ManagedValue base) && override {
+      assert(SGF.isInFormalEvaluationScope() &&
+             "calling a single-yield function without a writeback scope");
+
+      ArgumentSource self;
+      if (base) {
+        auto selfParam = SGF.SGM.Types.getConstantSelfParameter(
+            SGF.getTypeExpansionContext(), Function);
+        // If `self` is consumed and already +1, move it directly.
+        if (selfParam.isConsumedInCaller() && base.isPlusOne(SGF) &&
+            base.getType().isMoveOnly()) {
+          self = SGF.prepareAccessorBaseArg(loc, base, BaseFormalType,
+                                            Function);
+        } else {
+          self = SGF.prepareAccessorBaseArgForFormalAccess(
+              loc, base, BaseFormalType, Function);
+        }
+      }
+
+      SmallVector<ManagedValue, 1> yields;
+      auto endApplyHandle =
+          SGF.emitCoroutineCall(loc, Function, SubstitutionMap(),
+                                std::move(self), std::move(Args), yields);
+      pushEndApplyWriteback(SGF, loc, endApplyHandle, getTypeData(), base);
+
+      assert(yields.size() == 1);
+      auto value = yields[0];
+      if (value.getType().isAddress() ||
+          !isReadAccessResultAddress(getAccessKind())) {
+        return value;
+      }
+
+      // The access needs an address, but the value was yielded directly.
+      if (value.getOwnershipKind() == OwnershipKind::Guaranteed) {
+        SILValue alloc = SGF.emitTemporaryAllocation(loc, getTypeOfRValue());
+        if (alloc->getType().isMoveOnly()) {
+          alloc = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+              loc, alloc,
+              MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign);
+        }
+        return SGF.B.createFormalAccessStoreBorrow(loc, value, alloc);
+      }
+      auto temporary = SGF.emitFormalAccessTemporary(
+          loc, SGF.getTypeLowering(getTypeOfRValue()));
+      value.forwardInto(SGF, loc, temporary.get());
+      return temporary->getManagedAddress();
+    }
+
+    void dump(raw_ostream &OS, unsigned indent) const override {
+      OS.indent(indent) << "CoroutineCallComponent(" << Function << ")\n";
     }
   };
 }
@@ -3418,7 +3493,14 @@ LValue SILGenLValue::visitRec(Expr *e, SGFAccessKind accessKind,
   if (e->getType()->is<LValueType>() || e->isSemanticallyInOutExpr()) {
     return visitRecInOut(*this, e, accessKind, options, orig);
   }
-  
+
+  // A call to a single-yield function accesses the value it yields.
+  if (auto *apply = dyn_cast<ApplyExpr>(e)) {
+    if (auto *fn = SGF.getSingleYieldCallee(apply)) {
+      return visitSingleYieldCall(apply, fn, accessKind, options);
+    }
+  }
+
   // If the component wants an addressable base, see whether we can provide
   // one.
   if (options.TryAddressable) {
@@ -3468,8 +3550,47 @@ LValue SILGenLValue::visitRec(Expr *e, SGFAccessKind accessKind,
   return lv;
 }
 
+static SGFAccessKind getBaseAccessKindForAccessor(SILGenModule &SGM,
+                                                  FuncDecl *accessor,
+                                                  CanType baseFormalType,
+                                                  bool forBorrowExpr);
+
+LValue SILGenLValue::visitSingleYieldCall(ApplyExpr *e, FuncDecl *fn,
+                                          SGFAccessKind accessKind,
+                                          LValueOptions options) {
+  SILDeclRef function(fn, SILDeclRef::Kind::Func);
+
+  // Form the l-value for `self`, if any, the way a coroutine accessor's base
+  // is formed.
+  LValue lv;
+  CanType baseFormalType;
+  auto *fnExpr = e->getFn()->getSemanticsProvidingExpr();
+  if (auto *selfApply = dyn_cast<SelfApplyExpr>(fnExpr)) {
+    Expr *base = selfApply->getBase();
+    baseFormalType = getBaseFormalType(base);
+    lv = visitRec(base,
+                  getBaseAccessKindForAccessor(SGF.SGM, fn, baseFormalType,
+                                               /*for borrow*/ false),
+                  options.forComputedBaseLValue());
+  }
+
+  // Evaluate the arguments now, as for subscript indices.
+  auto fnType = cast<FunctionType>(e->getFn()->getType()->getCanonicalType());
+  auto args = SGF.prepareIndices(e, fnType, AccessStrategy::getStorage(),
+                                 e->getArgs());
+
+  lv.add<CoroutineCallComponent>(function, baseFormalType,
+                                 getValueTypeData(SGF, accessKind, e),
+                                 std::move(args));
+  return lv;
+}
+
 LValue SILGenLValue::visitApplyExpr(ApplyExpr *e, SGFAccessKind accessKind,
                                     LValueOptions options) {
+  if (auto *fn = SGF.getSingleYieldCallee(e)) {
+    return visitSingleYieldCall(e, fn, accessKind, options);
+  }
+
   // Some builtins serve to produce borrowable values as special cases.
   auto builtin = e->getFn()->getReferencedDecl();
   ASSERT(builtin && builtin.getDecl()->getModuleContext()->isBuiltinModule()
@@ -4196,7 +4317,7 @@ LValue SILGenLValue::visitDotSyntaxBaseIgnoredExpr(DotSyntaxBaseIgnoredExpr *e,
 /// an r-value (meaning that it can be borrowed only if that is not
 /// semantically detectable), or it acceptable to emit it as a borrowed
 /// storage reference?
-static bool shouldEmitSelfAsRValue(AccessorDecl *fn, CanType selfType,
+static bool shouldEmitSelfAsRValue(FuncDecl *fn, CanType selfType,
                                    bool forBorrowExpr) {
   if (fn->isStatic())
     return true;
@@ -4222,7 +4343,7 @@ static bool shouldEmitSelfAsRValue(AccessorDecl *fn, CanType selfType,
 }
 
 static SGFAccessKind getBaseAccessKindForAccessor(SILGenModule &SGM,
-                                                  AccessorDecl *accessor,
+                                                  FuncDecl *accessor,
                                                   CanType baseFormalType,
                                                   bool forBorrowExpr) {
   if (accessor->isMutating())

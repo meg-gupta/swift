@@ -3386,6 +3386,17 @@ Expr *SILGenFunction::findStorageReferenceExprForMoveOnly(Expr *argExpr,
     argExpr = fu->getSubExpr();
   }
 
+  // A noncopyable value yielded by a single-yield function stays borrowed
+  // from the coroutine for the duration of the call it's passed to.
+  if (kind == StorageReferenceOperationKind::Borrow && !forceUnwrap) {
+    if (auto *apply = dyn_cast<ApplyExpr>(argExpr)) {
+      if (getSingleYieldCallee(apply) &&
+          apply->getType()->getRValueType()->isNoncopyable()) {
+        return apply;
+      }
+    }
+  }
+
   // If we're consuming instead, then the load _must_ have been there.
   if (kind == StorageReferenceOperationKind::Consume && !sawLoad)
     return nullptr;
@@ -7171,6 +7182,10 @@ ManagedValue SILGenFunction::emitInjectEnum(SILLocation loc,
 
 RValue SILGenFunction::emitApplyExpr(ApplyExpr *e, SGFContext c) {
   PrettyStackTraceExpr trace(getASTContext(), "silgen emitApplyExpr", e);
+  if (auto *fn = getSingleYieldCallee(e)) {
+    return emitSingleYieldCall(e, fn, c);
+  }
+
   CallEmission emission = CallEmission::forApplyExpr(*this, e);
   return emission.apply(c);
 }
@@ -8317,6 +8332,38 @@ bool SILGenFunction::canUnwindAccessorDeclRef(SILDeclRef accessorRef) {
   return false;
 }
 
+/// Begin applying \p callee, a coroutine, within the current formal evaluation
+/// scope. Fills in \p yields and returns the cleanup that ends the coroutine.
+static CleanupHandle emitCoroutineApply(SILGenFunction &SGF, SILLocation loc,
+                                        Callee &&callee,
+                                        ArgumentSource &&selfValue,
+                                        PreparedArguments &&args,
+                                        bool canUnwind,
+                                        SmallVectorImpl<ManagedValue> &yields) {
+  FormalEvaluationScope writebackScope(SGF);
+  writebackScope.pop();
+
+  bool hasSelf = (bool)selfValue;
+  CanAnyFunctionType fnType = callee.getSubstFormalType();
+
+  CallEmission emission(SGF, std::move(callee), std::move(writebackScope));
+  // Self ->
+  if (hasSelf) {
+    emission.addSelfParam(loc, std::move(selfValue), fnType.getParams()[0]);
+    fnType = cast<AnyFunctionType>(fnType.getResult());
+  }
+  // Arguments, or () if none.
+  if (args.isNull()) {
+    args.emplace({});
+  }
+
+  emission.addCallSite(loc, std::move(args));
+
+  emission.setCanUnwind(canUnwind);
+
+  return emission.applyCoroutine(yields);
+}
+
 CleanupHandle
 SILGenFunction::emitCoroutineAccessor(SILLocation loc, SILDeclRef accessor,
                                       SubstitutionMap substitutions,
@@ -8331,32 +8378,73 @@ SILGenFunction::emitCoroutineAccessor(SILLocation loc, SILDeclRef accessor,
                                        isSuper, isDirectUse,
                                        isOnSelfParameter);
 
-  // We're already in a full formal-evaluation scope.
-  // Make a dead writeback scope; applyCoroutine won't try to pop this.
-  FormalEvaluationScope writebackScope(*this);
-  writebackScope.pop();
+  return emitCoroutineApply(*this, loc, std::move(callee),
+                            std::move(selfValue), std::move(subscriptIndices),
+                            canUnwindAccessorDeclRef(accessor), yields);
+}
 
-  bool hasSelf = (bool)selfValue;
-  CanAnyFunctionType accessType = callee.getSubstFormalType();
+CleanupHandle
+SILGenFunction::emitCoroutineCall(SILLocation loc, SILDeclRef fn,
+                                  SubstitutionMap subs,
+                                  ArgumentSource &&selfValue,
+                                  PreparedArguments &&args,
+                                  SmallVectorImpl<ManagedValue> &yields) {
+  auto captureInfo = SGM.Types.getLoweredLocalCaptures(fn);
+  SGM.Types.setCaptureTypeExpansionContext(fn, SGM.M);
+  Callee callee = Callee::forDirect(*this, fn, subs, loc);
 
-  CallEmission emission(*this, std::move(callee), std::move(writebackScope));
-  // Self ->
-  if (hasSelf) {
-    emission.addSelfParam(loc, std::move(selfValue),
-                          accessType.getParams()[0]);
-    accessType = cast<AnyFunctionType>(accessType.getResult());
+  // A local function passes its captures.
+  if (!captureInfo.getCaptures().empty()) {
+    SmallVector<ManagedValue, 4> captures;
+    emitCaptures(loc, fn, CaptureEmission::ImmediateApplication, captures);
+    callee.setCaptures(std::move(captures));
   }
-  // Index or () if none.
-  if (subscriptIndices.isNull())
-    subscriptIndices.emplace({});
 
-  emission.addCallSite(loc, std::move(subscriptIndices));
+  // Single-yield functions always run to completion.
+  return emitCoroutineApply(*this, loc, std::move(callee),
+                            std::move(selfValue), std::move(args),
+                            /*canUnwind*/ false, yields);
+}
 
-  emission.setCanUnwind(canUnwindAccessorDeclRef(accessor));
+FuncDecl *SILGenFunction::getSingleYieldCallee(ApplyExpr *e) {
+  if (!isa<CallExpr>(e)) {
+    return nullptr;
+  }
+  auto *fnExpr = e->getFn()->getSemanticsProvidingExpr();
+  if (auto *selfApply = dyn_cast<SelfApplyExpr>(fnExpr)) {
+    fnExpr = selfApply->getFn()->getSemanticsProvidingExpr();
+  }
+  auto *ref = dyn_cast<DeclRefExpr>(fnExpr);
+  if (!ref) {
+    return nullptr;
+  }
+  auto *fn = dyn_cast<FuncDecl>(ref->getDecl());
+  return (fn && fn->isSingleYieldFunction()) ? fn : nullptr;
+}
 
-  auto endApplyHandle = emission.applyCoroutine(yields);
+RValue SILGenFunction::emitSingleYieldCall(ApplyExpr *e, FuncDecl *fn,
+                                           SGFContext C) {
+  bool isOwned = fn->getSingleYieldType().getFlags().getOwnershipSpecifier() ==
+                 ParamSpecifier::Consuming;
 
-  return endApplyHandle;
+  // The coroutine resumes when the innermost enclosing formal evaluation
+  // scope ends. Without one, it resumes right after this call.
+  std::optional<FormalEvaluationScope> localScope;
+  if (!isInFormalEvaluationScope()) {
+    localScope.emplace(*this);
+  }
+
+  LValue lv = emitLValue(e, isOwned ? SGFAccessKind::OwnedObjectRead
+                                    : SGFAccessKind::BorrowedObjectRead);
+  ManagedValue value = emitRawProjectedLValue(e, std::move(lv));
+
+  // A borrowed value can't outlive the coroutine, so copy it unless the
+  // caller can use it at +0 within the enclosing scope.
+  if (!isOwned && (localScope || !C.isGuaranteedPlusZeroOk())) {
+    value = value.copy(*this, e);
+  }
+
+  return RValue(*this, e, value);
 }
 
 ManagedValue SILGenFunction::emitBorrowMutateAccessor(

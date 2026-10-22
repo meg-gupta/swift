@@ -2136,6 +2136,20 @@ public:
                                       SmallVectorImpl<ManagedValue> &yields,
                                       bool isOnSelfParameter);
 
+  /// If \p e is a direct call to a single-yield function, return the function.
+  FuncDecl *getSingleYieldCallee(ApplyExpr *e);
+
+  /// Begin a call to the single-yield function \p fn. Fills in \p yields and
+  /// returns the cleanup that resumes the coroutine.
+  CleanupHandle emitCoroutineCall(SILLocation loc, SILDeclRef fn,
+                                  SubstitutionMap subs,
+                                  ArgumentSource &&selfValue,
+                                  PreparedArguments &&args,
+                                  SmallVectorImpl<ManagedValue> &yields);
+
+  /// Emit a call to a single-yield function as an r-value.
+  RValue emitSingleYieldCall(ApplyExpr *e, FuncDecl *fn, SGFContext C);
+
   ManagedValue emitBorrowMutateAccessor(SILLocation loc, SILDeclRef accessor,
                                         SubstitutionMap substitutions,
                                         ArgumentSource &&selfValue,
