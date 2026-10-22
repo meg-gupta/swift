@@ -377,6 +377,11 @@ ERROR(single_yield_not_yet_supported,none,
       "as protocol requirements|as non-final class methods|"
       "as actor methods|as overrides|marked 'dynamic'|marked '@objc'|"
       "yielding a non-Escapable type}0 are not yet supported", (unsigned))
+ERROR(single_yield_function_not_called,none,
+      "using single-yield function %0 other than by calling it is not yet "
+      "supported", (const ValueDecl *))
+ERROR(yield_once_function_call_unsupported,none,
+      "calling a '@yield_once' function is not supported", ())
 
 ERROR(cannot_throw_nil,none,
       "cannot infer concrete Error for thrown 'nil' value", ())

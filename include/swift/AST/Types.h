@@ -4115,6 +4115,12 @@ public:
 
   bool isCoroutine() const { return hasExtInfo() && getExtInfo().isCoroutine(); }
 
+  /// The type of a call to \p callee, a function of this type. A call to a
+  /// single-yield function has the yielded type, as an l-value if the yield
+  /// is inout. Any other call, including one whose callee isn't known, has the
+  /// result type.
+  Type getCallResultType(const ValueDecl *callee) const;
+
   bool hasSendingResult() const { return getExtInfo().hasSendingResult(); }
 
   bool hasEffect(EffectKind kind) const;

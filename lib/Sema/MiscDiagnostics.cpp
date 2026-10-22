@@ -6879,6 +6879,50 @@ static void diagnoseCxxFunctionCalls(const Expr *E, const DeclContext *DC) {
 // MARK: High-level entry points.
 //===----------------------------------------------------------------------===//
 
+/// Single-yield functions can only be called directly, and other coroutines
+/// (`@yield_once … yields (…)`) can't be called at all.
+static void diagnoseCoroutineFunctionReferences(const Expr *E,
+                                                const DeclContext *DC) {
+  class Walker : public BaseDiagnosticWalker {
+    ASTContext &Ctx;
+    llvm::SmallPtrSet<const Expr *, 4> DirectCallees;
+
+  public:
+    Walker(ASTContext &ctx) : Ctx(ctx) {}
+
+    PreWalkResult<Expr *> walkToExprPre(Expr *E) override {
+      if (auto *call = dyn_cast<CallExpr>(E)) {
+        auto *fn = call->getFn()->getSemanticsProvidingExpr();
+        if (auto *selfApply = dyn_cast<SelfApplyExpr>(fn)) {
+          fn = selfApply->getFn()->getSemanticsProvidingExpr();
+        }
+        DirectCallees.insert(fn);
+
+        auto *calleeFn = dyn_cast_or_null<FuncDecl>(
+            isa<DeclRefExpr>(fn) ? cast<DeclRefExpr>(fn)->getDecl() : nullptr);
+        auto *fnType = call->getFn()->getType()->getAs<AnyFunctionType>();
+        if (fnType && fnType->isCoroutine() &&
+            !(calleeFn && calleeFn->isSingleYieldFunction())) {
+          Ctx.Diags.diagnose(call->getLoc(),
+                             diag::yield_once_function_call_unsupported);
+        }
+      }
+
+      if (auto *ref = dyn_cast<DeclRefExpr>(E)) {
+        auto *fd = dyn_cast<FuncDecl>(ref->getDecl());
+        if (fd && fd->isSingleYieldFunction() && !DirectCallees.count(ref)) {
+          Ctx.Diags.diagnose(ref->getLoc(),
+                             diag::single_yield_function_not_called, fd);
+        }
+      }
+      return Action::Continue(E);
+    }
+  };
+
+  Walker walker(DC->getASTContext());
+  const_cast<Expr *>(E)->walk(walker);
+}
+
 /// Emit diagnostics for syntactic restrictions on a given expression.
 void swift::performSyntacticExprDiagnostics(const Expr *E,
                                             const DeclContext *DC,
@@ -6887,6 +6931,7 @@ void swift::performSyntacticExprDiagnostics(const Expr *E,
                                             bool inForEachPreamble) {
   auto &ctx = DC->getASTContext();
   TypeChecker::diagnoseSelfAssignment(E);
+  diagnoseCoroutineFunctionReferences(E, DC);
   diagSyntacticUseRestrictions(E, DC, isExprStmt, inForEachPreamble);
   diagRecursivePropertyAccess(E, DC);
   diagnoseImplicitSelfUseInClosure(E, DC);

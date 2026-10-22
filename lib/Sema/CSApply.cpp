@@ -1053,6 +1053,14 @@ namespace {
         if (isa<ObjCSelectorExpr>(expr))
           return false;
 
+      // A coroutine can't be wrapped in a closure. Referencing one other than
+      // by calling it is diagnosed later.
+      if (auto *fn = dyn_cast<FuncDecl>(member)) {
+        if (!isa<AccessorDecl>(fn) && fn->isCoroutine()) {
+          return false;
+        }
+      }
+
       // Unbound instance method references always build a thunk, even if
       // we apply the arguments (eg, SomeClass.method(self)(a)), to avoid
       // representational issues.  Metatype extension instance members are
@@ -8668,7 +8676,7 @@ Expr *ExprRewriter::finishApply(ApplyExpr *apply, Type openedType,
       return nullptr;
 
     apply->setArgs(args);
-    cs.setType(apply, fnType->getResult());
+    cs.setType(apply, fnType->getCallResultType(callee.getDecl()));
 
     // If this is a call to a distributed method thunk,
     // let's mark the call as implicitly throwing.

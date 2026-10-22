@@ -5177,6 +5177,28 @@ AnyFunctionType *AnyFunctionType::getWithoutYields() const {
                                   resultType, noCoroExtInfo);
 }
 
+Type AnyFunctionType::getCallResultType(const ValueDecl *callee) const {
+  // A '@yield_once' function can have the same type as a single-yield one, so
+  // only the callee tells them apart. Applying `self` to a single-yield method
+  // isn't a call to the coroutine, so check the type too.
+  auto *fn = dyn_cast_or_null<FuncDecl>(callee);
+  if (!fn || !fn->isSingleYieldFunction() || !isCoroutine() ||
+      getNumYields() != 1 || !getResult()->isVoid()) {
+    return getResult();
+  }
+
+  auto yield = getYields().front();
+  switch (yield.getFlags().getOwnershipSpecifier()) {
+  case ParamSpecifier::Consuming:
+  case ParamSpecifier::Borrowing:
+    return yield.getType();
+  case ParamSpecifier::InOut:
+    return LValueType::get(yield.getType());
+  default:
+    return getResult();
+  }
+}
+
 std::optional<Type> AnyFunctionType::getEffectiveThrownErrorType() const {
   // A non-throwing function... has no thrown interface type.
   if (!isThrowing())

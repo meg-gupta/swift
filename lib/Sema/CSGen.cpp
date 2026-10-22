@@ -2837,10 +2837,16 @@ namespace {
           return resultOfTypeOperation(typeOperation, expr->getArgs());
       }
 
-      // The result type is a fresh type variable.
+      // The result type is a fresh type variable. A call to a single-yield
+      // function that yields `inout` is an l-value.
+      unsigned resultOptions = TVO_CanBindToNoEscape;
+      if (CS.getASTContext().LangOpts.hasFeature(
+              Feature::SingleYieldFunctions)) {
+        resultOptions |= TVO_CanBindToLValue;
+      }
       Type resultType = CS.createTypeVariable(
           CS.getConstraintLocator(expr, ConstraintLocator::FunctionResult),
-          TVO_CanBindToNoEscape);
+          resultOptions);
 
       // A direct call to a ClosureExpr makes it noescape.
       FunctionType::ExtInfo extInfo;

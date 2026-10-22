@@ -13822,8 +13822,17 @@ ConstraintSystem::SolutionKind ConstraintSystem::simplifyApplicableFnConstraint(
       break;
     }
 
+    // A call to a single-yield function has the yielded type.
+    const ValueDecl *callee = nullptr;
+    if (func2->isCoroutine()) {
+      if (auto overload =
+              findSelectedOverloadFor(getCalleeLocator(argumentsLoc))) {
+        callee = overload->choice.getDeclOrNull();
+      }
+    }
+
     // Erase all of the opened existentials.
-    Type result2 = func2->getResult();
+    Type result2 = func2->getCallResultType(callee);
     if (result2->hasTypeVariable() && !openedExistentials.empty()) {
       for (const auto &opened : openedExistentials) {
         auto originalTy = result2;
