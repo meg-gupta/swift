@@ -1489,6 +1489,13 @@ bool AbstractFunctionDecl::isCoroutine() const {
   if (getAttrs().hasAttribute<CoroutineAttr>())
     return true;
 
+  // Single-yield functions are coroutines.
+  if (auto *FD = dyn_cast<FuncDecl>(this)) {
+    if (FD->isSingleYieldFunction()) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -12385,7 +12392,7 @@ void FuncDecl::getYieldInterfaceTypes(
   for (auto [idx, yield] : llvm::enumerate(*yieldList)) {
     auto type = ctx.evaluator(YieldsTypeRequest{mutableThis, unsigned(idx)},
                               [&ctx]() { return ErrorType::get(ctx); });
-    YieldTypeFlags flags;
+    YieldTypeFlags flags = yieldList->get(idx).getFlags();
     if (auto *inoutType = type->getAs<InOutType>()) {
       type = inoutType->getObjectType();
       flags = flags.withInOut(true);
@@ -12393,6 +12400,18 @@ void FuncDecl::getYieldInterfaceTypes(
 
     yields.emplace_back(type, flags);
   }
+}
+
+bool FuncDecl::isSingleYieldFunction() const {
+  auto *yields = getYields();
+  return yields && yields->isYieldResult();
+}
+
+AnyFunctionType::Yield FuncDecl::getSingleYieldType() const {
+  ASSERT(isSingleYieldFunction());
+  SmallVector<AnyFunctionType::Yield, 1> yields;
+  getYieldInterfaceTypes(yields);
+  return yields.front();
 }
 
 bool FuncDecl::isUnaryOperator() const {

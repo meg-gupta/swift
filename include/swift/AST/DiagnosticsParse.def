@@ -335,6 +335,14 @@ ERROR(borrow_mutate_pair_restrict,none,
       (StringRef, StringRef))
 ERROR(yields_requires_coroutine_functions,none,
       "`yields` requires '-enable-experimental-feature CoroutineFunctions'", ())
+ERROR(single_yield_requires_feature,none,
+      "'-> yield' requires '-enable-experimental-feature SingleYieldFunctions'",
+      ())
+ERROR(single_yield_invalid_decl,none,
+      "%select{initializers|operator functions}0 cannot be single-yield "
+      "functions", (unsigned))
+ERROR(single_yield_function_type_unsupported,none,
+      "single-yield function types are not yet supported", ())
 
 // Import
 ERROR(decl_expected_module_name,none,

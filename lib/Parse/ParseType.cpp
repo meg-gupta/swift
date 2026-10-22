@@ -449,6 +449,33 @@ ParserStatus Parser::parseYieldTypes(TupleTypeRepr *&yieldTypes) {
   return status;
 }
 
+bool Parser::isStartOfSingleYieldResult() {
+  if (!Tok.isContextualKeyword("yield")) {
+    return false;
+  }
+  BacktrackingScope backtrack(*this);
+  consumeToken();
+  if (Tok.isContextualKeyword("borrow") || Tok.is(tok::kw_inout)) {
+    consumeToken();
+  }
+  return canParseType();
+}
+
+ParserResult<TypeRepr>
+Parser::parseSingleYieldResult(SourceLoc &yieldLoc,
+                               ParamSpecifier &specifier) {
+  yieldLoc = consumeToken();
+  specifier = ParamSpecifier::Consuming;
+  if (Tok.isContextualKeyword("borrow")) {
+    consumeToken();
+    specifier = ParamSpecifier::Borrowing;
+  } else if (Tok.is(tok::kw_inout)) {
+    consumeToken(tok::kw_inout);
+    specifier = ParamSpecifier::InOut;
+  }
+  return parseType(diag::expected_type_function_result);
+}
+
 /// parseTypeScalar
 ///   type-scalar:
 ///     attribute-list type-composition
@@ -537,6 +564,20 @@ ParserResult<TypeRepr> Parser::parseTypeScalar(
                            asyncLoc, /*reasync=*/nullptr,
                            throwsLoc, /*rethrows=*/nullptr,
                            thrownTy);
+
+    // `-> yield T` in a function type isn't supported yet. Diagnose it and
+    // recover by parsing the yielded type as the result type.
+    if (isStartOfSingleYieldResult()) {
+      if (!Context.LangOpts.hasFeature(Feature::SingleYieldFunctions)) {
+        diagnose(Tok, diag::single_yield_requires_feature);
+      } else {
+        diagnose(Tok, diag::single_yield_function_type_unsupported);
+      }
+      consumeToken();
+      if (Tok.isContextualKeyword("borrow") || Tok.is(tok::kw_inout)) {
+        consumeToken();
+      }
+    }
 
     ParserResult<TypeRepr> SecondHalf =
         parseTypeScalar(diag::expected_type_function_result,

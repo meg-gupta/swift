@@ -847,6 +847,38 @@ ParserStatus Parser::parseFunctionSignature(
     parseEffectsSpecifiers(arrowLoc, asyncLoc, &reasync, throwsLoc, &rethrows,
                            thrownType);
 
+    // A single-yield function: `-> yield [borrow|inout] T`.
+    if (isStartOfSingleYieldResult()) {
+      SourceLoc yieldLoc;
+      ParamSpecifier specifier;
+      ParserResult<TypeRepr> yieldType =
+          parseSingleYieldResult(yieldLoc, specifier);
+      Status |= yieldType;
+      retType = nullptr;
+      if (Status.isErrorOrHasCompletion()) {
+        return Status;
+      }
+
+      if (!Context.LangOpts.hasFeature(Feature::SingleYieldFunctions)) {
+        diagnose(yieldLoc, diag::single_yield_requires_feature);
+        retType = yieldType.get();
+      } else if (paramContext == ParameterContextKind::Initializer) {
+        diagnose(yieldLoc, diag::single_yield_invalid_decl, 0);
+      } else if (paramContext == ParameterContextKind::Operator) {
+        diagnose(yieldLoc, diag::single_yield_invalid_decl, 1);
+        retType = yieldType.get();
+      } else {
+        bodyYields = YieldList::createYieldResult(
+            Context, yieldLoc,
+            Yield(yieldType.get(), YieldTypeFlags(specifier)));
+      }
+
+      // Check for effect specifiers after the type and correct it.
+      parseEffectsSpecifiers(arrowLoc, asyncLoc, &reasync, throwsLoc,
+                             &rethrows, thrownType);
+      return Status;
+    }
+
     ParserResult<TypeRepr> ResultType =
         parseDeclResultType(diag::expected_type_function_result);
     retType = ResultType.getPtrOrNull();

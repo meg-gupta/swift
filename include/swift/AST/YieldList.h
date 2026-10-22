@@ -57,6 +57,14 @@ public:
   friend class YieldList;
 };
 
+enum class YieldListKind : uint8_t {
+  /// `yields (T, inout U)` in the signature of a `@yield_once` function.
+  YieldsClause,
+  /// `-> yield T`, `-> yield borrow T` or `-> yield inout T`: the single
+  /// yield of a single-yield function, written in the result position.
+  YieldResult,
+};
+
 /// This describes a list of yields. Each yield descriptor is tail allocated
 /// onto this list.
 class YieldList final : public ASTAllocated<YieldList>,
@@ -64,10 +72,14 @@ class YieldList final : public ASTAllocated<YieldList>,
   friend TrailingObjects;
 
   SourceLoc LParenLoc, RParenLoc;
+  SourceLoc YieldLoc;
+  YieldListKind Kind;
   size_t numYields;
 
-  YieldList(SourceLoc LParenLoc, size_t numYields, SourceLoc RParenLoc)
-      : LParenLoc(LParenLoc), RParenLoc(RParenLoc), numYields(numYields) {}
+  YieldList(YieldListKind kind, SourceLoc yieldLoc, SourceLoc LParenLoc,
+            size_t numYields, SourceLoc RParenLoc)
+      : LParenLoc(LParenLoc), RParenLoc(RParenLoc), YieldLoc(yieldLoc),
+        Kind(kind), numYields(numYields) {}
   void operator=(const YieldList &) = delete;
 
 public:
@@ -82,9 +94,21 @@ public:
   }
 
   static YieldList *create(const ASTContext &C,
-                           ArrayRef<AnyFunctionType::Yield> yields);
+                           ArrayRef<AnyFunctionType::Yield> yields,
+                           YieldListKind kind = YieldListKind::YieldsClause);
 
   static YieldList *create(const ASTContext &C, ArrayRef<Yield> yields);
+
+  /// Create the yield list of a single-yield function, spelled
+  /// `-> yield [borrow|inout] T`.
+  static YieldList *createYieldResult(const ASTContext &C, SourceLoc yieldLoc,
+                                      Yield yield);
+
+  YieldListKind getKind() const { return Kind; }
+  bool isYieldResult() const { return Kind == YieldListKind::YieldResult; }
+
+  /// The location of `yield` in `-> yield T`; invalid for a `yields` clause.
+  SourceLoc getYieldLoc() const { return YieldLoc; }
 
   SourceLoc getLParenLoc() const { return LParenLoc; }
   SourceLoc getRParenLoc() const { return RParenLoc; }
