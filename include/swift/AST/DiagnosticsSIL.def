@@ -770,14 +770,17 @@ ERROR(isolated_property_mutation_in_nonisolated_context,none,
       (const ValueDecl *, bool))
 
 // Yield usage errors
-ERROR(return_before_yield, none, "accessor must yield before returning",())
+ERROR(return_before_yield, none,
+      "%select{accessor|function}0 must yield before returning", (bool))
 
-ERROR(multiple_yields, none, "accessor must not yield more than once", ())
+ERROR(multiple_yields, none,
+      "%select{accessor|function}0 must not yield more than once", (bool))
 
 NOTE(previous_yield, none, "previous yield was here", ())
 
 ERROR(possible_return_before_yield, none,
-      "accessor must yield on all paths before returning", ())
+      "%select{accessor|function}0 must yield on all paths before returning",
+      (bool))
 
 NOTE(branch_doesnt_yield, none,
      "missing yield when the condition is %select{false|true}0", (bool))

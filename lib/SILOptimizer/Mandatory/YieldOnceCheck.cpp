@@ -336,15 +336,24 @@ class YieldOnceCheck : public SILFunctionTransform {
                        BasicBlockData<BBState> &visitedBBs) {
     ASTContext &astCtx = fun.getModule().getASTContext();
 
+    // Single-yield functions are diagnosed as functions, everything else as
+    // accessors.
+    bool isFunction = false;
+    if (auto *dc = fun.getDeclContext()) {
+      if (auto *fn = dyn_cast_or_null<FuncDecl>(dc->getAsDecl())) {
+        isFunction = fn->isSingleYieldFunction();
+      }
+    }
+
     switch (error.errorKind) {
     case YieldError::ReturnBeforeYield: {
       diagnose(astCtx, error.termInst->getLoc().getSourceLoc(),
-               diag::return_before_yield);
+               diag::return_before_yield, isFunction);
       return;
     }
     case YieldError::MultipleYield: {
       diagnose(astCtx, error.termInst->getLoc().getSourceLoc(),
-               diag::multiple_yields);
+               diag::multiple_yields, isFunction);
 
       // Add a note that points to the previous yield.
       diagnose(astCtx,
@@ -355,7 +364,7 @@ class YieldOnceCheck : public SILFunctionTransform {
     case YieldError::ReturnOnConflict: {
       // Emit an error on the return statement.
       diagnose(astCtx, error.termInst->getLoc().getSourceLoc(),
-               diag::possible_return_before_yield);
+               diag::possible_return_before_yield, isFunction);
 
       // Here, the yield state of 'error' is Conflict.
       auto &conflictState = error.inState;
