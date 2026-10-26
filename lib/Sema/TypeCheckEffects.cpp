@@ -293,14 +293,16 @@ bool ConformanceHasEffectRequest::evaluate(
   return false;
 }
 
-/// \returns the getter decl iff its a prop/subscript with an effectful 'get'
+/// \returns the effectful read accessor of a prop/subscript, i.e. its
+/// effectful sole 'get' or its throwing 'yielding borrow'; null otherwise.
 static ConcreteDeclRef getEffectfulGetOnlyAccessor(ConcreteDeclRef cdr) {
   if (!cdr)
     return nullptr;
 
   if (auto storageDecl = dyn_cast<AbstractStorageDecl>(cdr.getDecl())) {
-    if (auto getAccessor = storageDecl->getEffectfulGetAccessor())
+    if (auto getAccessor = storageDecl->getEffectfulReadAccessor()) {
       return ConcreteDeclRef(getAccessor, cdr.getSubstitutions());
+    }
   }
 
   return nullptr;

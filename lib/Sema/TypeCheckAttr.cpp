@@ -2339,7 +2339,7 @@ void AttributeChecker::visitAvailableAttr(AvailableAttr *parsedAttr) {
     bool isAsyncDeclContext = dctx && dctx->isAsyncContext();
 
     if (const AbstractStorageDecl *decl = dyn_cast<AbstractStorageDecl>(D)) {
-      const AccessorDecl * accessor = decl->getEffectfulGetAccessor();
+      const AccessorDecl * accessor = decl->getEffectfulReadAccessor();
       isAsyncDeclContext |= accessor && accessor->isAsyncContext();
     }
 

@@ -276,14 +276,16 @@ static bool mayExpressionThrow(const Expr *E) {
   if (auto *S = dyn_cast<SubscriptExpr>(E)) {
     // Throws if subscript has a throwing getter.
     auto *SD = cast<SubscriptDecl>(S->getDecl().getDecl());
-    if (auto *accessor = SD->getEffectfulGetAccessor())
+    if (auto *accessor = SD->getEffectfulReadAccessor()) {
       return accessor->hasThrows();
+    }
   }
   if (auto *DE = dyn_cast<DeclRefExpr>(E)) {
     if (auto *VD = dyn_cast<VarDecl>(DE->getDecl())) {
       // Throws if the getter throws.
-      if (auto *accessor = VD->getEffectfulGetAccessor())
+      if (auto *accessor = VD->getEffectfulReadAccessor()) {
         return accessor->hasThrows();
+      }
     }
   }
   return false;

@@ -1049,8 +1049,10 @@ OpaqueReadOwnershipRequest::evaluate(Evaluator &evaluator,
   };
 
   auto usesBorrowed = [&](DiagKind kind) -> OpaqueReadOwnership {
-    // Check for effects on the getter.
-    if (auto *getter = storage->getEffectfulGetAccessor()) {
+    // Check for effects on the getter. A throwing 'yielding borrow' already
+    // borrows.
+    auto *getter = storage->getEffectfulReadAccessor();
+    if (getter && getter->getAccessorKind() == AccessorKind::Get) {
       switch (kind) {
       case DiagKind::NoncopyableType:
         getter->diagnose(diag::noncopyable_effectful_getter, getter);

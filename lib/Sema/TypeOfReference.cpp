@@ -1233,7 +1233,7 @@ ConstraintSystem::getTypeOfReferencePre(OverloadChoice choice,
          !valueType->hasTypeParameter());
 
   Type thrownErrorType;
-  if (auto accessor = varDecl->getEffectfulGetAccessor()) {
+  if (auto accessor = varDecl->getEffectfulReadAccessor()) {
     thrownErrorType =
         accessor->getEffectiveThrownErrorType().value_or(Type());
   }
@@ -1587,7 +1587,7 @@ std::pair<Type, Type> ConstraintSystem::getOpenedStorageType(
     ConstraintLocator *locator, PreparedOverloadBuilder *preparedOverload) {
   Type thrownErrorType;
 
-  if (auto accessor = value->getEffectfulGetAccessor()) {
+  if (auto accessor = value->getEffectfulReadAccessor()) {
     thrownErrorType = accessor->getEffectiveThrownErrorType().value_or(Type());
   }
 

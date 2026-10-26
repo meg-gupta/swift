@@ -6537,10 +6537,14 @@ public:
   /// This is the primary mechanism by which we can easily determine whether
   /// this storage decl has any effects.
   ///
-  /// \returns the getter decl iff this decl has only one accessor that is
-  ///          a 'get' with an effect (i.e., 'async', 'throws', or both).
-  ///          Otherwise returns nullptr.
-  AccessorDecl *getEffectfulGetAccessor() const;
+  /// \returns the accessor that carries the effects of reading this storage:
+  ///          a 'get' with an effect ('async', 'throws', or both) that is the
+  ///          only accessor, or a 'yielding borrow' that 'throws'. Otherwise
+  ///          returns nullptr.
+  AccessorDecl *getEffectfulReadAccessor() const;
+
+  /// \returns the 'yielding borrow' accessor if it is 'throws', else nullptr.
+  AccessorDecl *getThrowingYieldingBorrowAccessor() const;
 
   /// Performs a "limit check" on an effect possibly exhibited by this storage
   /// decl with respect to some other storage decl that serves as the "limit."

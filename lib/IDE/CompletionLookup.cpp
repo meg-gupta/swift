@@ -846,7 +846,7 @@ void CompletionLookup::addVarDeclRef(const VarDecl *VD,
   if (isUnresolvedMemberIdealType(VarType))
     Builder.addFlair(CodeCompletionFlairBit::ExpressionSpecific);
 
-  if (auto Accessor = VD->getEffectfulGetAccessor()) {
+  if (auto Accessor = VD->getEffectfulReadAccessor()) {
     if (auto AFT = getTypeOfMember(Accessor, dynamicLookupInfo)->getAs<AnyFunctionType>()) {
       if (Accessor->hasImplicitSelfDecl()) {
         AFT = AFT->getResult()->getAs<AnyFunctionType>();

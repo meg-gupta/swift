@@ -8584,8 +8584,9 @@ bool swift::isThrowsDecl(ConcreteDeclRef declRef) {
   // A computed property or subscript that has an 'async' getter
   // is asynchronously accessed.
   if (auto storageDecl = dyn_cast<AbstractStorageDecl>(decl)) {
-    if (auto effectfulGetter = storageDecl->getEffectfulGetAccessor())
+    if (auto effectfulGetter = storageDecl->getEffectfulReadAccessor()) {
       return effectfulGetter->hasThrows();
+    }
   }
 
   return false;

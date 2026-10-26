@@ -2373,7 +2373,7 @@ AssociatedTypeInference::getPotentialTypeWitnessesByMatchingTypes(ValueDecl *req
       // Dig out the thrown error types from the getter so we can compare them
       // later.
       auto getThrownErrorType = [](AbstractStorageDecl *asd) -> Type {
-        if (auto getter = asd->getEffectfulGetAccessor()) {
+        if (auto getter = asd->getEffectfulReadAccessor()) {
           if (Type thrownErrorType = getter->getThrownInterfaceType()) {
             return thrownErrorType;
           } else if (getter->hasThrows()) {
@@ -4975,7 +4975,7 @@ ReferencedAssociatedTypesRequest::evaluate(Evaluator &eval,
   }
 
   if (auto *asd = dyn_cast<AbstractStorageDecl>(req)) {
-    if (auto getter = asd->getEffectfulGetAccessor()) {
+    if (auto getter = asd->getEffectfulReadAccessor()) {
       if (Type thrownErrorType = getter->getThrownInterfaceType()) {
         thrownErrorType->getCanonicalType().walk(walker);
       }

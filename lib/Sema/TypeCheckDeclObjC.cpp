@@ -1278,7 +1278,7 @@ bool swift::isRepresentableInObjC(const VarDecl *VD, ObjCReason Reason) {
 
   // effectful computed properties cannot be represented, and its an error
   // to mark them as @objc
-  if (VD->getEffectfulGetAccessor()) {
+  if (VD->getEffectfulReadAccessor()) {
     softenIfAccessNote(VD, Reason.getAttr(),
                        VD->diagnose(diag::effectful_not_representable_objc, VD)
                            .limitBehavior(behavior));
@@ -1327,7 +1327,7 @@ bool swift::isRepresentableInObjC(const SubscriptDecl *SD, ObjCReason Reason) {
 
   // effectful subscripts cannot be represented, and its an error
   // to mark them as @objc
-  if (SD->getEffectfulGetAccessor()) {
+  if (SD->getEffectfulReadAccessor()) {
     softenIfAccessNote(SD, Reason.getAttr(),
                        SD->diagnose(diag::effectful_not_representable_objc, SD)
                            .limitBehavior(behavior));

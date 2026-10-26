@@ -1214,8 +1214,9 @@ static PossibleEffects getEffects(ValueDecl *value) {
   }
 
   if (auto storage = dyn_cast<AbstractStorageDecl>(value)) {
-    if (auto accessor = storage->getEffectfulGetAccessor())
+    if (auto accessor = storage->getEffectfulReadAccessor()) {
       return getEffects(accessor);
+    }
   }
 
   return PossibleEffects();

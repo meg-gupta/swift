@@ -1429,12 +1429,17 @@ std::optional<Type> AbstractFunctionDecl::getCachedThrownInterfaceType() const {
 }
 
 std::optional<Type> AbstractFunctionDecl::getEffectiveThrownErrorType() const {
-  // FIXME: Only getters can have thrown error types right now, and DidSet
-  // has a cyclic reference if we try to get its interface type here. Find a
-  // better way to express this.
+  // FIXME: Only getters and 'yielding borrow' accessors can have thrown error
+  // types right now, and DidSet has a cyclic reference if we try to get its
+  // interface type here. Find a better way to express this.
   if (auto accessor = dyn_cast<AccessorDecl>(this)) {
     if (accessor->getAccessorKind() != AccessorKind::Get &&
-        accessor->getAccessorKind() != AccessorKind::DistributedGet) {
+        accessor->getAccessorKind() != AccessorKind::DistributedGet &&
+        accessor->getAccessorKind() != AccessorKind::YieldingBorrow) {
+      return std::nullopt;
+    }
+    if (accessor->getAccessorKind() == AccessorKind::YieldingBorrow &&
+        !accessor->hasThrows()) {
       return std::nullopt;
     }
   }
@@ -4021,13 +4026,31 @@ AbstractStorageDecl::getSynthesizedAccessor(AccessorKind kind) const {
     nullptr);
 }
 
-AccessorDecl *AbstractStorageDecl::getEffectfulGetAccessor() const {
-    if (getAllAccessors().size() != 1)
-      return nullptr;
+AccessorDecl *AbstractStorageDecl::getThrowingYieldingBorrowAccessor() const {
+  if (auto *accessor = getAccessor(AccessorKind::YieldingBorrow)) {
+    if (accessor->hasThrows()) {
+      return accessor;
+    }
+  }
+  return nullptr;
+}
 
-    if (auto accessor = getAccessor(AccessorKind::Get))
-      if (accessor->hasAsync() || accessor->hasThrows())
-        return accessor;
+AccessorDecl *AbstractStorageDecl::getEffectfulReadAccessor() const {
+  // A throwing 'yielding borrow' is the only parsed accessor, but synthesized
+  // companions accompany it.
+  if (auto *accessor = getThrowingYieldingBorrowAccessor()) {
+    return accessor;
+  }
+
+  if (getAllAccessors().size() != 1) {
+    return nullptr;
+  }
+
+  if (auto accessor = getAccessor(AccessorKind::Get)) {
+    if (accessor->hasAsync() || accessor->hasThrows()) {
+      return accessor;
+    }
+  }
 
   return nullptr;
 }
@@ -4035,12 +4058,15 @@ AccessorDecl *AbstractStorageDecl::getEffectfulGetAccessor() const {
 bool AbstractStorageDecl::isLessEffectfulThan(AbstractStorageDecl const* other,
                                               EffectKind kind) const {
   bool allowedByOther = false;
-  if (auto otherGetter = other->getEffectfulGetAccessor())
+  if (auto otherGetter = other->getEffectfulReadAccessor()) {
     allowedByOther = otherGetter->hasEffect(kind);
+  }
 
-  if (auto getter = getEffectfulGetAccessor())
-    if (getter->hasEffect(kind) && !allowedByOther)
+  if (auto getter = getEffectfulReadAccessor()) {
+    if (getter->hasEffect(kind) && !allowedByOther) {
       return false; // has the effect when other does not; it's more effectful!
+    }
+  }
 
   return true; // OK
 }

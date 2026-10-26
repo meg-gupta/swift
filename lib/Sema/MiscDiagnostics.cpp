@@ -416,7 +416,7 @@ static void diagSyntacticUseRestrictions(const Expr *E, const DeclContext *DC,
 
           // Check for effects
           if (auto asd = dyn_cast<AbstractStorageDecl>(decl)) {
-            if (asd->getEffectfulGetAccessor()) {
+            if (asd->getEffectfulReadAccessor()) {
               Ctx.Diags.diagnose(component.getLoc(),
                                  diag::effectful_keypath_component, asd,
                                  /*dynamic member lookup*/ false);

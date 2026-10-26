@@ -913,7 +913,7 @@ GenericSignatureRequest::evaluate(Evaluator &evaluator,
 
       // Handle the thrown error type.
       auto effectiveFunc = func ? func
-                                : subscr ? subscr->getEffectfulGetAccessor()
+                                : subscr ? subscr->getEffectfulReadAccessor()
                                 : nullptr;
       if (effectiveFunc) {
         // Infer constraints from the thrown type of a declaration.
