@@ -182,3 +182,25 @@ bb2:
 // CHECK: End Error in function private_without_body
 sil private @private_without_body : $@convention(thin) () -> ()
 
+
+// CHECK-LABEL: Begin Error in function throw_after_yield_in_throwing_coroutine
+// CHECK:       SIL verification failed: encountered 'throw' after 'yield' in coroutine
+// CHECK-LABEL: End Error in function throw_after_yield_in_throwing_coroutine
+sil [ossa] @throw_after_yield_in_throwing_coroutine : $@yield_once_2 @convention(thin) () -> (@yields Builtin.Int32, @error any Error) {
+entry:
+  %v = integer_literal $Builtin.Int32, 0
+  yield %v : $Builtin.Int32, resume resumed, unwind unwound
+
+resumed:
+  try_apply undef() : $@convention(thin) () -> @error any Error, normal ok, error failed
+
+ok(%r : $()):
+  %t = tuple ()
+  return %t : $()
+
+failed(%e : @owned $any Error):
+  throw %e : $any Error
+
+unwound:
+  unwind
+}

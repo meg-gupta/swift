@@ -31,6 +31,26 @@ enum class CFGState {
   YieldUnwind
 };
 
+/// Whether to track the resume edge of 'yield' in \p F: yield_once
+/// coroutines, and yield_once_2 coroutines that can throw (they may throw only
+/// before they yield).
+static bool tracksYieldOnceResume(SILFunction *F) {
+  if (F->getFunctionStage() == SILStage::Raw) {
+    return false;
+  }
+  auto fnType = F->getLoweredFunctionType();
+  switch (fnType->getCoroutineKind()) {
+  case SILCoroutineKind::YieldOnce:
+    return true;
+  case SILCoroutineKind::YieldOnce2:
+    return fnType->hasErrorResult();
+  case SILCoroutineKind::None:
+  case SILCoroutineKind::YieldMany:
+    return false;
+  }
+  llvm_unreachable("bad coroutine kind");
+}
+
 struct BBState {
   std::vector<SILValue> Stack;
 
@@ -443,6 +463,10 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
         } else {
           require(state.CFG != CFGState::YieldUnwind,
                   "encountered 'return' or 'throw' when on unwind path");
+          if (isa<ThrowInst, ThrowAddrInst>(term)) {
+            require(state.CFG != CFGState::YieldOnceResume,
+                    "encountered 'throw' after 'yield' in coroutine");
+          }
           if (isa<ReturnInst>(term) &&
               F->getLoweredFunctionType()->getCoroutineKind() ==
                   SILCoroutineKind::YieldOnce &&
@@ -569,9 +593,7 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
 
               // We check the yield_once rule in the mandatory analyses,
               // so we can't assert it yet in the raw stage.
-            } else if (F->getLoweredFunctionType()->getCoroutineKind() ==
-                           SILCoroutineKind::YieldOnce &&
-                       F->getFunctionStage() != SILStage::Raw) {
+            } else if (tracksYieldOnceResume(F)) {
               insertedState.CFG = CFGState::YieldOnceResume;
             }
           }

@@ -1,0 +1,26 @@
+// RUN: %target-sil-opt %s -o /dev/null
+
+sil_stage canonical
+
+import Builtin
+
+protocol Error {}
+
+sil [ossa] @throw_before_yield : $@yield_once_2 @convention(thin) () -> (@yields Builtin.Int32, @error any Error) {
+entry:
+  try_apply undef() : $@convention(thin) () -> @error any Error, normal ok, error failed
+
+ok(%r : $()):
+  %v = integer_literal $Builtin.Int32, 0
+  yield %v : $Builtin.Int32, resume resumed, unwind unwound
+
+resumed:
+  %t = tuple ()
+  return %t : $()
+
+unwound:
+  unwind
+
+failed(%e : @owned $any Error):
+  throw %e : $any Error
+}
