@@ -605,6 +605,11 @@ checkWitnessAccessor(AbstractStorageDecl *witness,
 ///          problem.
 static std::optional<RequirementMatch>
 checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
+  if ((witness->getThrowingYieldingBorrowAccessor() != nullptr) !=
+      (req->getThrowingYieldingBorrowAccessor() != nullptr)) {
+    return RequirementMatch(getStandinForAccessor(witness, AccessorKind::Get),
+                            MatchKind::ThrowingYieldingBorrowConflict);
+  }
 
   if (!witness->isLessEffectfulThan(req, EffectKind::Async))
     return RequirementMatch(getStandinForAccessor(witness, AccessorKind::Get),
@@ -3367,6 +3372,11 @@ diagnoseMatch(ModuleDecl *module, NormalProtocolConformance *conformance,
 
   case MatchKind::ThrowsConflict:
     diags.diagnose(match.Witness, diag::protocol_witness_throws_conflict);
+    break;
+
+  case MatchKind::ThrowingYieldingBorrowConflict:
+    diags.diagnose(match.Witness,
+                   diag::protocol_witness_throwing_yielding_borrow_conflict);
     break;
 
   case MatchKind::OptionalityConflict: {

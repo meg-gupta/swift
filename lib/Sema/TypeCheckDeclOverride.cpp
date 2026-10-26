@@ -1999,6 +1999,14 @@ static bool checkSingleOverride(ValueDecl *override, ValueDecl *base) {
       }
     }
 
+    if ((overrideASD->getThrowingYieldingBorrowAccessor() != nullptr) !=
+        (baseASD->getThrowingYieldingBorrowAccessor() != nullptr)) {
+      diags.diagnose(overrideASD,
+                     diag::override_throwing_yielding_borrow_mismatch,
+                     overrideASD);
+      return true;
+    }
+
     // Make sure an effectful storage decl is only overridden by a storage
     // decl with the same or fewer effect kinds.
     if (!overrideASD->isLessEffectfulThan(baseASD, EffectKind::Async)) {

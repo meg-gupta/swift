@@ -69,6 +69,10 @@ enum class MatchKind : uint8_t {
   /// The witness throws, but the requirement does not.
   ThrowsConflict,
 
+  /// Exactly one of the witness and requirement uses a throwing
+  /// 'yielding borrow' accessor.
+  ThrowingYieldingBorrowConflict,
+
   /// The witness did not match due to static/non-static differences.
   StaticNonStaticConflict,
 
@@ -425,6 +429,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
+    case MatchKind::ThrowingYieldingBorrowConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
@@ -465,6 +470,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
+    case MatchKind::ThrowingYieldingBorrowConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
@@ -504,6 +510,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
+    case MatchKind::ThrowingYieldingBorrowConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:

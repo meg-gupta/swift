@@ -3669,6 +3669,9 @@ NOTE(protocol_witness_rethrows_by_conformance_conflict,none,
      "but the protocol requirement is not from a '@rethrows' protocol", ())
 NOTE(protocol_witness_throws_conflict,none,
      "candidate throws, but protocol does not allow it", ())
+NOTE(protocol_witness_throwing_yielding_borrow_conflict,none,
+     "candidate and protocol requirement must both or neither use a throwing "
+     "'yielding borrow' accessor", ())
 NOTE(protocol_witness_not_objc,none,
      "candidate is explicitly '@nonobjc'", ())
 NOTE(protocol_witness_lifetime_conflict, none,
@@ -4039,6 +4042,10 @@ ERROR(override_class_declaration_in_extension,none,
 ERROR(override_with_more_effects,none,
       "cannot override non-%1 %kindonly0 with %1 %kindonly0",
       (const ValueDecl *, StringRef))
+ERROR(override_throwing_yielding_borrow_mismatch,none,
+      "overriding %kindonly0 and the overridden %kindonly0 must both or "
+      "neither use a throwing 'yielding borrow' accessor",
+      (const ValueDecl *))
 ERROR(override_typed_throws,none,
       "%kindonly0 that throws %1 cannot override one that throws %2",
       (const AbstractFunctionDecl *, Type, Type))
