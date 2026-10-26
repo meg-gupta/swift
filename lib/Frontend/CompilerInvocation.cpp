@@ -1044,6 +1044,12 @@ bool swift::parseFeatureArgs(LangOptions &Opts, llvm::opt::ArgList &Args,
     // 'StandaloneSwiftAvailability' implies 'SwiftRuntimeAvailability'
     if (*feature == Feature::StandaloneSwiftAvailability)
       Opts.enableFeature(Feature::SwiftRuntimeAvailability, forMigration);
+
+    // 'ThrowingCoroutineAccessors' implies 'CoroutineAccessors'
+    if (isEnableFeatureFlag &&
+        *feature == Feature::ThrowingCoroutineAccessors) {
+      Opts.enableFeature(Feature::CoroutineAccessors, forMigration);
+    }
   }
 
   // Since pseudo-features don't have a boolean on/off state, process them in

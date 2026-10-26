@@ -537,6 +537,20 @@ static bool usesFeatureCoroutineAccessors(Decl *decl) {
   }
 }
 
+static bool usesFeatureThrowingCoroutineAccessors(Decl *decl) {
+  auto isThrowingYieldingBorrow = [](AccessorDecl *accessor) {
+    return accessor->getAccessorKind() == AccessorKind::YieldingBorrow &&
+           accessor->hasThrows();
+  };
+  if (auto *storage = dyn_cast<AbstractStorageDecl>(decl)) {
+    return llvm::any_of(storage->getAllAccessors(), isThrowingYieldingBorrow);
+  }
+  if (auto *accessor = dyn_cast<AccessorDecl>(decl)) {
+    return isThrowingYieldingBorrow(accessor);
+  }
+  return false;
+}
+
 static bool usesFeatureCoroutineFunctions(Decl *decl) {
   if (auto *FD = dyn_cast<FuncDecl>(decl))
     return FD->isCoroutine() && !isa<AccessorDecl>(FD);

@@ -8435,11 +8435,14 @@ struct Parser::ParsedAccessors {
   /// ignored.
   AccessorDecl *add(AccessorDecl *accessor);
 
-  /// applies the function to each accessor that is not a 'get'
-  void forEachNonGet(llvm::function_ref<void(AccessorDecl *)> func) {
-    for (auto accessor : Accessors)
-      if (!accessor->isGetter())
+  /// applies the function to each accessor that is not of the given kind
+  void forEachNotOfKind(AccessorKind kind,
+                        llvm::function_ref<void(AccessorDecl *)> func) {
+    for (auto accessor : Accessors) {
+      if (accessor->getAccessorKind() != kind) {
         func(accessor);
+      }
+    }
   }
 
   /// Find the first accessor that can be used to perform mutation.
@@ -8571,46 +8574,72 @@ static ParserStatus parseAccessorIntroducer(Parser &P,
 ///    getter-effects ::= "async" "throws"?
 /// \endverbatim
 ///
-/// While only 'get' accessors currently support such specifiers,
+/// While only 'get' accessors (and, with ThrowingCoroutineAccessors,
+/// 'yielding borrow' accessors) currently support such specifiers,
 /// this routine will also diagnose unsupported effects specifiers on
 /// other accessors.
 ///
 /// \param accessors the accessors we've parsed already.
 /// \param asyncLoc is mutated with the location of 'async' if found.
 /// \param throwsLoc is mutated with the location of 'throws' if found.
-/// \param hasEffectfulGet maintains the state of parsing multiple accessors
-///                        to track whether we've already seen an effectful
-///                        'get' accessor. It is mutated by this function.
+/// \param effectfulReadKind the kind of the effectful read accessor parsed so
+///                          far, if any. It is mutated by this function.
 /// \param currentKind is the kind of accessor we're parsing.
 /// \param currentLoc is the location of the current accessor we're parsing.
 /// \return the status of the parser after trying to parse these specifiers.
-ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
-                                             SourceLoc &asyncLoc,
-                                             SourceLoc &throwsLoc,
-                                             TypeRepr *&thrownTy,
-                                             bool &hasEffectfulGet,
-                                             AccessorKind currentKind,
-                                             SourceLoc const& currentLoc) {
+ParserStatus Parser::parseGetEffectSpecifier(
+    ParsedAccessors &accessors, SourceLoc &asyncLoc, SourceLoc &throwsLoc,
+    TypeRepr *&thrownTy, std::optional<AccessorKind> &effectfulReadKind,
+    AccessorKind currentKind, SourceLoc const &currentLoc) {
   ParserStatus Status;
 
+  auto diagnoseAccessorWithEffectfulRead = [&](SourceLoc loc,
+                                               AccessorKind kind,
+                                               AccessorKind effectfulKind) {
+    if (effectfulKind == AccessorKind::Get) {
+      diagnose(loc, diag::invalid_accessor_with_effectful_get,
+               accessorKindName(kind));
+    } else {
+      diagnose(loc, diag::invalid_accessor_with_throwing_yielding_borrow,
+               accessorKindName(kind));
+    }
+  };
+
+  bool canHaveEffects =
+      currentKind == AccessorKind::Get ||
+      (currentKind == AccessorKind::YieldingBorrow &&
+       Context.LangOpts.hasFeature(Feature::ThrowingCoroutineAccessors));
+
   if (isEffectsSpecifier(Tok)) {
-    if (currentKind == AccessorKind::Get) {
+    if (canHaveEffects) {
       Status |=
           parseEffectsSpecifiers(/*existingArrowLoc*/ SourceLoc(), asyncLoc,
               /*reasync*/ nullptr, throwsLoc,
               /*rethrows*/ nullptr, thrownTy);
 
-      // If we've previously parsed a non-'get' accessor, raise diagnostics,
-      // because we're about to add an effectful 'get' accessor.
-      if (!hasEffectfulGet) {
-        accessors.forEachNonGet([&](AccessorDecl *nonGetAccessor) {
-          diagnose(nonGetAccessor->getLoc(),
-                   diag::invalid_accessor_with_effectful_get,
-                   accessorKindName(nonGetAccessor->getAccessorKind()));
-        });
+      // A 'yielding borrow' may only be untyped 'throws'.
+      if (currentKind == AccessorKind::YieldingBorrow) {
+        if (asyncLoc.isValid()) {
+          diagnose(asyncLoc, diag::invalid_accessor_specifier,
+                   accessorKindName(currentKind), "async");
+          asyncLoc = SourceLoc();
+        }
+        if (thrownTy) {
+          diagnose(throwsLoc, diag::yielding_accessor_typed_throws);
+          thrownTy = nullptr;
+        }
       }
 
-      hasEffectfulGet = true;
+      // If we've previously parsed other accessors, raise diagnostics,
+      // because we're about to add an effectful read accessor.
+      bool isEffectful = asyncLoc.isValid() || throwsLoc.isValid();
+      if (isEffectful && !effectfulReadKind) {
+        accessors.forEachNotOfKind(currentKind, [&](AccessorDecl *other) {
+          diagnoseAccessorWithEffectfulRead(
+              other->getLoc(), other->getAccessorKind(), currentKind);
+        });
+        effectfulReadKind = currentKind;
+      }
     } else {
       // effects are not valid on this accessor. emit error for each one.
       do {
@@ -8621,11 +8650,11 @@ ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
     }
   }
 
-  // If we're about to set-up a non-'get' accessor when
-  // we have an effectful 'get', raise a diagnostic.
-  if (hasEffectfulGet && currentKind != AccessorKind::Get) {
-    diagnose(currentLoc, diag::invalid_accessor_with_effectful_get,
-             accessorKindName(currentKind));
+  // If we're about to set-up an accessor of another kind when we have an
+  // effectful read accessor, raise a diagnostic.
+  if (effectfulReadKind && currentKind != *effectfulReadKind) {
+    diagnoseAccessorWithEffectfulRead(currentLoc, currentKind,
+                                      *effectfulReadKind);
   }
 
   return Status;
@@ -8633,18 +8662,20 @@ ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
 
 bool Parser::parseAccessorAfterIntroducer(
     SourceLoc Loc, AccessorKind Kind, ParsedAccessors &accessors,
-    bool &hasEffectfulGet, bool &parsingLimitedSyntax,
+    std::optional<AccessorKind> &effectfulReadKind,
+    bool &parsingLimitedSyntax,
     DeclAttributes &Attributes, ParseDeclOptions Flags,
     AbstractStorageDecl *storage, ParserStatus &Status) {
   auto *param = parseOptionalAccessorArgument(Loc, *this, Kind);
 
-  // Next, parse effects specifiers. While it's only valid to have them
-  // on 'get' accessors, we also emit diagnostics if they show up on others.
+  // Next, parse effects specifiers. While it's only valid to have them on
+  // 'get' accessors (or, with ThrowingCoroutineAccessors, 'yielding borrow'
+  // accessors), we also emit diagnostics if they show up on others.
   SourceLoc asyncLoc;
   SourceLoc throwsLoc;
   TypeRepr *thrownTy = nullptr;
   Status |= parseGetEffectSpecifier(accessors, asyncLoc, throwsLoc, thrownTy,
-                                    hasEffectfulGet, Kind, Loc);
+                                    effectfulReadKind, Kind, Loc);
 
   // Set up a function declaration.
   auto *accessor = AccessorDecl::createParsed(
@@ -8756,7 +8787,7 @@ ParserStatus Parser::parseGetSet(ParseDeclOptions Flags, ParameterList *Indices,
   ParserStatus Status;
   bool accessorHasCodeCompletion = false;
   bool IsFirstAccessor = true;
-  bool hasEffectfulGet = false;
+  std::optional<AccessorKind> effectfulReadKind;
   accessors.LBLoc = consumeToken(tok::l_brace);
 
   // Skip accessor-block disambiguation attribute if exist.
@@ -8846,7 +8877,7 @@ ParserStatus Parser::parseGetSet(ParseDeclOptions Flags, ParameterList *Indices,
       diagnose(Loc, diag::protocol_setter_name);
     }
 
-    if (parseAccessorAfterIntroducer(Loc, Kind, accessors, hasEffectfulGet,
+    if (parseAccessorAfterIntroducer(Loc, Kind, accessors, effectfulReadKind,
                                      parsingLimitedSyntax, Attributes, Flags,
                                      storage, Status))
       break;
@@ -8881,7 +8912,7 @@ void Parser::parseTopLevelAccessors(
 #include "swift/AST/AccessorKinds.def"
 
   ParserStatus status;
-  bool hasEffectfulGet = false;
+  std::optional<AccessorKind> effectfulReadKind;
   bool parsingLimitedSyntax = false;
   bool IsFirstAccessor = true;
   while (!Tok.isAny(tok::r_brace, tok::eof)) {
@@ -8895,8 +8926,9 @@ void Parser::parseTopLevelAccessors(
       break;
 
     (void)parseAccessorAfterIntroducer(
-        loc, kind, accessors, hasEffectfulGet, parsingLimitedSyntax, attributes,
-        getParseDeclOptions(storage->getDeclContext()), storage, status);
+        loc, kind, accessors, effectfulReadKind, parsingLimitedSyntax,
+        attributes, getParseDeclOptions(storage->getDeclContext()), storage,
+        status);
     if (IsFirstAccessor) {
       IsFirstAccessor = false;
     }

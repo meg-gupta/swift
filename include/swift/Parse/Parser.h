@@ -1279,7 +1279,8 @@ public:
 
   bool parseAccessorAfterIntroducer(
       SourceLoc Loc, AccessorKind Kind, ParsedAccessors &accessors,
-      bool &hasEffectfulGet, bool &parsingLimitedSyntax,
+      std::optional<AccessorKind> &effectfulReadKind,
+      bool &parsingLimitedSyntax,
       DeclAttributes &Attributes, ParseDeclOptions Flags,
       AbstractStorageDecl *storage, ParserStatus &Status);
 
@@ -1298,7 +1299,8 @@ public:
                                        SourceLoc &asyncLoc,
                                        SourceLoc &throwsLoc,
                                        TypeRepr *&thrownTy,
-                                       bool &hasEffectfulGet,
+                                       std::optional<AccessorKind>
+                                           &effectfulReadKind,
                                        AccessorKind currentKind,
                                        SourceLoc const& currentLoc);
 

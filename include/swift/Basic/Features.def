@@ -564,6 +564,10 @@ SUPPRESSIBLE_EXPERIMENTAL_FEATURE(CoroutineAccessors, true)
 /// error, but no longer has any effect.
 EXPERIMENTAL_FEATURE(CoroutineAccessorsUnwindOnCallerError, false)
 
+/// `yielding borrow` accessors may be `throws`, throwing only before they
+/// yield. Implies `CoroutineAccessors`.
+EXPERIMENTAL_FEATURE(ThrowingCoroutineAccessors, false)
+
 /// normal coroutines (as functions)
 EXPERIMENTAL_FEATURE(CoroutineFunctions, false)
 

@@ -307,6 +307,11 @@ ERROR(invalid_accessor_specifier,none,
 ERROR(invalid_accessor_with_effectful_get,none,
       "'%0' accessor is not allowed on property with 'get' accessor that is 'async' or 'throws'",
       (StringRef))
+ERROR(invalid_accessor_with_throwing_yielding_borrow,none,
+      "'%0' accessor is not allowed on property with 'yielding borrow' accessor that is 'throws'",
+      (StringRef))
+ERROR(yielding_accessor_typed_throws,none,
+      "typed throws is not supported on a 'yielding borrow' accessor", ())
 ERROR(missing_getter,none,
       "%select{variable|subscript}0 with %1 must also have a getter",
       (unsigned, StringRef))
