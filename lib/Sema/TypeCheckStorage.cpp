@@ -1795,6 +1795,19 @@ synthesizeTrivialGetterBody(AccessorDecl *getter, TargetImpl target,
   Expr *result =
     createPropertyLoadOrCallSuperclassGetter(getter, storage, target, ctx);
 
+  if (result != nullptr && getter->hasThrows()) {
+    auto throwDest = ThrownErrorDestination::forMatchingContextType(
+        ctx.getErrorExistentialType());
+    if (auto *lookup = dyn_cast<LookupExpr>(result)) {
+      lookup->setThrows(throwDest);
+    } else if (auto *declRef = dyn_cast<DeclRefExpr>(result)) {
+      declRef->setThrows(throwDest);
+    } else {
+      ASSERT(false && "unexpected storage reference in throwing getter");
+    }
+    result = TryExpr::createImplicit(ctx, loc, result, result->getType());
+  }
+
   SmallVector<ASTNode, 2> body;
   if (result != nullptr) {
     body.push_back(ReturnStmt::createImplicit(ctx, result));
@@ -2598,10 +2611,11 @@ static AccessorDecl *createGetterPrototype(AbstractStorageDecl *storage,
   if (storage->isStatic())
     staticLoc = storage->getLoc();
 
+  bool throws = storage->getThrowingYieldingBorrowAccessor() != nullptr;
   auto getter = AccessorDecl::create(
       ctx, loc, /*AccessorKeywordLoc*/ loc, AccessorKind::Get, storage,
       /*Async=*/false, /*AsyncLoc=*/SourceLoc(),
-      /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(), /*ThrownType=*/TypeLoc(),
+      /*Throws=*/throws, /*ThrowsLoc=*/SourceLoc(), /*ThrownType=*/TypeLoc(),
       getterParams, Type(), storage->getDeclContext());
   getter->setSynthesized();
 
@@ -3021,6 +3035,10 @@ RequiresOpaqueAccessorsRequest::evaluate(Evaluator &evaluator,
 /// property in question became available.
 static bool requiresCorrespondingLegacyCoroutineAccessorImpl(
     AbstractStorageDecl const *storage, AccessorKind kind,
+    AccessorDecl const *decl, AbstractStorageDecl const *derived);
+
+static bool legacyCoroutineAccessorRequiredForABI(
+    AbstractStorageDecl const *storage, AccessorKind kind,
     AccessorDecl const *decl, AbstractStorageDecl const *derived) {
   auto &ctx = storage->getASTContext();
   assert(ctx.LangOpts.hasFeature(Feature::CoroutineAccessors));
@@ -3108,6 +3126,16 @@ static bool requiresCorrespondingLegacyCoroutineAccessorImpl(
 
   // The legacy ("underscored") accessor is required for ABI stability.
   return true;
+}
+
+static bool requiresCorrespondingLegacyCoroutineAccessorImpl(
+    AbstractStorageDecl const *storage, AccessorKind kind,
+    AccessorDecl const *decl, AbstractStorageDecl const *derived) {
+  // A throwing 'yielding borrow' exists only in the yield_once_2 ABI.
+  if (storage->getThrowingYieldingBorrowAccessor()) {
+    return false;
+  }
+  return legacyCoroutineAccessorRequiredForABI(storage, kind, decl, derived);
 }
 
 bool AbstractStorageDecl::requiresCorrespondingLegacyCoroutineAccessor(

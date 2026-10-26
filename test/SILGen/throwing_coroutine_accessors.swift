@@ -9,6 +9,15 @@
 // RUN:     -enable-callee-allocated-coro-abi -enable-experimental-feature ThrowingCoroutineAccessors \
 // RUN: | %FileCheck %t/caller.swift
 
+// RUN: %target-swift-emit-silgen %t/getter.swift -module-name Lib -verify \
+// RUN:     -enable-callee-allocated-coro-abi -enable-experimental-feature ThrowingCoroutineAccessors \
+// RUN: | %FileCheck %t/getter.swift
+
+// RUN: %target-swift-emit-silgen %t/protocol.swift -module-name Lib \
+// RUN:     -enable-library-evolution -target %target-future-triple \
+// RUN:     -enable-callee-allocated-coro-abi -enable-experimental-feature ThrowingCoroutineAccessors \
+// RUN: | %FileCheck %t/protocol.swift
+
 // REQUIRES: swift_feature_ThrowingCoroutineAccessors
 
 //--- callee.swift
@@ -58,4 +67,25 @@ struct S: ~Copyable {
 // CHECK-LABEL: } // end sil function '$s3Lib4read{{.*}}'
 func read(_ s: borrowing S) throws -> Int {
   return try s.p.v // expected-error {{INTERNAL ERROR: feature not implemented: calling a throwing 'yielding borrow' accessor}}
+}
+
+//--- getter.swift
+public struct S {
+  public var x: Int
+
+  // CHECK-LABEL: sil {{.*}}@$s3Lib1SV1pSivg : $@convention(method) (S) -> (Int, @error any Error) {
+  // CHECK:         begin_apply [nothrow]
+  // CHECK-LABEL: } // end sil function '$s3Lib1SV1pSivg'
+  public var p: Int { // expected-error {{INTERNAL ERROR: feature not implemented: calling a throwing 'yielding borrow' accessor}}
+    yielding borrow throws { yield x }
+  }
+}
+
+//--- protocol.swift
+// CHECK-NOT:   #P.p!read
+// CHECK-LABEL: sil_default_witness_table P {
+// CHECK-NEXT:    no_default
+// CHECK-NEXT:  }
+public protocol P {
+  var p: Int { yielding borrow throws }
 }
