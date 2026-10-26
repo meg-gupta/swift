@@ -114,7 +114,12 @@ class YieldOnceCheck : public SILFunctionTransform {
   /// some context information that will be used by diagnostics.
   struct YieldError {
     /// The kind of error.
-    enum Kind { MultipleYield, ReturnBeforeYield, ReturnOnConflict } errorKind;
+    enum Kind {
+      MultipleYield,
+      ReturnBeforeYield,
+      ReturnOnConflict,
+      ThrowAfterYield
+    } errorKind;
     /// The termination instruction where the error should be reported.
     SILInstruction *termInst;
     /// The input state when the error is encountered.
@@ -139,6 +144,12 @@ class YieldOnceCheck : public SILFunctionTransform {
     static YieldError getReturnOnConflict(ReturnInst *returnI, BBState state) {
       assert(state.yieldState == BBState::Conflict);
       return YieldError(ReturnOnConflict, returnI, state);
+    }
+
+    static YieldError getThrowAfterYieldError(ThrowInst *throwI,
+                                              BBState state) {
+      assert(state.yieldState != BBState::BeforeYield);
+      return YieldError(ThrowAfterYield, throwI, state);
     }
   };
 
@@ -180,8 +191,13 @@ class YieldOnceCheck : public SILFunctionTransform {
       return inState.getAfterYieldState(term);
     }
 
-    // We cannot have throws within generalized accessors.
-    assert(!isa<ThrowInst>(term));
+    // A throwing coroutine may throw only before it yields.
+    if (auto *throwInst = dyn_cast<ThrowInst>(term)) {
+      if (inState.yieldState != BBState::BeforeYield) {
+        error = YieldError::getThrowAfterYieldError(throwInst, inState);
+        return std::nullopt;
+      }
+    }
 
     return inState;
   }
@@ -264,6 +280,7 @@ class YieldOnceCheck : public SILFunctionTransform {
     // distinguish them from ReturnOnConflict errors, which happen when some
     // paths yield and some don't.
     std::optional<YieldError> returnBeforeYieldError = std::nullopt;
+    std::optional<YieldError> throwAfterYieldError = std::nullopt;
 
     // The algorithm uses a worklist to propagate the state through basic
     // blocks until a fix point. Since the state lattice has height one, each
@@ -290,6 +307,11 @@ class YieldOnceCheck : public SILFunctionTransform {
           if (!returnBeforeYieldError.has_value()) {
             returnBeforeYieldError = error;
           }
+          continue;
+        }
+
+        if (error.errorKind == YieldError::ThrowAfterYield) {
+          throwAfterYieldError = error;
           continue;
         }
 
@@ -330,6 +352,10 @@ class YieldOnceCheck : public SILFunctionTransform {
     if (returnBeforeYieldError.has_value()) {
       emitDiagnostics(returnBeforeYieldError.value(), fun, bbToStateMap);
     }
+
+    if (throwAfterYieldError.has_value()) {
+      emitDiagnostics(throwAfterYieldError.value(), fun, bbToStateMap);
+    }
   }
 
   void emitDiagnostics(YieldError &error, SILFunction &fun,
@@ -352,6 +378,43 @@ class YieldOnceCheck : public SILFunctionTransform {
                diag::previous_yield);
       return;
     }
+    case YieldError::ThrowAfterYield: {
+      // A block that calls 'willThrow' is an explicit 'throw' statement. A
+      // catch block can be folded into the block that throws, so earlier
+      // 'willThrow' calls belong to handled throws; the escaping 'throw' is
+      // the last one. Otherwise every throw site branches to the block that
+      // throws, and each predecessor's branch carries the location of its
+      // 'throw' or 'try'. Diagnose the branches taken after the yield.
+      auto *throwBB = error.termInst->getParent();
+      for (auto &inst : llvm::reverse(*throwBB)) {
+        auto *builtin = dyn_cast<BuiltinInst>(&inst);
+        if (!builtin ||
+            builtin->getBuiltinInfo().ID != BuiltinValueKind::WillThrow) {
+          continue;
+        }
+        diagnose(astCtx, builtin->getLoc().getSourceLoc(),
+                 diag::throw_after_yield);
+        diagnose(astCtx,
+                 error.inState.getYieldInstruction()->getLoc().getSourceLoc(),
+                 diag::throw_after_yield_yield_here);
+        return;
+      }
+
+      for (auto *predBB : throwBB->getPredecessorBlocks()) {
+        auto &predState = visitedBBs[predBB];
+        if (!predState.isVisited() ||
+            predState.yieldState == BBState::BeforeYield) {
+          continue;
+        }
+        diagnose(astCtx, predBB->getTerminator()->getLoc().getSourceLoc(),
+                 diag::throw_after_yield);
+        diagnose(astCtx,
+                 predState.getYieldInstruction()->getLoc().getSourceLoc(),
+                 diag::throw_after_yield_yield_here);
+      }
+      return;
+    }
+
     case YieldError::ReturnOnConflict: {
       // Emit an error on the return statement.
       diagnose(astCtx, error.termInst->getLoc().getSourceLoc(),

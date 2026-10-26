@@ -794,6 +794,11 @@ NOTE(switch_value_case_doesnt_yield, none, "missing yield in the %0 case",
 NOTE(try_branch_doesnt_yield, none, "missing yield when error is "
      "%select{not |}0thrown", (bool))
 
+ERROR(throw_after_yield, none,
+      "'yielding borrow' accessor cannot throw after it yields", ())
+
+NOTE(throw_after_yield_yield_here, none, "accessor yields here", ())
+
 // OS log optimization diagnostics.
 
 ERROR(oslog_constant_eval_trap, none, "%0", (StringRef))
