@@ -3765,6 +3765,9 @@ public:
     checkDeclCommon(FD);
 
     TypeChecker::checkDeclAttributes(FD);
+    if (auto *accessor = dyn_cast<AccessorDecl>(FD)) {
+      TypeChecker::checkThrowingYieldingBorrowAccessor(accessor);
+    }
     TypeChecker::checkDistributedFunc(FD);
     checkEmbeddedRestrictionsInSignature(FD);
 

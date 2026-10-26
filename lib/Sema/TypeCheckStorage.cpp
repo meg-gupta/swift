@@ -39,6 +39,7 @@
 #include "swift/AST/Pattern.h"
 #include "swift/AST/PropertyWrappers.h"
 #include "swift/AST/ProtocolConformance.h"
+#include "swift/AST/SILOptions.h"
 #include "swift/AST/SourceFile.h"
 #include "swift/AST/SourceFileExtras.h"
 #include "swift/AST/SynthesizedDeclBuilder.h"
@@ -4627,4 +4628,52 @@ bool SimpleDidSetRequest::evaluate(Evaluator &evaluator,
     return true;
   }
   return false;
+}
+
+void TypeChecker::checkThrowingYieldingBorrowAccessor(AccessorDecl *accessor) {
+  if (accessor->getAccessorKind() != AccessorKind::YieldingBorrow ||
+      !accessor->hasThrows()) {
+    return;
+  }
+
+  auto &ctx = accessor->getASTContext();
+  auto *storage = accessor->getStorage();
+
+  if (accessor->getAttrs().hasAttribute<TransparentAttr>() ||
+      storage->getAttrs().hasAttribute<TransparentAttr>()) {
+    accessor->diagnose(diag::throwing_yielding_borrow_transparent);
+  }
+
+  if (accessor->getAttrs().hasAttribute<BackDeployedAttr>() ||
+      storage->getAttrs().hasAttribute<BackDeployedAttr>()) {
+    accessor->diagnose(diag::throwing_yielding_borrow_back_deployed);
+  }
+
+  if (!ctx.SILOpts.CoroutineAccessorsUseYieldOnce2) {
+    accessor->diagnose(diag::throwing_yielding_borrow_requires_yield_once_2);
+    return;
+  }
+
+  // There is no legacy '_read' to fall back to, so clients that predate the
+  // yield_once_2 ABI must not be able to use ABI-public storage.
+  if (storage->getModuleContext()->getResilienceStrategy() !=
+      ResilienceStrategy::Resilient) {
+    return;
+  }
+  if (isExported(storage) != ExportedLevel::Exported &&
+      !storage
+           ->getFormalAccessScope(/*useDC=*/nullptr,
+                                  /*treatUsableFromInlineAsPublic=*/true)
+           .isPackage()) {
+    return;
+  }
+  if (!ctx.supportsVersionedAvailability()) {
+    return;
+  }
+  auto accessorAvailability = AvailabilityContext::forDeclSignature(accessor);
+  if (!accessorAvailability.getPlatformRange().isContainedIn(
+          ctx.getCoroutineAccessorsAvailability())) {
+    accessor->diagnose(diag::throwing_yielding_borrow_requires_availability,
+                       storage);
+  }
 }

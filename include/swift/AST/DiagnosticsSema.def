@@ -8970,6 +8970,18 @@ NOTE(noncopyable_generics_implicit_composition, none,
 ERROR(noncopyable_effectful_getter,none,
       "%kindonly0 of noncopyable type cannot be 'async' or 'throws'",
       (const AccessorDecl *))
+ERROR(throwing_yielding_borrow_transparent,none,
+      "'@_transparent' is not supported on a throwing 'yielding borrow' accessor",
+      ())
+ERROR(throwing_yielding_borrow_back_deployed,none,
+      "'@backDeployed' is not supported on a throwing 'yielding borrow' "
+      "accessor", ())
+ERROR(throwing_yielding_borrow_requires_yield_once_2,none,
+      "throwing 'yielding borrow' accessor requires the callee-allocated "
+      "coroutine ABI", ())
+ERROR(throwing_yielding_borrow_requires_availability,none,
+      "throwing 'yielding borrow' accessor of %kind0 must not be available "
+      "before the yield_once_2 coroutine ABI", (const ValueDecl *))
 ERROR(noncopyable_enums_do_not_support_indirect,none,
       "noncopyable enum %0 cannot be marked indirect or have indirect cases yet", (Identifier))
 ERROR(noncopyable_cast,none,
