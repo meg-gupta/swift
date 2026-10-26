@@ -2153,9 +2153,19 @@ static void emitRawApply(SILGenFunction &SGF,
 
   // If the function is a coroutine, we need to use 'begin_apply'.
   if (substFnType->isCoroutine()) {
-    assert(!substFnType->hasErrorResult());
+    ApplyOptions coroutineOptions;
+    if (substFnType->hasErrorResult()) {
+      // TODO: ThrowingCoroutineAccessors: emit try_begin_apply.
+      SourceLoc diagLoc = loc.getSourceLoc();
+      if (diagLoc.isInvalid()) {
+        diagLoc = SGF.F.getLocation().getSourceLoc();
+      }
+      SGF.SGM.diagnose(diagLoc, diag::not_implemented,
+                       "calling a throwing 'yielding borrow' accessor");
+      coroutineOptions |= ApplyFlags::DoesNotThrow;
+    }
     auto apply =
-        SGF.B.createBeginApply(loc, fnValue, subs, argValues, ApplyOptions(),
+        SGF.B.createBeginApply(loc, fnValue, subs, argValues, coroutineOptions,
                                /*specializationInfo=*/nullptr,
                                /*isolationCrossing=*/std::nullopt, argLocsRef);
     for (auto result : apply->getAllResults())
@@ -6815,10 +6825,15 @@ SILGenFunction::emitBeginApplyWithRethrow(SILLocation loc, SILValue fn,
   if (subs && subs.getGenericSignature()->areAllParamsConcrete())
     subs = SubstitutionMap();
 
-  // TODO: adjust this to create try_begin_apply when appropriate.
-  assert(!substFnType.castTo<SILFunctionType>()->hasErrorResult());
+  ApplyOptions options;
+  if (substFnType.castTo<SILFunctionType>()->hasErrorResult()) {
+    // TODO: ThrowingCoroutineAccessors: emit try_begin_apply.
+    SGM.diagnose(loc, diag::not_implemented,
+                 "forwarding a throwing 'yielding borrow' accessor");
+    options |= ApplyFlags::DoesNotThrow;
+  }
 
-  auto beginApply = B.createBeginApply(loc, fn, subs, args);
+  auto beginApply = B.createBeginApply(loc, fn, subs, args, options);
 
   auto yieldResults = beginApply->getYieldedValues();
   yields.append(yieldResults.begin(), yieldResults.end());
