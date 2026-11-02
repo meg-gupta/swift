@@ -4650,6 +4650,18 @@ void TypeChecker::checkYieldList(YieldList *yields, AbstractFunctionDecl *AFD) {
                        FD->getAttrs().hasAttribute<ReasyncAttr>() ? "reasync"
                                                                   : "async");
   }
+
+  // `yield (a, b)` yields two values, so tuple yields are rejected to keep the
+  // spelling open for yielding several values.
+  auto yieldType = FD->getSingleYieldType().getType();
+  if (yieldType->is<TupleType>()) {
+    auto *yieldRepr = cast<YieldTypeRepr>(yields->get(0).getTypeRepr());
+    ctx.Diags
+        .diagnose(yieldRepr->getBase()->getLoc(), diag::single_yield_tuple,
+                  yieldType)
+        .highlight(yieldRepr->getBase()->getSourceRange());
+    FD->setInvalid();
+  }
 }
 
 std::optional<unsigned>

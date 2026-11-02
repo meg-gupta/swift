@@ -9971,6 +9971,8 @@ ERROR(single_yield_operator,none,
       "operator functions cannot be single-yield functions", ())
 ERROR(single_yield_async_unsupported,none,
       "single-yield functions cannot be '%0'", (StringRef))
+ERROR(single_yield_tuple,none,
+      "single-yield functions cannot yield tuple type %0", (Type))
 ERROR(single_yield_function_type_unsupported,none,
       "single-yield function types are not yet supported", ())
 ERROR(yield_type_invalid_position,none,

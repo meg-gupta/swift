@@ -44,3 +44,16 @@ func asyncYield() async -> yield Klass { yield Klass() } // expected-error {{sin
 func asyncThrowing() async throws -> yield Klass { yield Klass() } // expected-error {{single-yield functions cannot be 'async'}}
 
 func takesFunction(_ f: () -> yield Klass) {} // expected-error {{single-yield function types are not yet supported}}
+
+typealias Pair = (Klass, Klass)
+
+func yieldsTuple(_ a: Klass, _ b: Klass) -> yield (Klass, Klass) { yield (a, b) } // expected-error {{single-yield functions cannot yield tuple type '(Klass, Klass)'}}
+func yieldsLabeledTuple(_ p: (x: Klass, y: Klass)) -> yield borrow (x: Klass, y: Klass) { yield p } // expected-error {{single-yield functions cannot yield tuple type '(x: Klass, y: Klass)'}}
+func yieldsDoublyParenthesizedTuple(_ a: Klass, _ b: Klass) -> yield ((Klass, Klass)) { yield ((a, b)) } // expected-error {{single-yield functions cannot yield tuple type '(Klass, Klass)'}}
+func yieldsDoublyParenthesizedInoutTuple(_ p: inout Pair) -> yield inout ((Klass, Klass)) { yield &p } // expected-error {{single-yield functions cannot yield tuple type '(Klass, Klass)'}}
+func yieldsTupleAlias(_ p: Pair) -> yield Pair { yield p } // expected-error {{single-yield functions cannot yield tuple type 'Pair' (aka '(Klass, Klass)')}}
+func yieldsEmptyTuple() -> yield () { yield () } // expected-error {{single-yield functions cannot yield tuple type '()'}}
+func yieldsVoid() -> yield Void { yield () } // expected-error {{single-yield functions cannot yield tuple type 'Void'}}
+func yieldsParenthesized() -> yield (Klass) { yield Klass() }
+func yieldsGeneric<T>(_ t: T) -> yield T { yield t }
+func usesGenericWithTuple(_ p: Pair) { let _: Pair = yieldsGeneric(p) }
