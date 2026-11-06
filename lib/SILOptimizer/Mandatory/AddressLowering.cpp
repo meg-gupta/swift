@@ -372,8 +372,8 @@ static bool isStoreCopy(SILValue value) {
   if (!storeInst)
     return false;
 
-  SSAPrunedLiveness liveness(copyInst->getFunction());
-  auto isStoreOutOfRange = [&liveness, storeInst](SILValue root) {
+  auto isStoreOutOfRange = [storeInst](SILValue root) {
+    SSAPrunedLiveness liveness(storeInst->getFunction());
     liveness.initializeDef(root);
     auto summary = liveness.computeSimple();
     if (summary.addressUseKind != AddressUseKind::NonEscaping) {
@@ -390,6 +390,16 @@ static bool isStoreCopy(SILValue value) {
 
   auto source = copyInst->getOperand();
   if (source->getOwnershipKind() == OwnershipKind::Guaranteed) {
+    // A borrow accessor result is a projection of self that is only valid
+    // within the borrow scope of the result, so the store must be within that
+    // scope. The scope of self is not enough: self may be modified after the
+    // result's scope ends.
+    if (!visitBorrowIntroducers(source, [&](SILValue introducer) {
+          return !isa<ApplyInst>(introducer) ||
+                 !isStoreOutOfRange(introducer);
+        })) {
+      return false;
+    }
     // [in_guaranteed_begin_apply_results] If any root of the source is a
     // begin_apply, we can't rely on projecting from the (rewritten) source:
     // The store may not be in the coroutine's range. The result would be

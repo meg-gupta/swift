@@ -547,6 +547,40 @@ bb0(%0 : $Builtin.RawPointer):
   return_borrow %3 from_scopes (%3)
 }
 
+// The copy of a borrow accessor result is stored after the scope of the result
+// ends, into the storage that self is modified through. The copy cannot project
+// from the storage of the result, even though the borrow of self covers the
+// store, so it gets its own storage.
+// CHECK-LABEL: sil [ossa] @f067_store_copy_of_borrow_accessor_result : $@convention(thin) <T> (@inout Box<T>) -> () {
+// CHECK: bb0(%0 : $*Box<T>):
+// CHECK:   [[TMP:%.*]] = alloc_stack $T
+// CHECK:   [[READ:%.*]] = begin_access [read] [static] %0 : $*Box<T>
+// CHECK:   [[BORROWED:%.*]] = apply {{%.*}}<T>([[READ]]) : $@convention(method) <τ_0_0> (@in_guaranteed Box<τ_0_0>) -> @guaranteed_address τ_0_0
+// CHECK-NEXT:   copy_addr [[BORROWED]] to [init] [[TMP]] : $*T
+// CHECK-NEXT:   end_access [[READ]] : $*Box<T>
+// CHECK:   [[MODIFY:%.*]] = begin_access [modify] [static] %0 : $*Box<T>
+// CHECK:   [[ADDR:%.*]] = apply {{%.*}}<T>([[MODIFY]]) : $@convention(method) <τ_0_0> (@inout Box<τ_0_0>) -> @inout τ_0_0
+// CHECK-NEXT:   copy_addr [take] [[TMP]] to [[ADDR]] : $*T
+// CHECK-LABEL: } // end sil function 'f067_store_copy_of_borrow_accessor_result'
+sil [ossa] @f067_store_copy_of_borrow_accessor_result : $@convention(thin) <T> (@inout Box<T>) -> () {
+bb0(%0 : $*Box<T>):
+  %1 = begin_access [read] [static] %0 : $*Box<T>
+  %2 = function_ref @f062_borrow_accessor : $@convention(method) <T> (@in_guaranteed Box<T>) -> @guaranteed_address T
+  %3 = load_borrow %1 : $*Box<T>
+  %4 = apply %2<T>(%3) : $@convention(method) <T> (@in_guaranteed Box<T>) -> @guaranteed_address T
+  %5 = copy_value %4 : $T
+  end_borrow %4 : $T
+  end_access %1 : $*Box<T>
+  %8 = begin_access [modify] [static] %0 : $*Box<T>
+  %9 = function_ref @f063_mutate_accessor : $@convention(method) <T> (@inout Box<T>) -> @inout T
+  %10 = apply %9<T>(%8) : $@convention(method) <T> (@inout Box<T>) -> @inout T
+  store %5 to [assign] %10 : $*T
+  end_access %8 : $*Box<T>
+  end_borrow %3 : $Box<T>
+  %14 = tuple ()
+  return %14 : $()
+}
+
 // CHECK-LABEL: sil [ossa] @f070_mixedResult1 : $@convention(thin) <T> (@in T, @owned any C) -> (@out T, @owned any C) {
 // CHECK: bb0(%0 : $*T, %1 : $*T, %2 : @owned $any C):
 // CHECK:   copy_addr [take] %1 to [init] %0 : $*T
