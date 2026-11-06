@@ -798,6 +798,58 @@ static void forwardArgAddressToAddressableBuffers(AddressLoweringState &pass,
   }
 }
 
+/// Returns true if the returned value or a scope of \p returnBorrow is enclosed
+/// by \p outer.
+static bool isReturnedFromScopeOf(ReturnBorrowInst *returnBorrow,
+                                  SILValue outer) {
+  SmallVector<SILValue, 8> worklist;
+  SmallPtrSet<SILValue, 8> visited;
+  auto push = [&](SILValue value) {
+    if (visited.insert(value).second) {
+      worklist.push_back(value);
+    }
+  };
+  push(returnBorrow->getReturnValue());
+  for (SILValue enclosingValue : returnBorrow->getEnclosingValues()) {
+    push(enclosingValue);
+  }
+  while (!worklist.empty()) {
+    SILValue value = worklist.pop_back_val();
+    if (value == outer) {
+      return true;
+    }
+    visitEnclosingDefs(value, [&](SILValue def) {
+      push(def);
+      return true;
+    });
+  }
+  return false;
+}
+
+/// End the borrow \p load of a @guaranteed argument at each function exit. A
+/// @guaranteed result that is enclosed by the borrow is returned from its scope
+/// instead.
+static void endArgumentBorrowAtExits(LoadBorrowInst *load,
+                                     AddressLoweringState &pass) {
+  for (TermInst *&termInst : pass.exitingInsts) {
+    auto *returnBorrow = dyn_cast<ReturnBorrowInst>(termInst);
+    if (returnBorrow && !pass.loweredFnConv.hasGuaranteedAddressResult() &&
+        isReturnedFromScopeOf(returnBorrow, load)) {
+      SmallVector<SILValue, 4> enclosingValues = {load};
+      enclosingValues.append(returnBorrow->getEnclosingValues().begin(),
+                             returnBorrow->getEnclosingValues().end());
+      termInst = pass.getBuilder(returnBorrow->getIterator())
+                     .createReturnBorrow(returnBorrow->getLoc(),
+                                         returnBorrow->getReturnValue(),
+                                         enclosingValues);
+      returnBorrow->eraseFromParent();
+      continue;
+    }
+    pass.getBuilder(termInst->getIterator())
+        .createEndBorrow(pass.genLoc(), load);
+  }
+}
+
 /// Before populating the ValueStorageMap, replace each value-typed argument to
 /// the current function with an address-typed argument by inserting a temporary
 /// load instruction.
@@ -825,10 +877,6 @@ static void convertDirectToIndirectFunctionArgs(AddressLoweringState &pass) {
                                      LoadOwnershipQualifier::Take);
       } else {
         load = argBuilder.createLoadBorrow(loc, undefAddress);
-        for (SILInstruction *termInst : pass.exitingInsts) {
-          pass.getBuilder(termInst->getIterator())
-              .createEndBorrow(pass.genLoc(), load);
-        }
         for (SILInstruction *termInst : pass.terminatingInsts) {
           pass.getBuilder(termInst->getIterator())
               .createEndBorrow(pass.genLoc(), load);
@@ -836,6 +884,16 @@ static void convertDirectToIndirectFunctionArgs(AddressLoweringState &pass) {
       }
       arg->replaceAllUsesWith(load);
       assert(!pass.valueStorageMap.contains(arg));
+      if (auto *loadBorrow = dyn_cast<LoadBorrowInst>(load)) {
+        if (addrType.isAddressOnly(*pass.function)) {
+          for (SILInstruction *termInst : pass.exitingInsts) {
+            pass.getBuilder(termInst->getIterator())
+                .createEndBorrow(pass.genLoc(), loadBorrow);
+          }
+        } else {
+          endArgumentBorrowAtExits(loadBorrow, pass);
+        }
+      }
 
       auto *oldArg = cast<SILFunctionArgument>(arg);
       auto *newArg = arg->getParent()->replaceFunctionArgument(

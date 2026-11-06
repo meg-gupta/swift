@@ -581,6 +581,40 @@ bb0(%0 : $*Box<T>):
   return %14 : $()
 }
 
+sil @f068_borrow_klass : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+
+// A loadable @in_guaranteed self is borrowed after lowering. A borrow accessor
+// result that is enclosed by the borrow of self is returned from its scope.
+// CHECK-LABEL: sil [ossa] @f068_return_borrow_from_indirect_self : $@convention(method) (@in_guaranteed LoadableNontrivial) -> @guaranteed Klass {
+// CHECK: bb0(%0 : $*LoadableNontrivial):
+// CHECK-NEXT:   [[SELF:%.*]] = load_borrow %0 : $*LoadableNontrivial
+// CHECK:   [[R:%.*]] = apply {{%.*}}([[SELF]]) : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+// CHECK-NEXT:   return_borrow [[R]] : $Klass from_scopes ([[SELF]] : $LoadableNontrivial, [[R]] : $Klass)
+// CHECK-LABEL: } // end sil function 'f068_return_borrow_from_indirect_self'
+sil [ossa] @f068_return_borrow_from_indirect_self : $@convention(method) (@in_guaranteed LoadableNontrivial) -> @guaranteed Klass {
+bb0(%0 : @guaranteed $LoadableNontrivial):
+  %1 = function_ref @f068_borrow_klass : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+  return_borrow %2 : $Klass from_scopes (%2 : $Klass)
+}
+
+// The borrow of an @in_guaranteed argument that does not enclose the result
+// ends before the return_borrow.
+// CHECK-LABEL: sil [ossa] @f069_return_borrow_with_indirect_index : $@convention(method) (@in_guaranteed LoadableNontrivial, @in_guaranteed LoadableNontrivial) -> @guaranteed Klass {
+// CHECK: bb0(%0 : $*LoadableNontrivial, %1 : $*LoadableNontrivial):
+// CHECK-NEXT:   [[INDEX:%.*]] = load_borrow %0 : $*LoadableNontrivial
+// CHECK-NEXT:   [[SELF:%.*]] = load_borrow %1 : $*LoadableNontrivial
+// CHECK:   [[R:%.*]] = apply {{%.*}}([[SELF]]) : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+// CHECK-NEXT:   end_borrow [[INDEX]] : $LoadableNontrivial
+// CHECK-NEXT:   return_borrow [[R]] : $Klass from_scopes ([[SELF]] : $LoadableNontrivial, [[R]] : $Klass)
+// CHECK-LABEL: } // end sil function 'f069_return_borrow_with_indirect_index'
+sil [ossa] @f069_return_borrow_with_indirect_index : $@convention(method) (@in_guaranteed LoadableNontrivial, @in_guaranteed LoadableNontrivial) -> @guaranteed Klass {
+bb0(%0 : @guaranteed $LoadableNontrivial, %1 : @guaranteed $LoadableNontrivial):
+  %2 = function_ref @f068_borrow_klass : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed LoadableNontrivial) -> @guaranteed Klass
+  return_borrow %3 : $Klass from_scopes (%3 : $Klass)
+}
+
 // CHECK-LABEL: sil [ossa] @f070_mixedResult1 : $@convention(thin) <T> (@in T, @owned any C) -> (@out T, @owned any C) {
 // CHECK: bb0(%0 : $*T, %1 : $*T, %2 : @owned $any C):
 // CHECK:   copy_addr [take] %1 to [init] %0 : $*T
