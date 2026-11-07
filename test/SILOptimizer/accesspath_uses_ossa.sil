@@ -1013,3 +1013,53 @@ bb0(%0 : $Builtin.Int64):
  return %ret : $()
 }
 
+
+sil @borrowAddressSelf : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
+sil @borrowObjectSelf : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
+sil @nonmutatingMutate : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+
+// The results of borrow and mutate accessors with an @in_guaranteed self are projections of self. The result of an
+// accessor with an object self is BorrowMutateAccessor storage.
+//
+// CHECK-LABEL: @testBorrowMutateAccessorUses
+// CHECK: ###For MemOp:   %3 = load [trivial] %0 : $*MyStruct
+// CHECK: Storage: Argument %0 = argument of bb0 : $*MyStruct
+// CHECK: Path: ()
+// CHECK: Exact Uses {
+// CHECK-NEXT:   %3 = load [trivial] %0 : $*MyStruct
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT:   %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT:   %6 = load [trivial] %5 : $*Int64
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT:   %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT:   store %2 to [trivial] %8 : $*Int64
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT: }
+// CHECK: ###For MemOp:   %6 = load [trivial] %5 : $*Int64
+// CHECK: Storage: Argument %0 = argument of bb0 : $*MyStruct
+// CHECK: ###For MemOp:   store %2 to [trivial] %8 : $*Int64
+// CHECK: Storage: Argument %0 = argument of bb0 : $*MyStruct
+// CHECK: ###For MemOp:   %12 = load [trivial] %11 : $*Int64
+// CHECK: Storage: BorrowMutateAccessor   %11 = apply %10(%1) : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
+// CHECK: Path: ()
+// CHECK: Exact Uses {
+// CHECK-NEXT:   %12 = load [trivial] %11 : $*Int64
+// CHECK-NEXT:   Path: ()
+// CHECK-NEXT: }
+sil [ossa] @testBorrowMutateAccessorUses : $@convention(thin) (@in_guaranteed MyStruct, MyStruct, Int64) -> () {
+bb0(%0 : $*MyStruct, %1 : $MyStruct, %2 : $Int64):
+  %3 = load [trivial] %0
+  %4 = function_ref @borrowAddressSelf : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
+  %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
+  %6 = load [trivial] %5
+  %7 = function_ref @nonmutatingMutate : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+  %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+  store %2 to [trivial] %8
+  %10 = function_ref @borrowObjectSelf : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
+  %11 = apply %10(%1) : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
+  %12 = load [trivial] %11
+  %13 = tuple ()
+  return %13
+}
