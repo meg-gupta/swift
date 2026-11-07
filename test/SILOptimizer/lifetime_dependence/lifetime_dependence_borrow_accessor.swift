@@ -141,9 +141,110 @@ struct ElementWrapper: ~Copyable {
 
 // MARK: - Accessor conventions
 
-// Each combination of the accessor's 'self' convention and address result convention must root the dependence at the
+// Each combination of the accessor's 'self' convention and result convention must root the dependence at the
 // accessor's base. A base that is a stored property of a noncopyable struct is copied and borrowed just for the
 // accessor call, and a loadable base of an @in_guaranteed accessor is stored to a temporary.
+
+// @guaranteed self, @guaranteed result
+
+struct GuaranteedBox {
+  var _array: [Int]
+  var array: [Int] {
+    borrow { return _array }
+  }
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s4test30guaranteedSelfGuaranteedResultys4SpanVySiGAA0D3BoxVF : $@convention(thin) (@guaranteed GuaranteedBox) -> @lifetime(borrow 0) @owned Span<Int> {
+// CHECK: bb0(%0 : @guaranteed $GuaranteedBox):
+// CHECK: apply %{{.*}} : $@convention(method) (@guaranteed GuaranteedBox) -> @guaranteed Array<Int>
+// CHECK: mark_dependence [unresolved] %{{.*}} on %0
+// CHECK-LABEL: } // end sil function '$s4test30guaranteedSelfGuaranteedResultys4SpanVySiGAA0D3BoxVF'
+@_lifetime(borrow b)
+func guaranteedSelfGuaranteedResult(_ b: GuaranteedBox) -> Span<Int> {
+  return b.array.span
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s4test33guaranteedSelfGuaranteedResultRefys0F0VySaySiGGAA0D3BoxVF : $@convention(thin) (@guaranteed GuaranteedBox) -> @lifetime(borrow 0) @owned Ref<Array<Int>> {
+// CHECK: bb0(%0 : @guaranteed $GuaranteedBox):
+// CHECK: apply %{{.*}} : $@convention(method) (@guaranteed GuaranteedBox) -> @guaranteed Array<Int>
+// CHECK: mark_dependence_addr [unresolved] %{{.*}} on %0
+// CHECK-LABEL: } // end sil function '$s4test33guaranteedSelfGuaranteedResultRefys0F0VySaySiGGAA0D3BoxVF'
+@_lifetime(borrow b)
+func guaranteedSelfGuaranteedResultRef(_ b: GuaranteedBox) -> Ref<[Int]> {
+  return Ref(b.array)
+}
+
+// @in_guaranteed self, @guaranteed result
+
+struct AddressOnlyBox {
+  var _array: [Int]
+  var _extra: Any
+  var array: [Int] {
+    borrow { return _array }
+  }
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s4test016inGuaranteedSelfC6Resultys4SpanVySiGAA14AddressOnlyBoxVF : $@convention(thin) (@in_guaranteed AddressOnlyBox) -> @lifetime(borrow 0) @owned Span<Int> {
+// CHECK: bb0(%0 : $*AddressOnlyBox):
+// CHECK: apply %{{.*}} : $@convention(method) (@in_guaranteed AddressOnlyBox) -> @guaranteed Array<Int>
+// CHECK: mark_dependence [unresolved] %{{.*}} on %0
+// CHECK-LABEL: } // end sil function '$s4test016inGuaranteedSelfC6Resultys4SpanVySiGAA14AddressOnlyBoxVF'
+@_lifetime(borrow b)
+func inGuaranteedSelfGuaranteedResult(_ b: AddressOnlyBox) -> Span<Int> {
+  return b.array.span
+}
+
+struct GenericArrayBox<T> {
+  var _array: [Int]
+  var _t: T
+  var array: [Int] {
+    borrow { return _array }
+  }
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s4test016inGuaranteedSelfC15ResultTemporaryys4SpanVySiGAA15GenericArrayBoxVyyXlGF : $@convention(thin) (@guaranteed GenericArrayBox<AnyObject>) -> @lifetime(borrow 0) @owned Span<Int> {
+// CHECK: bb0(%0 : @guaranteed $GenericArrayBox<AnyObject>):
+// CHECK: apply %{{.*}} : $@convention(method) <τ_0_0> (@in_guaranteed GenericArrayBox<τ_0_0>) -> @guaranteed Array<Int>
+// CHECK: mark_dependence [unresolved] %{{.*}} on %0
+// CHECK-LABEL: } // end sil function '$s4test016inGuaranteedSelfC15ResultTemporaryys4SpanVySiGAA15GenericArrayBoxVyyXlGF'
+@_lifetime(borrow b)
+func inGuaranteedSelfGuaranteedResultTemporary(_ b: GenericArrayBox<AnyObject>) -> Span<Int> {
+  return b.array.span
+}
+
+// CHECK-LABEL: sil hidden [ossa] @$s4test016inGuaranteedSelfC18ResultTemporaryRefys0G0VySaySiGGAA15GenericArrayBoxVyyXlGF : $@convention(thin) (@guaranteed GenericArrayBox<AnyObject>) -> @lifetime(borrow 0) @owned Ref<Array<Int>> {
+// CHECK: bb0(%0 : @guaranteed $GenericArrayBox<AnyObject>):
+// CHECK: apply %{{.*}} : $@convention(method) <τ_0_0> (@in_guaranteed GenericArrayBox<τ_0_0>) -> @guaranteed Array<Int>
+// CHECK: mark_dependence_addr [unresolved] %{{.*}} on %0
+// CHECK-LABEL: } // end sil function '$s4test016inGuaranteedSelfC18ResultTemporaryRefys0G0VySaySiGGAA15GenericArrayBoxVyyXlGF'
+@_lifetime(borrow b)
+func inGuaranteedSelfGuaranteedResultTemporaryRef(_ b: GenericArrayBox<AnyObject>) -> Ref<[Int]> {
+  return Ref(b.array)
+}
+
+struct GenericArrayBoxWrapper: ~Copyable {
+  let box: GenericArrayBox<AnyObject>
+
+  // CHECK-LABEL: sil hidden [ossa] @$s4test22GenericArrayBoxWrapperV4spans4SpanVySiGvg : $@convention(method) (@guaranteed GenericArrayBoxWrapper) -> @lifetime(borrow 0) @owned Span<Int> {
+  // CHECK: bb0(%0 : @guaranteed $GenericArrayBoxWrapper):
+  // CHECK: apply %{{.*}} : $@convention(method) <τ_0_0> (@in_guaranteed GenericArrayBox<τ_0_0>) -> @guaranteed Array<Int>
+  // CHECK: mark_dependence [unresolved] %{{.*}} on %0
+  // CHECK-LABEL: } // end sil function '$s4test22GenericArrayBoxWrapperV4spans4SpanVySiGvg'
+  var span: Span<Int> {
+    @_lifetime(borrow self)
+    get { box.array.span }
+  }
+
+  // CHECK-LABEL: sil hidden [ossa] @$s4test22GenericArrayBoxWrapperV3refs3RefVySaySiGGvg : $@convention(method) (@guaranteed GenericArrayBoxWrapper) -> @lifetime(borrow 0) @owned Ref<Array<Int>> {
+  // CHECK: bb0(%0 : @guaranteed $GenericArrayBoxWrapper):
+  // CHECK: apply %{{.*}} : $@convention(method) <τ_0_0> (@in_guaranteed GenericArrayBox<τ_0_0>) -> @guaranteed Array<Int>
+  // CHECK: mark_dependence_addr [unresolved] %{{.*}} on %0
+  // CHECK-LABEL: } // end sil function '$s4test22GenericArrayBoxWrapperV3refs3RefVySaySiGGvg'
+  var ref: Ref<[Int]> {
+    @_lifetime(borrow self)
+    get { Ref(box.array) }
+  }
+}
 
 // @guaranteed self, @guaranteed_address result
 

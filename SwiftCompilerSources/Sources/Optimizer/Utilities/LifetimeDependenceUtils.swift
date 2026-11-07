@@ -1433,8 +1433,8 @@ private struct LifetimeDependenceUsePrinter : LifetimeDependenceDefUseWalker {
 /// This utility finds a value or address that is the best-effort "root" of the chain of temporary lifetime-dependent
 /// values.
 ///
-/// This "looks through" projections: a property that is either visible as a stored property or access via
-/// unsafe[Mutable]Address.
+/// This "looks through" projections: a property that is either visible as a stored property, access via
+/// unsafe[Mutable]Address, or returned by a borrow or mutate accessor.
 ///
 ///     dependsOn(lvalue.field) // finds 'lvalue' when 'field' is a stored property
 ///
@@ -1517,6 +1517,10 @@ extension LifetimeDependenceUseDefValueWalker {
     case let load as LoadInstruction:
       return walkUp(newLifetime: load.address)
     case let apply as FullApplySite:
+      // Like begin_borrow and load_borrow, a borrow accessor's @guaranteed result borrows its 'self'.
+      if value.isGuaranteedApplyResult, let selfArgument = apply.selfArgument {
+        return walkUp(newLifetime: selfArgument)
+      }
       // TODO: add an annotation for standard library functions to declare that a pointer result is derived
       // from an argument.
       if let f = apply.referencedFunction, f.isConvertPointerToPointerArgument {
