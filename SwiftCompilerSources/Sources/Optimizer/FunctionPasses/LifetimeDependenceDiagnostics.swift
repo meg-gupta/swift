@@ -467,6 +467,10 @@ private struct LifetimeVariable {
       self = .init(dependent: sb.source, context)
     case .pointer(let ptrToAddr):
       self = .init(introducer: ptrToAddr, context)
+    case .borrowMutateAccessor(let apply):
+      if let selfArgument = apply.selfArgument {
+        self = .init(dependent: selfArgument, context)
+      }
     case .index, .unidentified:
       break
     }

@@ -311,7 +311,7 @@ private struct FindPointerOrGlobalWalker : AddressUseDefWalker {
     switch accessBase {
     case .box, .stack, .class, .tail, .argument, .yield, .storeBorrow, .index:
       return .continueWalk
-    case .global, .pointer, .unidentified:
+    case .global, .pointer, .borrowMutateAccessor, .unidentified:
       return .abortWalk
     }
   }
@@ -1805,6 +1805,20 @@ final public class ApplyInst : SingleValueInstruction, FullApplySite {
       return nil
     }
     return selfAddress
+  }
+
+  /// The address-typed self of a borrow or mutate accessor whose address result is a projection of self: the
+  /// @in_guaranteed self of a borrow accessor or the @inout self of a mutate accessor.
+  public var selfAddressOfProjectedAccessorResult: Value? {
+    guard functionConvention.hasAddressResult,
+          let selfOperand = selfArgumentOperand, selfOperand.value.type.isAddress else {
+      return nil
+    }
+    if hasGuaranteedAddressResult {
+      return selfOperand.value
+    }
+    // The @inout result of a nonmutating mutate accessor is never part of its immutable self.
+    return convention(of: selfOperand) == .indirectInout ? selfOperand.value : nil
   }
 }
 
