@@ -3428,6 +3428,29 @@ public:
     return getSubstCalleeConv().hasAddressResult();
   }
 
+  /// If the address result is a projection of an address-typed self, return
+  /// the self operand: the @in_guaranteed self of a borrow accessor or the
+  /// @inout self of a mutate accessor. Otherwise return nullptr.
+  Operand *getSelfAddressOfProjectedAccessorResult() {
+    if (!hasAddressResult() || !hasSelfArgument()) {
+      return nullptr;
+    }
+    Operand &selfOperand = getSelfArgumentOperand();
+    if (!selfOperand.get()->getType().isAddress()) {
+      return nullptr;
+    }
+    if (hasGuaranteedAddressResult()) {
+      return &selfOperand;
+    }
+    // The @inout result of a nonmutating mutate accessor is never part of its
+    // immutable self.
+    if (getSubstCalleeType()->getSelfParameter().getConvention() ==
+        ParameterConvention::Indirect_Inout) {
+      return &selfOperand;
+    }
+    return nullptr;
+  }
+
   bool hasInoutResult() const { return getSubstCalleeConv().hasInoutResult(); }
 };
 

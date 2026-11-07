@@ -319,6 +319,9 @@ public:
     Tail,
     Argument, // Address or RawPointer argument
     Yield,
+    // Address result of a borrow or mutate accessor that is not a projection of
+    // an address-typed self.
+    BorrowMutateAccessor,
     Nested,
     Unidentified,
     NumKindBits = countBitsUsed(static_cast<unsigned>(Unidentified))
@@ -489,6 +492,7 @@ public:
     case Tail:
     case Argument:
     case Yield:
+    case BorrowMutateAccessor:
     case Nested:
     case Unidentified:
       return value == other.value;
@@ -512,6 +516,7 @@ public:
     case Tail:
     case Argument:
     case Yield:
+    case BorrowMutateAccessor:
     case Nested:
     case Unidentified:
       return false;
@@ -534,6 +539,7 @@ public:
     case Class:
     case Tail:
     case Yield:
+    case BorrowMutateAccessor:
     case Nested:
     case Unidentified:
       return false;
@@ -760,6 +766,7 @@ public:
     case AccessStorage::Nested:
     case AccessStorage::Argument:
     case AccessStorage::Yield:
+    case AccessStorage::BorrowMutateAccessor:
     case AccessStorage::Unidentified:
       return getValue();
     case AccessStorage::Global:
@@ -843,6 +850,7 @@ template <> struct DenseMapInfo<swift::AccessStorage> {
     case swift::AccessStorage::Stack:
     case swift::AccessStorage::Nested:
     case swift::AccessStorage::Yield:
+    case swift::AccessStorage::BorrowMutateAccessor:
       return DenseMapInfo<swift::SILValue>::getHashValue(storage.getValue());
     case swift::AccessStorage::Argument:
       return storage.getParamIndex();
@@ -1690,6 +1698,9 @@ public:
   Result visitYieldAccess(MultipleValueInstructionResult *yield) {
     return asImpl().visitBase(yield, AccessStorage::Yield);
   }
+  Result visitBorrowMutateAccessorAccess(ApplyInst *apply) {
+    return asImpl().visitBase(apply, AccessStorage::BorrowMutateAccessor);
+  }
   Result visitStackAccess(AllocStackInst *stack) {
     return asImpl().visitBase(stack, AccessStorage::Stack);
   }
@@ -1758,11 +1769,11 @@ Result AccessUseDefChainVisitor<Impl, Result>::visit(SILValue sourceAddr) {
       return asImpl().visitUnidentified(sourceAddr);
 
     if (isAddressReturn(sourceAddr)) {
-      auto *selfOp = &cast<ApplyInst>(sourceAddr)->getSelfArgumentOperand();
-      if (selfOp->get()->getType().isObject()) {
-        return asImpl().visitUnidentified(sourceAddr);
+      auto *apply = cast<ApplyInst>(sourceAddr);
+      if (auto *selfOp = apply->getSelfAddressOfProjectedAccessorResult()) {
+        return asImpl().visitAccessProjection(apply, selfOp);
       }
-      return asImpl().visitAccessProjection(cast<ApplyInst>(sourceAddr), selfOp);
+      return asImpl().visitBorrowMutateAccessorAccess(apply);
     }
 
     // Don't currently allow any other calls to return an accessed address.
