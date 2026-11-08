@@ -72,9 +72,19 @@ public protocol WalkingPath : Equatable {
   ///
   /// Called for aggregate instructions during down-walking and for projection instructions during up-walking.
   func push(_ kind: FieldKind, index: Int) -> Self
+
+  /// Pops any number of value fields from the beginning of the path.
+  ///
+  /// Called for the projection of an unknown value field, e.g. the address result of a borrow or mutate accessor,
+  /// during down-walking.
+  func popAnyValueFields() -> Self
 }
 
-extension SmallProjectionPath : WalkingPath { }
+extension SmallProjectionPath : WalkingPath {
+  public func popAnyValueFields() -> SmallProjectionPath {
+    return popAllValueFields().push(.anyValueFields)
+  }
+}
 
 /// A `WalkingPath` where `push` and `pop` instructions
 /// are forwarded to an underlying `projectionPath`.
@@ -112,6 +122,10 @@ extension SmallProjectionWalkingPath {
   public func push(_ kind: FieldKind, index: Int) -> Self {
     return with(projectionPath: projectionPath.push(kind, index: index))
   }
+
+  public func popAnyValueFields() -> Self {
+    return with(projectionPath: projectionPath.popAnyValueFields())
+  }
 }
 
 /// A walking path which matches everything.
@@ -123,6 +137,7 @@ public struct UnusedWalkingPath : WalkingPath {
   public func pop(kind: FieldKind) -> (index: Int, path: Self)? { nil }
   public func popIfMatches(_ kind: FieldKind, index: Int?) -> Self? { self }
   public func push(_ kind: FieldKind, index: Int) -> Self { self }
+  public func popAnyValueFields() -> Self { self }
 }
 
 /// Caches the state of a walk.
@@ -567,6 +582,13 @@ extension AddressDefUseWalker {
       } else {
         return unmatchedPath(address: operand, path: path)
       }
+    case let apply as ApplyInst where operand == apply.selfArgumentOperand &&
+                                      apply.selfAddressOfBorrowMutateAccessorResult != nil:
+      // The address result is a projection of 'self'. The call itself also uses 'self'.
+      if leafUse(address: operand, path: path) == .abortWalk {
+        return .abortWalk
+      }
+      return walkDownUses(ofAddress: apply, path: path.popAnyValueFields())
     default:
       return leafUse(address: operand, path: path)
     }

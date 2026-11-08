@@ -340,6 +340,12 @@ private struct MutatingUsesWalker : AddressDefUseWalker {
       // This is a programming error, but the compiler should not crash. The violation is caught at runtime.
       return .continueWalk
     }
+    if let apply = address.instruction as? ApplyInst, address == apply.selfArgumentOperand,
+       apply.functionConvention.hasAddressResult, !apply.hasGuaranteedAddressResult,
+       apply.convention(of: address) != .indirectInout {
+      // A nonmutating mutate accessor doesn't mutate its 'self'.
+      return leafUse(address: address, path: path)
+    }
     return walkDownDefault(address: address, path: path)
   }
 
