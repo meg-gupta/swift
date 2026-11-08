@@ -1967,6 +1967,11 @@ const TypeInfo &SignatureExpansion::expand(unsigned paramIdx) {
 }
 
 bool SignatureExpansion::isAddressableParam(unsigned paramIdx) {
+  // The address result of a borrow or mutate accessor points into its 'self'.
+  if (FnType->hasAddressResult() && FnType->hasSelfParam() &&
+      paramIdx == FnType->getSelfParameterIndex()) {
+    return true;
+  }
   return FnType->isAddressable(paramIdx, IGM.IRGen.SIL,
                                IGM.getGenericEnvironment(),
                                IGM.getSILTypes(),
