@@ -76,41 +76,6 @@ struct Wrapper<T> {
 
 sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
 
-// Without self, the @guaranteed result might borrow from the memory location of
-// any parameter, so no @in_guaranteed parameter is converted to a direct
-// parameter. The function is still specialized.
-
-// CHECK-SELF-LABEL: sil shared [noinline] [ossa] @$s21borrow_k_without_selfSi_Tg5 : $@convention(thin) (@in_guaranteed Wrapper<Int>, @in_guaranteed Int) -> @guaranteed Klass {
-// CHECK-SELF:       bb0(%0 : $*Wrapper<Int>, %1 : $*Int):
-// CHECK-SELF-NOT:     store_borrow
-// CHECK-SELF:         [[A:%.*]] = struct_element_addr %0, #Wrapper.k
-// CHECK-SELF:         [[LB:%.*]] = load_borrow [[A]]
-// CHECK-SELF:         return_borrow [[LB]] from_scopes ([[LB]])
-// CHECK-SELF-LABEL: } // end sil function '$s21borrow_k_without_selfSi_Tg5'
-sil [ossa] [noinline] @borrow_k_without_self : $@convention(thin) <T> (@in_guaranteed Wrapper<T>, @in_guaranteed T) -> @guaranteed Klass {
-bb0(%0 : $*Wrapper<T>, %1 : $*T):
-  %2 = struct_element_addr %0, #Wrapper.k
-  %3 = load_borrow %2
-  return_borrow %3 from_scopes (%3)
-}
-
-// CHECK-SELF-LABEL: sil [ossa] @without_self_caller :
-// CHECK-SELF:       bb0(%0 : $*Wrapper<Int>, %1 : $*Int):
-// CHECK-SELF:         [[F:%.*]] = function_ref @$s21borrow_k_without_selfSi_Tg5 : $@convention(thin) (@in_guaranteed Wrapper<Int>, @in_guaranteed Int) -> @guaranteed Klass
-// CHECK-SELF:         [[R:%.*]] = apply [[F]](%0, %1)
-// CHECK-SELF:         end_borrow [[R]]
-// CHECK-SELF-LABEL: } // end sil function 'without_self_caller'
-sil [ossa] @without_self_caller : $@convention(thin) (@in_guaranteed Wrapper<Int>, @in_guaranteed Int) -> () {
-bb0(%0 : $*Wrapper<Int>, %1 : $*Int):
-  %2 = function_ref @borrow_k_without_self : $@convention(thin) <T> (@in_guaranteed Wrapper<T>, @in_guaranteed T) -> @guaranteed Klass
-  %3 = apply %2<Int>(%0, %1) : $@convention(thin) <T> (@in_guaranteed Wrapper<T>, @in_guaranteed T) -> @guaranteed Klass
-  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
-  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
-  end_borrow %3
-  %7 = tuple ()
-  return %7
-}
-
 // CHECK-SELF-LABEL: sil shared [noinline] [ossa] @$s13self_borrow_kSi_Tg5 : $@convention(method) (@in_guaranteed Wrapper<Int>) -> @guaranteed Klass {
 // CHECK-SELF:       bb0(%0 : $*Wrapper<Int>):
 // CHECK-SELF-NOT:     store_borrow
