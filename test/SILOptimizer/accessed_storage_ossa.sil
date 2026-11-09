@@ -538,8 +538,8 @@ bb0(%0 : $*BWrapper):
   return %6
 }
 
-// A borrow accessor result without self borrows no memory location, so its
-// end_borrow accesses none.
+// A borrow accessor result without self has no self address, so its end_borrow
+// has no accessed address.
 // CHECK-LABEL: @testBorrowAccessorWithoutSelf
 // CHECK: ###For MemOp:   end_borrow %2 : $BKlass
 // CHECK-NOT: Storage:

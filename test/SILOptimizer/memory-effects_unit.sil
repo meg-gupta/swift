@@ -2365,13 +2365,17 @@ bb1(%5 : @reborrow $X):
   return %8 : $()
 }
 
-// A borrow accessor result without self borrows no memory location of the caller. Its `end_borrow` has no
-// effects on an @in_guaranteed argument, but protects the interior pointers of the result.
+// A borrow accessor result without self may borrow any memory location, so its `end_borrow` has the worst
+// effects.
 // CHECK-LABEL: @test_end_borrow_of_borrow_accessor_result_without_self
 // CHECK:      PAIR #3.
 // CHECK-NEXT:     end_borrow %3 : $X
 // CHECK-NEXT:   %0 = argument of bb0 : $*XWrapper
-// CHECK-NEXT:   r=0,w=0
+// CHECK-NEXT:   r=1,w=1
+// CHECK:      PAIR #4.
+// CHECK-NEXT:     end_borrow %3 : $X
+// CHECK-NEXT:   %1 = argument of bb0 : $*Int32
+// CHECK-NEXT:   r=1,w=1
 // CHECK:      PAIR #5.
 // CHECK-NEXT:     end_borrow %3 : $X
 // CHECK-NEXT:   %4 = ref_element_addr %3 : $X, #X.a
@@ -2387,13 +2391,16 @@ bb0(%0 : $*XWrapper, %1 : $*Int32):
   return %6 : $()
 }
 
-// An `end_borrow` of a reborrowed borrow accessor result without self has no effects on an
-// @in_guaranteed argument.
+// An `end_borrow` of a reborrowed borrow accessor result without self also has the worst effects.
 // CHECK-LABEL: @test_end_borrow_of_reborrowed_borrow_accessor_result_without_self
 // CHECK:      PAIR #2.
 // CHECK-NEXT:     end_borrow %6 : $X
 // CHECK-NEXT:   %0 = argument of bb0 : $*XWrapper
-// CHECK-NEXT:   r=0,w=0
+// CHECK-NEXT:   r=1,w=1
+// CHECK:      PAIR #3.
+// CHECK-NEXT:     end_borrow %6 : $X
+// CHECK-NEXT:   %1 = argument of bb0 : $*Int32
+// CHECK-NEXT:   r=1,w=1
 sil [ossa] @test_end_borrow_of_reborrowed_borrow_accessor_result_without_self : $@convention(thin) (@inout XWrapper, @inout Int32) -> () {
 bb0(%0 : $*XWrapper, %1 : $*Int32):
   specify_test "memory_effects"
