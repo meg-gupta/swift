@@ -2365,8 +2365,8 @@ bb1(%5 : @reborrow $X):
   return %8 : $()
 }
 
-// A borrow accessor result without self may borrow any memory location, so its `end_borrow` has the worst
-// effects.
+// A borrow accessor result without self may be a borrow of immortal memory, like a global, so its `end_borrow`
+// has the worst effects.
 // CHECK-LABEL: @test_end_borrow_of_borrow_accessor_result_without_self
 // CHECK:      PAIR #3.
 // CHECK-NEXT:     end_borrow %3 : $X

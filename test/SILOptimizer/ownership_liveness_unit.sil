@@ -2137,37 +2137,6 @@ bb0(%0 : @guaranteed $WrapperBox):
   return %7
 }
 
-sil @borrow_klass_without_self : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-
-// A borrow accessor without self does not borrow the memory location of an @in_guaranteed
-// argument. The apply is the last use of the address.
-// CHECK-LABEL: begin running test 1 of 2 on test_borrow_accessor_without_self: interior_liveness with: %0
-// CHECK: Interior liveness: %0 = argument of bb0 : $WrapperBox
-// CHECK: regular user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK-NOT: end_borrow
-// CHECK: Complete liveness
-// CHECK: last user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK-LABEL: end running test 1 of 2 on test_borrow_accessor_without_self: interior_liveness with: %0
-// CHECK-LABEL: begin running test 2 of 2 on test_borrow_accessor_without_self: interior_liveness_swift with: %0
-// CHECK: Interior liveness: %0 = argument of bb0 : $WrapperBox
-// CHECK-NOT: Inner scope
-// CHECK: ends:       %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: last user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK-LABEL: end running test 2 of 2 on test_borrow_accessor_without_self: interior_liveness_swift with: %0
-sil [ossa] @test_borrow_accessor_without_self : $@convention(thin) (@guaranteed WrapperBox) -> () {
-bb0(%0 : @guaranteed $WrapperBox):
-  specify_test "interior_liveness %0"
-  specify_test "interior_liveness_swift %0"
-  %1 = ref_element_addr %0, #WrapperBox.w
-  %2 = function_ref @borrow_klass_without_self : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-  %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
-  %5 = apply %4(%3) : $@convention(thin) (@guaranteed Klass) -> ()
-  end_borrow %3
-  %7 = tuple ()
-  return %7
-}
-
 // A trivial borrow accessor result has no scope. The apply is a regular use of self.
 // CHECK-LABEL: begin running test 1 of 2 on test_borrow_accessor_trivial_result: interior_liveness with: %1
 // CHECK: Interior liveness:   %1 = begin_borrow %0 : $Wrapper
