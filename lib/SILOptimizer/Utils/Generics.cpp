@@ -384,7 +384,8 @@ static bool canConvertArg(CanSILFunctionType substType, unsigned paramIdx,
                           SILFunction *caller) {
   // The `self` parameter of a borrow accessor cannot be promoted, since the
   // returned address might point into the parameter, or the returned value
-  // might borrow from the parameter's memory location.
+  // might borrow from the parameter's memory location. If there is no `self`,
+  // no parameter can be promoted.
   //
   // TODO: It may be possible to promote `self` and the result if and only
   // if both the parameter and result do or do not get promoted in unison.
@@ -393,7 +394,8 @@ static bool canConvertArg(CanSILFunctionType substType, unsigned paramIdx,
             == ResultConvention::GuaranteedAddress
           || substType->getSingleResult().getConvention()
             == ResultConvention::Guaranteed)
-      && substType->getSelfParameterIndex() == paramIdx) {
+      && (!substType->hasSelfParam()
+          || substType->getSelfParameterIndex() == paramIdx)) {
     return false;
   }
   

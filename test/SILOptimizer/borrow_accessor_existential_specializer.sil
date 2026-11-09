@@ -173,6 +173,38 @@ bb0(%0 : @guaranteed $ClassC):
   return %12
 }
 
+// Without self, the @guaranteed result might borrow from the memory location of
+// any address argument, so no indirect existential argument is specialized.
+// CHECK-SELF-LABEL: sil [noinline] [ossa] @borrow_without_self : $@convention(thin) (@in_guaranteed any ClassP) -> @guaranteed any ClassP {
+// CHECK-SELF:       bb0(%0 : $*any ClassP):
+// CHECK-SELF-NEXT:    [[LB:%.*]] = load_borrow %0
+// CHECK-SELF-NEXT:    return_borrow [[LB]] from_scopes ([[LB]])
+// CHECK-SELF-LABEL: } // end sil function 'borrow_without_self'
+sil [ossa] [noinline] @borrow_without_self : $@convention(thin) (@in_guaranteed any ClassP) -> @guaranteed any ClassP {
+bb0(%0 : $*any ClassP):
+  %1 = load_borrow %0
+  return_borrow %1 from_scopes (%1)
+}
+
+// CHECK-SELF-LABEL: sil [ossa] @without_self_caller :
+// CHECK-SELF:         [[F:%.*]] = function_ref @borrow_without_self : $@convention(thin) (@in_guaranteed any ClassP) -> @guaranteed any ClassP
+// CHECK-SELF:         apply [[F]]
+// CHECK-SELF-LABEL: } // end sil function 'without_self_caller'
+sil [ossa] @without_self_caller : $@convention(thin) (@guaranteed ClassC) -> @owned any ClassP {
+bb0(%0 : @guaranteed $ClassC):
+  %1 = copy_value %0
+  %2 = init_existential_ref %1 : $ClassC : $ClassC, $any ClassP
+  %3 = alloc_stack $any ClassP
+  store %2 to [init] %3
+  %5 = function_ref @borrow_without_self : $@convention(thin) (@in_guaranteed any ClassP) -> @guaranteed any ClassP
+  %6 = apply %5(%3) : $@convention(thin) (@in_guaranteed any ClassP) -> @guaranteed any ClassP
+  %7 = copy_value %6
+  end_borrow %6
+  destroy_addr %3
+  dealloc_stack %3
+  return %7
+}
+
 // The specialization rebuilds the index existential locally, but borrows the
 // result from the caller's self.
 // CHECK-SELF-LABEL: sil shared [noinline] [ossa] @$s22borrow_self_with_indexTf4en_n : $@convention(thin) <τ_0_0 where τ_0_0 : P> (@in_guaranteed τ_0_0, @in_guaranteed any ClassP) -> @guaranteed any ClassP {
