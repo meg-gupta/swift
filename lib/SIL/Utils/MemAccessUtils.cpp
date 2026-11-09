@@ -2145,10 +2145,10 @@ visitApplyOperand(Operand *use, UniqueStorageUseVisitor &visitor,
     return false;
 
   // Like a load_borrow, a borrow accessor borrows the memory location of an
-  // @in_guaranteed self over the scope of its result, including the scopes of
-  // its reborrows.
+  // @in_guaranteed self, or of any address argument if there is no self, over
+  // the scope of its result, including the scopes of its reborrows.
   if (auto *applyInst = dyn_cast<ApplyInst>(user)) {
-    if (use == applyInst->getSelfAddressOfGuaranteedBorrowAccessorResult()) {
+    if (applyInst->isAddressBorrowedByGuaranteedBorrowAccessorResult(use)) {
       return BorrowedValue(applyInst).visitTransitiveLifetimeEndingUses(
           [&](Operand *endUse) { return (visitor.*visit)(endUse); });
     }
@@ -2803,11 +2803,17 @@ void swift::visitAccessedAddress(SILInstruction *I,
         return;
       }
       // Like a load_borrow, a borrow accessor result borrows the memory
-      // location of an @in_guaranteed self.
+      // location of an @in_guaranteed self, or of any address argument if
+      // there is no self.
       if (auto *apply = dyn_cast<ApplyInst>(root)) {
-        if (auto *selfOperand =
-                apply->getSelfAddressOfGuaranteedBorrowAccessorResult()) {
-          visitor(selfOperand);
+        bool visitedBorrowedAddress = false;
+        for (Operand &argOp : apply->getArgumentOperands()) {
+          if (apply->isAddressBorrowedByGuaranteedBorrowAccessorResult(&argOp)) {
+            visitor(&argOp);
+            visitedBorrowedAddress = true;
+          }
+        }
+        if (visitedBorrowedAddress) {
           return;
         }
       }

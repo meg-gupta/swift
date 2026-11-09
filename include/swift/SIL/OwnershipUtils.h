@@ -818,9 +818,10 @@ inline AddressUseKind findTransitiveUsesForAddress(
       }
 
       // Like a load_borrow, a borrow accessor borrows the memory location of
-      // an @in_guaranteed self over the scope of its result.
+      // an @in_guaranteed self, or of any address argument if there is no
+      // self, over the scope of its result.
       if (auto *ai = dyn_cast<ApplyInst>(use->getUser())) {
-        if (use == ai->getSelfAddressOfGuaranteedBorrowAccessorResult()) {
+        if (ai->isAddressBorrowedByGuaranteedBorrowAccessorResult(use)) {
           foundUses->push_back(use);
           if (!findInnerTransitiveGuaranteedUses(ai, foundUses)) {
             meet(AddressUseKind::PointerEscape);

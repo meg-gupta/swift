@@ -538,11 +538,14 @@ bb0(%0 : $*BWrapper):
   return %6
 }
 
-// A borrow accessor result without self has no self address, so its end_borrow
-// has no accessed address.
+// Without self, the end_borrow of a borrow accessor result accesses the memory
+// location of every address argument.
 // CHECK-LABEL: @testBorrowAccessorWithoutSelf
 // CHECK: ###For MemOp:   end_borrow %2 : $BKlass
-// CHECK-NOT: Storage:
+// CHECK-NEXT: Argument %0 = argument of bb0 : $*BWrapper
+// CHECK-NEXT: Base: %0 = argument of bb0 : $*BWrapper
+// CHECK-NEXT: Storage: Argument %0 = argument of bb0 : $*BWrapper
+// CHECK-NEXT: Path: ()
 sil [ossa] @testBorrowAccessorWithoutSelf : $@convention(thin) (@in_guaranteed BWrapper) -> () {
 bb0(%0 : $*BWrapper):
   %1 = function_ref @borrow_b_without_self : $@convention(thin) (@in_guaranteed BWrapper) -> @guaranteed BKlass

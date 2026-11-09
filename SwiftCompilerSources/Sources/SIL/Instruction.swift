@@ -1806,6 +1806,18 @@ final public class ApplyInst : SingleValueInstruction, FullApplySite {
     }
     return selfAddress
   }
+
+  /// True if the non-trivial guaranteed result of a borrow accessor borrows the memory location of the argument
+  /// `operand`: an address typed self or, if there is no self, any address typed argument.
+  public func isAddressBorrowedByGuaranteedBorrowAccessorResult(_ operand: Operand) -> Bool {
+    if let selfOperand = selfArgumentOperand {
+      return operand == selfOperand && selfAddressOfGuaranteedBorrowAccessorResult != nil
+    }
+    guard hasGuaranteedResult, !type.isTrivial(in: parentFunction) else {
+      return false
+    }
+    return operand.value.type.isAddress && argumentOperands.contains(operand)
+  }
 }
 
 final public class FunctionExtractIsolationInst : SingleValueInstruction {}
