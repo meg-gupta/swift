@@ -284,21 +284,19 @@ void DCE::processBorrow(BorrowedValue borrow) {
   };
   visitEnclosingDefs(*borrow, disableOuterBorrow);
 
-  // A load_borrow of a class field, or a borrow accessor result that borrows
-  // a class field, is nested in the borrow scope of the class reference. A
-  // borrow accessor result borrows an @in_guaranteed self or, if there is no
-  // self, any address argument.
-  SmallVector<SILValue, 2> borrowedAddresses;
+  // A load_borrow of a class field, or a borrow accessor result with an
+  // @in_guaranteed self in a class field, is nested in the borrow scope of the
+  // class reference.
+  SILValue borrowedAddress;
   if (auto *loadBorrow = dyn_cast<LoadBorrowInst>(*borrow)) {
-    borrowedAddresses.push_back(loadBorrow->getOperand());
+    borrowedAddress = loadBorrow->getOperand();
   } else if (auto *apply = dyn_cast<ApplyInst>(*borrow)) {
-    for (Operand &argOp : apply->getArgumentOperands()) {
-      if (apply->isAddressBorrowedByGuaranteedBorrowAccessorResult(&argOp)) {
-        borrowedAddresses.push_back(argOp.get());
-      }
+    if (auto *selfOperand =
+            apply->getSelfAddressOfGuaranteedBorrowAccessorResult()) {
+      borrowedAddress = selfOperand->get();
     }
   }
-  for (SILValue borrowedAddress : borrowedAddresses) {
+  if (borrowedAddress) {
     auto accessBase = AccessBase::compute(borrowedAddress);
     if (accessBase.isReference()) {
       visitBorrowIntroducers(accessBase.getReference(), disableOuterBorrow);
