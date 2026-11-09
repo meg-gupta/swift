@@ -2139,20 +2139,20 @@ bb0(%0 : @guaranteed $WrapperBox):
 
 sil @borrow_klass_without_self : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
 
-// Without self, a borrow accessor may borrow the memory location of any address argument, which is
-// used over the scope of the result.
+// A borrow accessor without self does not borrow the memory location of an @in_guaranteed
+// argument. The apply is the last use of the address.
 // CHECK-LABEL: begin running test 1 of 2 on test_borrow_accessor_without_self: interior_liveness with: %0
 // CHECK: Interior liveness: %0 = argument of bb0 : $WrapperBox
 // CHECK: regular user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: regular user:   end_borrow %3 : $Klass
+// CHECK-NOT: end_borrow
 // CHECK: Complete liveness
-// CHECK: last user:   end_borrow %3 : $Klass
+// CHECK: last user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
 // CHECK-LABEL: end running test 1 of 2 on test_borrow_accessor_without_self: interior_liveness with: %0
 // CHECK-LABEL: begin running test 2 of 2 on test_borrow_accessor_without_self: interior_liveness_swift with: %0
 // CHECK: Interior liveness: %0 = argument of bb0 : $WrapperBox
-// CHECK: Inner scope:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
-// CHECK: ends:       end_borrow %3 : $Klass
-// CHECK: last user:   end_borrow %3 : $Klass
+// CHECK-NOT: Inner scope
+// CHECK: ends:       %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
+// CHECK: last user:   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed Klass
 // CHECK-LABEL: end running test 2 of 2 on test_borrow_accessor_without_self: interior_liveness_swift with: %0
 sil [ossa] @test_borrow_accessor_without_self : $@convention(thin) (@guaranteed WrapperBox) -> () {
 bb0(%0 : @guaranteed $WrapperBox):

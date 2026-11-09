@@ -1584,15 +1584,15 @@ bb1(%4 : @reborrow $X):
 
 sil @borrow_data_without_self : $@convention(thin) (@in_guaranteed S) -> @guaranteed X
 
-// Without self, a borrow accessor may borrow the memory location of any address
-// argument, so the destroy of the argument cannot be hoisted above the end of
-// the result's borrow scope.
+// A borrow accessor without self does not borrow the memory location of an
+// @in_guaranteed argument, so the destroy of the argument is hoisted above the
+// end of the result's borrow scope.
 //
 // CHECK-LABEL: sil [ossa] @test_borrow_without_self :
 // CHECK:         [[BORROW:%[0-9]+]] = apply {{%[0-9]+}}(%0)
+// CHECK-NEXT:    destroy_addr %0
 // CHECK-NEXT:    [[COPY:%[0-9]+]] = copy_value [[BORROW]]
 // CHECK-NEXT:    end_borrow [[BORROW]]
-// CHECK-NEXT:    destroy_addr %0
 // CHECK-NEXT:    return [[COPY]]
 // CHECK-LABEL: } // end sil function 'test_borrow_without_self'
 sil [ossa] @test_borrow_without_self : $@convention(thin) (@in S) -> @owned X {

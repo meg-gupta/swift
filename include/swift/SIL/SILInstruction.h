@@ -3424,22 +3424,6 @@ public:
     return &selfOperand;
   }
 
-  /// Returns true if the non-trivial @guaranteed result borrows the memory
-  /// location of the argument \p op, whose address must not be modified over
-  /// the scope of the result. That is an @in_guaranteed self or, if there is
-  /// no self, any address argument.
-  bool isAddressBorrowedByGuaranteedBorrowAccessorResult(Operand *op) {
-    if (hasSelfArgument()) {
-      return op == getSelfAddressOfGuaranteedBorrowAccessorResult();
-    }
-    if (!hasGuaranteedResult() || getType().isTrivial(*getFunction())) {
-      return false;
-    }
-    return op->getUser() == this &&
-           getArgumentIndexForOperandIndex(op->getOperandNumber()) &&
-           op->get()->getType().isAddress();
-  }
-
   bool hasAddressResult() const {
     return getSubstCalleeConv().hasAddressResult();
   }

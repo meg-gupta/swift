@@ -700,10 +700,10 @@ extension InteriorUseWalker: AddressUseVisitor {
     if apply is BeginApplyInst {
       return scopedAddressUse(of: operand)
     }
-    // Like a load_borrow, a borrow accessor borrows the memory location of an @in_guaranteed self, or of any address
-    // argument if there is no self, over the scope of its result.
+    // Like a load_borrow, a borrow accessor borrows the memory location of an @in_guaranteed self over the scope of
+    // its result.
     if let apply = apply as? ApplyInst, let borrow = BeginBorrowValue(apply),
-       apply.isAddressBorrowedByGuaranteedBorrowAccessorResult(operand) {
+       let selfAddress = apply.selfAddressOfGuaranteedBorrowAccessorResult, selfAddress == operand.value {
       if handleInner(borrowed: apply) == .abortWalk {
         return .abortWalk
       }
