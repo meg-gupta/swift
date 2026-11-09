@@ -187,6 +187,38 @@ bb0(%0 : @owned $Wrapper, %1 : @owned $Klass):
   return %9
 }
 
+sil @borrow_without_self : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+
+// The result of a borrow accessor without self is also a borrow introducer.
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_missing_end_borrow_without_self'
+// CHECK: Non trivial values, non address values, and non guaranteed function args must have at least one lifetime ending use?!
+// CHECK: Value:   %2 = apply %1(%0) : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_missing_end_borrow_without_self'
+sil [ossa] @test_missing_end_borrow_without_self : $@convention(thin) (@owned Wrapper) -> () {
+bb0(%0 : @owned $Wrapper):
+  %1 = function_ref @borrow_without_self : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+  %3 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %3(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  destroy_value %0
+  %6 = tuple ()
+  return %6
+}
+
+// CHECK-NOT: Function: 'test_arg_is_not_borrowed_without_self'
+// Without self, no argument is borrowed over the scope of the result.
+sil [ossa] @test_arg_is_not_borrowed_without_self : $@convention(thin) (@owned Wrapper) -> () {
+bb0(%0 : @owned $Wrapper):
+  %1 = function_ref @borrow_without_self : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+  %2 = apply %1(%0) : $@convention(thin) (@guaranteed Wrapper) -> @guaranteed Klass
+  destroy_value %0
+  %4 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %5 = apply %4(%2) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %2
+  %7 = tuple ()
+  return %7
+}
+
 class WrapperBox {
   @_hasStorage var w: Wrapper
 }
