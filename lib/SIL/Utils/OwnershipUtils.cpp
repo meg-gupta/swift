@@ -1849,7 +1849,6 @@ public:
           return std::move(*this).visitBorrowIntroducers(selfOperand->get(),
                                                          visitor);
         }
-        // An @in_guaranteed self has no enclosing def.
         return true;
 
       case BorrowedValueKind::LoadBorrow:
@@ -2073,7 +2072,6 @@ protected:
       break;
     }
     case BorrowedValueKind::BorrowAccessor: {
-      // An @in_guaranteed self has no enclosing def.
       if (auto *selfOperand =
               cast<ApplyInst>(incomingValue)
                   ->getSelfObjectOfGuaranteedBorrowAccessorResult()) {
