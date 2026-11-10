@@ -311,7 +311,7 @@ private struct FindPointerOrGlobalWalker : AddressUseDefWalker {
     switch accessBase {
     case .box, .stack, .class, .tail, .argument, .yield, .storeBorrow, .index:
       return .continueWalk
-    case .global, .pointer, .unidentified:
+    case .global, .pointer, .borrowMutateAccessor, .unidentified:
       return .abortWalk
     }
   }
