@@ -256,6 +256,10 @@ private struct UseCollector : AddressDefUseWalker {
     case let apply as ApplySite:
       // Remaining applies: `apply` and `try_apply`
       users.append(apply)
+      if let applyInst = apply as? ApplyInst, applyInst.functionConvention.hasAddressResult,
+         address == applyInst.selfArgumentOperand {
+        return .abortWalk
+      }
       return visitApply(address: address, apply: apply)
 
     case let yield as YieldInst:

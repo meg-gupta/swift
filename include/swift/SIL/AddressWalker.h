@@ -312,9 +312,11 @@ TransitiveAddressWalker<Impl>::walk(SILValue projectedAddress) {
       }
     }
 
-    if (auto fas = FullApplySite::isa(user)) {
-      // Visit transitive uses for borrow and mutate accessors
-      if (fas.hasAddressResult()) {
+    if (FullApplySite::isa(user)) {
+      // The address result of a borrow or mutate accessor with an address self
+      // is a projection of self.
+      auto *ai = dyn_cast<ApplyInst>(user);
+      if (ai && op == ai->getAddressSelfOfAddressBorrowMutateAccessorResult()) {
         transitiveResultUses(op);
         continue;
       }

@@ -205,6 +205,44 @@ bb0(%0 : @owned $WrapperBox):
   return %8
 }
 
+sil @borrow_klass_address_from_address : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address Klass
+sil @borrow_klass_address_with_index : $@convention(method) (@in_guaranteed Wrapper, @guaranteed Wrapper) -> @guaranteed_address Klass
+
+// The class reference that contains an @in_guaranteed self must be borrowed over
+// the uses of an address result.
+// CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_address_self_outlives_address_result'
+// CHECK: Found outside of lifetime use?!
+// CHECK: Value:   %1 = begin_borrow %0 : $WrapperBox
+// CHECK: Consuming User:   end_borrow %1 : $WrapperBox
+// CHECK: Non Consuming User:   %6 = load [copy] %4 : $*Klass
+// CHECK-LABEL: Error#: 0. End Error in Function: 'test_address_self_outlives_address_result'
+sil [ossa] @test_address_self_outlives_address_result : $@convention(thin) (@owned WrapperBox) -> @owned Klass {
+bb0(%0 : @owned $WrapperBox):
+  %1 = begin_borrow %0
+  %2 = ref_element_addr %1, #WrapperBox.w
+  %3 = function_ref @borrow_klass_address_from_address : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address Klass
+  %4 = apply %3(%2) : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address Klass
+  end_borrow %1
+  %6 = load [copy] %4
+  destroy_value %0
+  return %6
+}
+
+// CHECK-NOT: Function: 'test_address_index_is_not_borrowed'
+// Only self is borrowed over the uses of an address result. An index address is
+// an instantaneous use.
+sil [ossa] @test_address_index_is_not_borrowed : $@convention(thin) (@owned WrapperBox, @guaranteed Wrapper) -> @owned Klass {
+bb0(%0 : @owned $WrapperBox, %1 : @guaranteed $Wrapper):
+  %2 = begin_borrow %0
+  %3 = ref_element_addr %2, #WrapperBox.w
+  %4 = function_ref @borrow_klass_address_with_index : $@convention(method) (@in_guaranteed Wrapper, @guaranteed Wrapper) -> @guaranteed_address Klass
+  %5 = apply %4(%3, %1) : $@convention(method) (@in_guaranteed Wrapper, @guaranteed Wrapper) -> @guaranteed_address Klass
+  end_borrow %2
+  %7 = load [copy] %5
+  destroy_value %0
+  return %7
+}
+
 // A guaranteed phi of a value forwarded from the result is used within the scope of the result.
 // CHECK-LABEL: Error#: 0. Begin Error in Function: 'test_forwarded_result_phi_outlives_result'
 // CHECK: Found outside of lifetime use?!

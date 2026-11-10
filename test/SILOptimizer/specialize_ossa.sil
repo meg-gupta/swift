@@ -1776,7 +1776,7 @@ struct Wrapper {
   @_hasStorage var value: String { get set }
 }
 
-sil @get_value_addr : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed_address String {
+sil @get_value_addr : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address String {
 bb0(%0 : $*Wrapper):
   %1 = struct_element_addr %0, #Wrapper.value
   return %1 : $*String
@@ -1791,8 +1791,8 @@ bb0(%0 : $*Wrapper):
 sil hidden [noinline] [ossa] @test_borrow : $@convention(thin) <T> (@in_guaranteed T) -> @owned String {
 bb0(%0 : $*T):
   %1 = unchecked_addr_cast %0 : $*T to $*Wrapper
-  %2 = function_ref @get_value_addr : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed_address String
-  %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed_address String
+  %2 = function_ref @get_value_addr : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address String
+  %3 = apply %2(%1) : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address String
   %4 = load [copy] %3 : $*String
   return %4 : $String
 }
