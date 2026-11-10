@@ -62,6 +62,10 @@ private struct FindWrites : AddressDefUseWalker {
       if let calleeArgIdx = apply.calleeArgumentIndex(of: address) {
         let convention = apply.calleeArgumentConventions[calleeArgIdx]
         if convention.isIndirectIn {
+          if let applyInst = apply as? ApplyInst, applyInst.functionConvention.hasAddressResult {
+            // The address result may be a projection of the address.
+            return .abortWalk
+          }
           return .continueWalk
         }
       }

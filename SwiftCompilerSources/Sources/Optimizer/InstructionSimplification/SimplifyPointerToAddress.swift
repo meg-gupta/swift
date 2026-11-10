@@ -291,6 +291,11 @@ private struct AddressUses : AddressDefUseWalker {
     }
     users.pushIfNotVisited(address.instruction)
 
+    if let apply = address.instruction as? ApplyInst, apply.functionConvention.hasAddressResult {
+      // The address result may be a projection of the address, so its uses are uses of the address.
+      return walkDownUses(ofAddress: apply, path: path)
+    }
+
     if let loadBorrow = address.instruction as? LoadBorrowInst {
       // A `load_borrow` opens a borrow scope which borrows the memory of the address. If the address
       // is an interior pointer into a borrowed object, that scope must be nested within the object's

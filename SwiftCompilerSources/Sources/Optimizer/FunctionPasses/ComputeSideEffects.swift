@@ -596,6 +596,10 @@ private struct ArgumentEscapingWalker : ValueDefUseWalker, AddressDefUseWalker {
       }
       return .continueWalk
 
+    case let apply as ApplyInst where apply.functionConvention.hasAddressResult:
+      // The address result may be a projection of the address.
+      return .abortWalk
+
     // Warning: all instruction listed here, must also be handled in `CollectedEffects.addInstructionEffects`
     case is StoreInst, is StoreWeakInst, is StoreUnownedInst, is ApplySite, is DestroyAddrInst,
          is DebugValueInst:
