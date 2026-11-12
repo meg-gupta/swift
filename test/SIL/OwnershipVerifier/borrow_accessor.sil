@@ -306,3 +306,13 @@ bb0(%0 : $*Wrapper):
   end_borrow %2
   return %3
 }
+
+// CHECK-NOT: Function: 'test_address_result_return_borrow'
+// The address result may be returned from within the borrow scope of self.
+sil [ossa] @test_address_result_return_borrow : $@convention(method) (@in_guaranteed Wrapper) -> @guaranteed_address Klass {
+bb0(%0 : $*Wrapper):
+  %1 = function_ref @borrow_address_of_object_self : $@convention(method) (@guaranteed Wrapper) -> @guaranteed_address Klass
+  %2 = load_borrow %0
+  %3 = apply %1(%2) : $@convention(method) (@guaranteed Wrapper) -> @guaranteed_address Klass
+  return_borrow %3 : $*Klass from_scopes (%2 : $Wrapper)
+}

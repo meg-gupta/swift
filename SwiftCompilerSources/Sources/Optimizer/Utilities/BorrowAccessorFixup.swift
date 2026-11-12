@@ -30,9 +30,24 @@ import OptimizerBridging
 /// ```
 /// A trivial result has no enclosing scope, so only the `unchecked_ownership` instructions are removed.
 ///
+/// A `@guaranteed_address` result that is an interior pointer of a borrowed object is handled the same way:
+/// ```
+///   %ld = load_borrow %self
+///   %fwd = unchecked_ownership %ld
+///   %addr = apply %borrowAccessor(%fwd)
+///   end_borrow %ld
+///   return %addr
+/// ```
+/// ->
+/// ```
+///   %ld = load_borrow %self
+///   %addr = apply %borrowAccessor(%ld)
+///   return_borrow %addr from_scopes (%ld)
+/// ```
+///
 /// Returns true if the function changed.
 func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext) -> Bool {
-  guard function.convention.hasGuaranteedResult else {
+  guard function.convention.hasGuaranteedResult || function.convention.hasGuaranteedAddressResult else {
     return false
   }
 
@@ -71,6 +86,12 @@ func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext)
 
 /// Returns the local borrow scopes that enclose `value`, ordered from outer to inner.
 private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassContext) -> [BeginBorrowValue] {
+  if value.type.isAddress {
+    guard let object = interiorPointerBase(of: value) else {
+      return []
+    }
+    return getEnclosingLocalScopes(of: object, context)
+  }
   var scopes = [BeginBorrowValue]()
   var worklist = ValueWorklist(context)
   defer { worklist.deinitialize() }
@@ -85,6 +106,20 @@ private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassCon
   }
   // Walking up visits inner scopes before outer scopes.
   return scopes.reversed()
+}
+
+/// The object which `address` is an interior pointer of.
+private func interiorPointerBase(of address: Value) -> Value? {
+  switch address.accessBase {
+  case let .borrowMutateAccessor(apply):
+    return apply.selfArgument
+  case let .class(refElementAddr):
+    return refElementAddr.instance
+  case let .tail(refTailAddr):
+    return refTailAddr.instance
+  default:
+    return nil
+  }
 }
 
 func registerBorrowAccessorFixup() {

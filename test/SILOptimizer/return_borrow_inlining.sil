@@ -611,3 +611,204 @@ bb2:
 bb3(%12 : $Int):
   return %12 : $Int
 }
+
+sil [transparent] [ossa] @klass_id_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int {
+bb0(%0 : @guaranteed $Klass):
+  %1 = ref_element_addr %0 : $Klass, #Klass.id
+  return %1 : $*Int
+}
+
+// The address result is an interior pointer of self, so the lexical scope
+// introduced for a guaranteed self ends after the uses of the result.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_guaranteed_self : $@convention(thin) (@in_guaranteed Container) -> Int {
+// CHECK-NOT:   apply
+// CHECK:       [[LB:%.*]] = load_borrow %0
+// CHECK:       [[K:%.*]] = struct_extract [[LB]]
+// CHECK:       [[B:%.*]] = begin_borrow [lexical] [[K]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[B]]
+// CHECK-NEXT:  [[V:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  end_borrow [[LB]]
+// CHECK: } // end sil function 'test_address_result_guaranteed_self'
+sil [ossa] @test_address_result_guaranteed_self : $@convention(thin) (@in_guaranteed Container) -> Int {
+bb0(%0 : $*Container):
+  %1 = load_borrow %0 : $*Container
+  %2 = struct_extract %1 : $Container, #Container._k
+  %3 = function_ref @klass_id_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %4 = apply %3(%2) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %5 = load [trivial] %4 : $*Int
+  end_borrow %1 : $Container
+  return %5 : $Int
+}
+
+// The inlined borrow of an owned self ends after the uses of the address result.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_owned_self : $@convention(thin) (@owned Klass) -> Int {
+// CHECK-NOT:   apply
+// CHECK:       [[B:%.*]] = begin_borrow %0
+// CHECK:       [[A:%.*]] = ref_element_addr [[B]]
+// CHECK-NEXT:  [[V:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  destroy_value %0
+// CHECK: } // end sil function 'test_address_result_owned_self'
+sil [ossa] @test_address_result_owned_self : $@convention(thin) (@owned Klass) -> Int {
+bb0(%0 : @owned $Klass):
+  %1 = function_ref @klass_id_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %3 = load [trivial] %2 : $*Int
+  destroy_value %0 : $Klass
+  return %3 : $Int
+}
+
+sil [transparent] [ossa] @address_borrow_accessor : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int {
+bb0(%0 : $*Container):
+  %1 = load_borrow %0 : $*Container
+  %2 = struct_extract %1 : $Container, #Container._k
+  %3 = ref_element_addr %2 : $Klass, #Klass.id
+  return_borrow %3 : $*Int from_scopes (%1 : $Container)
+}
+
+// The return_borrow scopes of an address result end after the uses of the
+// result.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result : $@convention(thin) (@in_guaranteed Container) -> Int {
+// CHECK-NOT:   apply
+// CHECK:       [[LB:%.*]] = load_borrow %0
+// CHECK:       [[K:%.*]] = struct_extract [[LB]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[K]]
+// CHECK-NEXT:  [[V:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[LB]]
+// CHECK-NEXT:  return [[V]]
+// CHECK: } // end sil function 'test_address_result'
+sil [ossa] @test_address_result : $@convention(thin) (@in_guaranteed Container) -> Int {
+bb0(%0 : $*Container):
+  %1 = function_ref @address_borrow_accessor : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int
+  %3 = load [trivial] %2 : $*Int
+  return %3 : $Int
+}
+
+// A caller which returns the address result returns it from the callee's
+// return_borrow scopes.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_return : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int {
+// CHECK-NOT:   apply
+// CHECK:       [[LB:%.*]] = load_borrow %0
+// CHECK:       [[K:%.*]] = struct_extract [[LB]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[K]]
+// CHECK-NEXT:  return_borrow [[A]] from_scopes ([[LB]])
+// CHECK: } // end sil function 'test_address_result_return'
+sil [ossa] @test_address_result_return : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int {
+bb0(%0 : $*Container):
+  %1 = function_ref @address_borrow_accessor : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int
+  return %2 : $*Int
+}
+
+sil [transparent] [ossa] @klass_address_borrow_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int {
+bb0(%0 : @guaranteed $Klass):
+  %1 = begin_borrow %0 : $Klass
+  %2 = ref_element_addr %1 : $Klass, #Klass.id
+  return_borrow %2 : $*Int from_scopes (%1 : $Klass)
+}
+
+// The callee's return_borrow scopes and the lexical scope of self are nested in
+// the scopes of the caller's return_borrow.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_return_borrow_caller : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int {
+// CHECK-NOT:   apply
+// CHECK:       [[LB:%.*]] = load_borrow %0
+// CHECK:       [[K:%.*]] = struct_extract [[LB]]
+// CHECK:       [[SB:%.*]] = begin_borrow [lexical] [[K]]
+// CHECK:       [[B:%.*]] = begin_borrow [[SB]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[B]]
+// CHECK-NEXT:  return_borrow [[A]] from_scopes ([[LB]], [[SB]], [[B]])
+// CHECK: } // end sil function 'test_address_result_return_borrow_caller'
+sil [ossa] @test_address_result_return_borrow_caller : $@convention(method) (@in_guaranteed Container) -> @guaranteed_address Int {
+bb0(%0 : $*Container):
+  %1 = load_borrow %0 : $*Container
+  %2 = struct_extract %1 : $Container, #Container._k
+  %3 = function_ref @klass_address_borrow_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %4 = apply %3(%2) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  return_borrow %4 : $*Int from_scopes (%1 : $Container)
+}
+
+// The scopes of the address result end after its transitive uses in each
+// block, the inner scope first.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_projection_uses : $@convention(thin) (@owned Klass) -> Builtin.Int64 {
+// CHECK-NOT:   apply
+// CHECK:       [[B:%.*]] = begin_borrow %0
+// CHECK:       [[IB:%.*]] = begin_borrow [[B]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[IB]]
+// CHECK:       [[P:%.*]] = struct_element_addr [[A]]
+// CHECK:       cond_br
+// CHECK:       load [trivial] [[P]]
+// CHECK-NEXT:  end_borrow [[IB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  br
+// CHECK:       load [trivial] [[P]]
+// CHECK-NEXT:  end_borrow [[IB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  br
+// CHECK: } // end sil function 'test_address_result_projection_uses'
+sil [ossa] @test_address_result_projection_uses : $@convention(thin) (@owned Klass) -> Builtin.Int64 {
+bb0(%0 : @owned $Klass):
+  %1 = function_ref @klass_address_borrow_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %3 = struct_element_addr %2 : $*Int, #Int._value
+  cond_br undef, bb1, bb2
+
+bb1:
+  %5 = load [trivial] %3 : $*Builtin.Int64
+  br bb3(%5 : $Builtin.Int64)
+
+bb2:
+  %7 = load [trivial] %3 : $*Builtin.Int64
+  br bb3(%7 : $Builtin.Int64)
+
+bb3(%9 : $Builtin.Int64):
+  destroy_value %0 : $Klass
+  return %9 : $Builtin.Int64
+}
+
+public class ContainerBox {
+  let c: Container
+  init()
+}
+
+sil [transparent] [ossa] @container_box_accessor : $@convention(method) (@guaranteed ContainerBox) -> @guaranteed_address Container {
+bb0(%0 : @guaranteed $ContainerBox):
+  %1 = ref_element_addr [immutable] %0 : $ContainerBox, #ContainerBox.c
+  return %1 : $*Container
+}
+
+sil @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+
+// The scope of self ends after a borrow scope of a projection of the address
+// result.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_load_borrow_of_projection : $@convention(thin) (@owned ContainerBox) -> () {
+// CHECK:       [[B:%.*]] = begin_borrow %0
+// CHECK:       [[A:%.*]] = ref_element_addr [immutable] [[B]]
+// CHECK:       [[P:%.*]] = struct_element_addr [[A]]
+// CHECK:       [[LB:%.*]] = load_borrow [[P]]
+// CHECK:       apply {{%[0-9]+}}([[LB]])
+// CHECK-NEXT:  end_borrow [[LB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  destroy_value %0
+// CHECK: } // end sil function 'test_address_result_load_borrow_of_projection'
+sil [ossa] @test_address_result_load_borrow_of_projection : $@convention(thin) (@owned ContainerBox) -> () {
+bb0(%0 : @owned $ContainerBox):
+  %1 = function_ref @container_box_accessor : $@convention(method) (@guaranteed ContainerBox) -> @guaranteed_address Container
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed ContainerBox) -> @guaranteed_address Container
+  %3 = struct_element_addr %2 : $*Container, #Container._k
+  %4 = load_borrow %3 : $*Klass
+  %5 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %6 = apply %5(%4) : $@convention(thin) (@guaranteed Klass) -> ()
+  end_borrow %4 : $Klass
+  destroy_value %0 : $ContainerBox
+  %9 = tuple ()
+  return %9 : $()
+}
