@@ -159,6 +159,14 @@ extension AddressUseVisitor {
          is ReturnInst:
       return yieldedAddressUse(of: operand)
 
+    case let returnBorrow as ReturnBorrowInst:
+      // A returned address is used like the address of a return. The return_borrow also ends the scopes of the
+      // address results of borrow and mutate accessors.
+      if operand == returnBorrow.returnedValueOperand {
+        return yieldedAddressUse(of: operand)
+      }
+      return leafAddressUse(of: operand)
+
     case let sdai as SourceDestAddrInstruction
            where sdai.sourceOperand == operand:
       return loadedAddressUse(of: operand, intoAddress: sdai.destinationOperand)

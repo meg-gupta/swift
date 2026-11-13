@@ -156,6 +156,13 @@ func completeLifetime(of value: Value,
                createEnd: { $0.createEndAccess(beginAccess: ba) },
                getDeadEnd: getDeadEnd,
                context)
+    case let apply as ApplyInst where apply.type.isAddress && apply.functionConvention.hasAddressResult:
+      // The address result of a borrow or mutate accessor is a scope, like the address of a store_borrow.
+      complete(value: apply,
+               isEnd: { apply.addressResultScopeEndingOperands.contains($0) },
+               createEnd: { $0.createEndBorrow(of: apply) },
+               getDeadEnd: getDeadEnd,
+               context)
     default:
       return
     }

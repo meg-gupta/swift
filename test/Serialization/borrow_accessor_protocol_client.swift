@@ -141,7 +141,7 @@ public func foo(_ q: Q) {
 // CHECK: sil [ossa] @$s31borrow_accessor_protocol_client3fooyy0a1_b1_C02S5VF : $@convention(thin) (@in_guaranteed S5) -> () {
 // CHECK: bb0([[REG0:%.*]] : $*S5):
 // CHECK:   [[REG2:%.*]] = function_ref @$s24borrow_accessor_protocol2S5V2idAA10NonTrivialVvb : $@convention(method) (@in_guaranteed S5) -> @guaranteed_address NonTrivial // user: [[REG3]]
-// CHECK:   [[REG3:%.*]] = apply [[REG2]]([[REG0]]) : $@convention(method) (@in_guaranteed S5) -> @guaranteed_address NonTrivial // user: [[REG5]]
+// CHECK:   [[REG3:%.*]] = apply [[REG2]]([[REG0]]) : $@convention(method) (@in_guaranteed S5) -> @guaranteed_address NonTrivial
 // CHECK: } // end sil function '$s31borrow_accessor_protocol_client3fooyy0a1_b1_C02S5VF'
 public func foo(_ s5: S5) {
   use(s5.id)

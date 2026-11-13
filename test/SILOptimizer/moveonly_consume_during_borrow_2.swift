@@ -16,7 +16,7 @@ extension Tree.Node {
           return self // expected-note{{}}
         case .some(let box): // expected-warning{{}}
           return self // expected-note{{}}
-        }
-    } // expected-note 2 {{}}
+        } // expected-note 2 {{}}
+    }
 }
 
