@@ -430,6 +430,13 @@ protected:
   /// SIL before cloning.
   void postFixUp(SILFunction *calleeFunction);
 
+  /// Replace the caller's return_borrow of \p applyResult, the result of the
+  /// inlined apply, with a return_borrow from the scopes enclosing the callee's
+  /// returned value. The scopes replace \p applyResult in the enclosing values.
+  void replaceCallerReturnBorrow(ReturnBorrowInst *callerReturnBorrow,
+                                 SILValue applyResult,
+                                 SILValue calleeReturnValue);
+
   /// Replace the borrow scope of an inlined borrow accessor's result with the
   /// scopes enclosing the callee's returned value.
   void fixupBorrowAccessorGuaranteedResult();
@@ -835,6 +842,28 @@ void SILInlineCloner::preFixUp(SILFunction *calleeFunction) {
   }
 }
 
+void SILInlineCloner::replaceCallerReturnBorrow(
+    ReturnBorrowInst *callerReturnBorrow, SILValue applyResult,
+    SILValue calleeReturnValue) {
+  SmallVector<SILValue, 4> newEnclosingValues;
+  for (SILValue value : callerReturnBorrow->getEnclosingValues()) {
+    if (value == applyResult) {
+      newEnclosingValues.append(resultEnclosingScopes.begin(),
+                                resultEnclosingScopes.end());
+      continue;
+    }
+    newEnclosingValues.push_back(value);
+  }
+
+  SILValue callerReturnValue = callerReturnBorrow->getReturnValue();
+  SILBuilderWithScope builder(callerReturnBorrow, getBuilder());
+  builder.createReturnBorrow(
+      callerReturnBorrow->getLoc(),
+      callerReturnValue == applyResult ? calleeReturnValue : callerReturnValue,
+      newEnclosingValues);
+  callerReturnBorrow->eraseFromParent();
+}
+
 ///  After inlining the borrow accessor, fixup the enclosing scopes specified
 ///  by the callee's return_borrow and the scope inserted for self:
 ///    - At each end_borrow of the result, end the enclosing scopes.
@@ -884,23 +913,7 @@ void SILInlineCloner::fixupBorrowAccessorGuaranteedResult() {
   // its return_borrow scopes with the callee's enclosing scopes, and a returned
   // result with the callee's returned value.
   if (callerReturnBorrow) {
-    SmallVector<SILValue, 4> newEnclosingValues;
-    for (SILValue value : callerReturnBorrow->getEnclosingValues()) {
-      if (value == resultArg) {
-        newEnclosingValues.append(resultEnclosingScopes.begin(),
-                                  resultEnclosingScopes.end());
-        continue;
-      }
-      newEnclosingValues.push_back(value);
-    }
-
-    SILValue callerReturnValue = callerReturnBorrow->getReturnValue();
-    SILBuilderWithScope builder(callerReturnBorrow, getBuilder());
-    builder.createReturnBorrow(
-        callerReturnBorrow->getLoc(),
-        callerReturnValue == resultArg ? calleeReturnValue : callerReturnValue,
-        newEnclosingValues);
-    callerReturnBorrow->eraseFromParent();
+    replaceCallerReturnBorrow(callerReturnBorrow, resultArg, calleeReturnValue);
   }
 
   // Remove the result phi.
