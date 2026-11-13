@@ -607,10 +607,12 @@ OperandOwnershipClassifier::visitFullApply(FullApplySite apply) {
   }();
 
   // The @guaranteed self of a borrow accessor is borrowed over the scope of
-  // the result, like the operand of a begin_borrow.
+  // the result, like the operand of a begin_borrow. The object self of a
+  // borrow or mutate accessor with an address result is borrowed over the
+  // scope of the address result, like the source of a store_borrow.
   bool hasScopeInCaller = apply.beginsCoroutineEvaluation();
   if (auto *ai = dyn_cast<ApplyInst>(apply.getInstruction())) {
-    if (ai->getSelfObjectOfGuaranteedBorrowAccessorResult() == &op) {
+    if (ai->getSelfObjectOfBorrowMutateAccessorResult() == &op) {
       hasScopeInCaller = true;
     }
   }
@@ -710,8 +712,12 @@ OperandOwnership OperandOwnershipClassifier::visitReturnInst(ReturnInst *i) {
 
 OperandOwnership
 OperandOwnershipClassifier::visitReturnBorrowInst(ReturnBorrowInst *rbi) {
-  return getOperandIndex() == 0 ? OperandOwnership::GuaranteedForwarding
-                                : OperandOwnership::EndBorrow;
+  if (&op != &rbi->getReturnValueOperand()) {
+    return OperandOwnership::EndBorrow;
+  }
+  return getValue()->getType().isAddress()
+             ? OperandOwnership::TrivialUse
+             : OperandOwnership::GuaranteedForwarding;
 }
 
 OperandOwnership OperandOwnershipClassifier::visitAssignInst(AssignInst *i) {

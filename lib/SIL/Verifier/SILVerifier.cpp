@@ -2395,8 +2395,74 @@ public:
             "result");
   }
 
+  /// The uses of the address result of a borrow or mutate accessor must be
+  /// within its scope, which is ended by end_borrow or return_borrow.
+  void checkBorrowMutateAccessorAddressScope(ApplyInst *AI) {
+    ScopedAddressValue scopedAddress(AI);
+    if (!scopedAddress) {
+      return;
+    }
+    SSAPrunedLiveness liveness(AI->getFunction());
+    liveness.initializeDef(AI);
+    scopedAddress.visitScopeEndingUses([&](Operand *end) {
+      liveness.updateForUse(end->getUser(), /*lifetimeEnding*/ true);
+      return true;
+    });
+
+    SmallPtrSet<SILInstruction *, 4> scopeEnds;
+    scopedAddress.visitScopeEndingUses([&](Operand *end) {
+      scopeEnds.insert(end->getUser());
+      return true;
+    });
+    auto isWithinScope = [&](SILInstruction *user) {
+      return getDeadEndBlocks().isDeadEnd(user->getParent()) ||
+             liveness.isWithinBoundary(user) || scopeEnds.count(user);
+    };
+    auto checkNestedScopeEnd = [&](Operand *end) {
+      if (!isWithinScope(end->getUser())) {
+        llvm::errs() << "Nested scope end found outside scope: "
+                     << *end->getUser();
+        require(false, "Ill formed borrow or mutate accessor result scope");
+      }
+      return true;
+    };
+
+    SmallVector<Operand *, 8> uses;
+    findTransitiveUsesForAddress(AI, &uses);
+    for (auto *use : uses) {
+      auto *user = use->getUser();
+      if (scopedAddress.isScopeEndingUse(use)) {
+        continue;
+      }
+      if (use->getOperandOwnership() == OperandOwnership::DebugUse) {
+        continue;
+      }
+      // In raw SIL, BorrowAccessorFixup moves the scope of a returned result
+      // into a return_borrow.
+      if (F.getFunctionStage() == SILStage::Raw && isa<ReturnInst>(user)) {
+        continue;
+      }
+      if (!isWithinScope(user)) {
+        llvm::errs() << "User found outside scope: " << *user;
+        require(false, "Ill formed borrow or mutate accessor result scope");
+      }
+      // A nested address scope, like the result of an accessor of the result,
+      // must end within this scope.
+      if (auto nested = ScopedAddressValue::forUse(use)) {
+        nested.visitScopeEndingUses(checkNestedScopeEnd);
+      }
+      if (auto *lbi = dyn_cast<LoadBorrowInst>(user)) {
+        BorrowedValue(lbi).visitLocalScopeEndingUses(checkNestedScopeEnd);
+      }
+    }
+  }
+
   void checkApplyInst(ApplyInst *AI) {
     checkFullApplySite(AI);
+
+    if (F.hasOwnership() && AI->hasAddressResult()) {
+      checkBorrowMutateAccessorAddressScope(AI);
+    }
 
     SILFunctionConventions calleeConv(AI->getSubstCalleeType(), fnConv.silConv);
     requireSameType(
@@ -3191,8 +3257,11 @@ public:
         F.hasOwnership(),
         "Inst with qualified ownership in a function that is not qualified");
     if (EBI->getOperand()->getType().isAddress()) {
-      require(isa<StoreBorrowInst>(EBI->getOperand()),
-              "end_borrow of an address not produced by store_borrow");
+      require(isa<StoreBorrowInst>(EBI->getOperand()) ||
+                  ScopedAddressValue(EBI->getOperand()).kind ==
+                      ScopedAddressValueKind::BorrowMutateAccessor,
+              "end_borrow of an address not produced by store_borrow or a "
+              "borrow or mutate accessor");
     }
   }
 

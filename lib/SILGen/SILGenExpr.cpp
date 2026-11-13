@@ -312,6 +312,17 @@ SILGenFunction::emitFormalEvaluationManagedBorrowedRValueWithCleanup(
   return ManagedValue::forBorrowedRValue(borrowed);
 }
 
+void SILGenFunction::emitFormalEvaluationEndBorrowOfAccessorAddressResult(
+    SILLocation loc, SILValue address) {
+  assert(address->getType().isAddress());
+  assert(isInFormalEvaluationScope() && "Must be in formal evaluation scope");
+  auto &cleanup = Cleanups.pushCleanup<FormalEvaluationEndBorrowCleanup>();
+  CleanupHandle handle = Cleanups.getTopCleanup();
+  FormalEvalContext.push<SharedBorrowFormalAccess>(loc, handle, address,
+                                                   address);
+  cleanup.Depth = FormalEvalContext.stable_begin();
+}
+
 ManagedValue
 SILGenFunction::emitManagedBorrowedArgumentWithCleanup(SILPhiArgument *arg) {
   if (arg->getOwnershipKind() == OwnershipKind::None ||

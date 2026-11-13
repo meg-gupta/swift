@@ -127,7 +127,9 @@ swift::createDecrementBefore(SILValue ptr, SILInstruction *insertPt) {
 bool swift::canTriviallyDeleteOSSAEndScopeInst(SILInstruction *i) {
   if (!isa<EndBorrowInst>(i) && !isa<DestroyValueInst>(i))
     return false;
-  if (isa<StoreBorrowInst>(i->getOperand(0)))
+  // An end_borrow of an address ends the scope of a store_borrow or of the
+  // address result of a borrow or mutate accessor.
+  if (i->getOperand(0)->getType().isAddress())
     return false;
 
   auto opValue = i->getOperand(0);

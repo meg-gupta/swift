@@ -30,6 +30,8 @@ public:
     Invalid = 0,
     StoreBorrow,
     BeginAccess,
+    // The address result of a borrow or mutate accessor.
+    BorrowMutateAccessor,
   };
 
 private:
@@ -44,6 +46,13 @@ public:
       return Kind::StoreBorrow;
     case ValueKind::BeginAccessInst:
       return Kind::BeginAccess;
+    case ValueKind::ApplyInst: {
+      auto *ai = cast<ApplyInst>(value);
+      if (ai->hasAddressResult() && ai->getFunction()->hasOwnership()) {
+        return Kind::BorrowMutateAccessor;
+      }
+      return Kind::Invalid;
+    }
     }
   }
 
@@ -75,12 +84,21 @@ struct ScopedAddressValue {
   }
 
   // Both the store_borrow source and address operands are effectively used for
-  // the duration of the address scope.
+  // the duration of the address scope. Of the operands of a borrow or mutate
+  // accessor, only self is used for the duration of its address result's
+  // scope.
   static ScopedAddressValue forUse(Operand *use) {
-    if (auto svi = dyn_cast<SingleValueInstruction>(use->getUser()))
-      return ScopedAddressValue(svi);
+    auto svi = dyn_cast<SingleValueInstruction>(use->getUser());
+    if (!svi)
+      return ScopedAddressValue();
 
-    return ScopedAddressValue();
+    ScopedAddressValue scopedAddress(svi);
+    if (scopedAddress.kind == ScopedAddressValueKind::BorrowMutateAccessor) {
+      auto *ai = cast<ApplyInst>(svi);
+      if (!ai->hasSelfArgument() || &ai->getSelfArgumentOperand() != use)
+        return ScopedAddressValue();
+    }
+    return scopedAddress;
   }
 
   void print(llvm::raw_ostream &os) const;

@@ -162,6 +162,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
   case markDependence(MarkDependenceInst)
   case startAsyncLet(BuiltinInst)
   case borrowAccessor(ApplyInst)
+  /// A borrow or mutate accessor with an address result, which borrows its object self like a store_borrow.
+  case borrowMutateAccessor(ApplyInst)
 
   public init?(_ inst: Instruction) {
     switch inst {
@@ -185,6 +187,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
       self = .startAsyncLet(bi)
     case let ai as ApplyInst where ai.selfObjectOfGuaranteedBorrowAccessorResult != nil:
       self = .borrowAccessor(ai)
+    case let ai as ApplyInst where ai.selfObjectOfBorrowMutateAccessorAddressResult != nil:
+      self = .borrowMutateAccessor(ai)
     default:
       return nil
     }
@@ -207,6 +211,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
     case .startAsyncLet(let bi):
       return bi
     case .borrowAccessor(let ai):
+      return ai
+    case .borrowMutateAccessor(let ai):
       return ai
     }
   }
@@ -234,7 +240,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
         return nil
       }
       return mdi
-    case .beginBorrow, .storeBorrow, .beginApply, .partialApply, .startAsyncLet, .borrowAccessor:
+    case .beginBorrow, .storeBorrow, .beginApply, .partialApply, .startAsyncLet, .borrowAccessor,
+         .borrowMutateAccessor:
       return nil
     }
   }
@@ -242,7 +249,7 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
   /// If this is valid, then visitScopeEndingOperands succeeds.
   public var scopedValue: Value? {
     switch self {
-    case .beginBorrow, .storeBorrow, .borrowAccessor:
+    case .beginBorrow, .storeBorrow, .borrowAccessor, .borrowMutateAccessor:
       return instruction as! SingleValueInstruction
     case let .borrowedFrom(bfi):
       let phi = bfi.borrowedPhi
@@ -310,6 +317,8 @@ public enum BorrowingInstruction : CustomStringConvertible, Hashable {
     case .borrowAccessor:
       // end_borrow, return_borrow, or a reborrow.
       return val.uses.endingLifetime.walk { visitor($0) }
+    case let .borrowMutateAccessor(apply):
+      return apply.addressResultScopeEndingOperands.walk { visitor($0) }
     }
   }
 }
@@ -440,7 +449,7 @@ public enum BeginBorrowValue {
       self.init(beginApply.token)
     case let .borrowAccessor(apply):
       self.init(apply)
-    case .storeBorrow, .partialApply, .markDependence, .startAsyncLet:
+    case .storeBorrow, .borrowMutateAccessor, .partialApply, .markDependence, .startAsyncLet:
       return nil
     }
   }

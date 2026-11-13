@@ -661,6 +661,9 @@ void BorrowingOperandKind::print(llvm::raw_ostream &os) const {
   case Kind::BorrowAccessor:
     os << "BorrowAccessor";
     return;
+  case Kind::BorrowMutateAccessor:
+    os << "BorrowMutateAccessor";
+    return;
   }
   llvm_unreachable("Covered switch isn't covered?!");
 }
@@ -695,7 +698,8 @@ bool BorrowingOperand::hasEmptyRequiredEndingUses() const {
   case BorrowingOperandKind::BeginAsyncLet:
   case BorrowingOperandKind::PartialApplyStack:
   case BorrowingOperandKind::MarkDependenceNonEscaping:
-  case BorrowingOperandKind::BorrowAccessor: {
+  case BorrowingOperandKind::BorrowAccessor:
+  case BorrowingOperandKind::BorrowMutateAccessor: {
     return op->getUser()->hasUsesOfAnyResult();
   }
   case BorrowingOperandKind::Branch: {
@@ -756,6 +760,11 @@ bool BorrowingOperand::visitScopeEndingUses(
     }
     return true;
   }
+  case BorrowingOperandKind::BorrowMutateAccessor:
+    // The address result ends with end_borrow or return_borrow, like the
+    // address of a store_borrow.
+    return ScopedAddressValue(cast<ApplyInst>(op->getUser()))
+        .visitScopeEndingUses(visitScopeEnd);
   case BorrowingOperandKind::BeginApply: {
     bool deadApply = true;
     for (auto *use : cast<BeginApplyInst>(op->getUser())->getEndApplyUses()) {
@@ -853,6 +862,7 @@ SILValue BorrowingOperand::getBorrowIntroducingUserResult() const {
   case BorrowingOperandKind::MarkDependenceNonEscaping:
   case BorrowingOperandKind::BeginAsyncLet:
   case BorrowingOperandKind::StoreBorrow:
+  case BorrowingOperandKind::BorrowMutateAccessor:
     return SILValue();
 
   case BorrowingOperandKind::BeginBorrow:
@@ -881,6 +891,7 @@ SILValue BorrowingOperand::getScopeIntroducingUserResult() const {
   case BorrowingOperandKind::BeginAsyncLet:
   case BorrowingOperandKind::PartialApplyStack:
   case BorrowingOperandKind::StoreBorrow:
+  case BorrowingOperandKind::BorrowMutateAccessor:
     return cast<SingleValueInstruction>(op->getUser());
 
   case BorrowingOperandKind::MarkDependenceNonEscaping:
@@ -927,6 +938,7 @@ SILValue BorrowingOperand::getDependentUserResult() const {
   case BorrowingOperandKind::PartialApplyStack:
   case BorrowingOperandKind::BeginAsyncLet:
   case BorrowingOperandKind::BorrowAccessor:
+  case BorrowingOperandKind::BorrowMutateAccessor:
     return SILValue();
   }
   llvm_unreachable("covered switch");

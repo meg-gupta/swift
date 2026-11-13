@@ -262,6 +262,8 @@ public:
     MarkDependenceNonEscaping,
     BeginAsyncLet,
     BorrowAccessor,
+    // The object self of a borrow or mutate accessor with an address result.
+    BorrowMutateAccessor,
   };
 
 private:
@@ -289,6 +291,9 @@ public:
     case SILInstructionKind::ApplyInst:
       if (cast<ApplyInst>(i)->hasGuaranteedResult()) {
         return Kind::BorrowAccessor;
+      }
+      if (cast<ApplyInst>(i)->hasAddressResult()) {
+        return Kind::BorrowMutateAccessor;
       }
       return Kind::Apply;
     case SILInstructionKind::TryApplyInst:
@@ -421,6 +426,7 @@ struct BorrowingOperand {
     case BorrowingOperandKind::MarkDependenceNonEscaping:
     case BorrowingOperandKind::BeginAsyncLet:
     case BorrowingOperandKind::BorrowAccessor:
+    case BorrowingOperandKind::BorrowMutateAccessor:
       return false;
     case BorrowingOperandKind::Branch:
       return true;

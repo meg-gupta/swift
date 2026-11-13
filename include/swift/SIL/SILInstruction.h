@@ -3439,6 +3439,23 @@ public:
     return &selfOperand;
   }
 
+  /// If the result of a borrow or mutate accessor is borrowed from an object
+  /// self over its scope, return the self operand: for a non-trivial
+  /// @guaranteed result or an address result. Otherwise return nullptr.
+  Operand *getSelfObjectOfBorrowMutateAccessorResult() {
+    if (hasGuaranteedResult()) {
+      return getSelfObjectOfGuaranteedBorrowAccessorResult();
+    }
+    if (!hasAddressResult() || !hasSelfArgument()) {
+      return nullptr;
+    }
+    Operand &selfOperand = getSelfArgumentOperand();
+    if (!selfOperand.get()->getType().isObject()) {
+      return nullptr;
+    }
+    return &selfOperand;
+  }
+
   bool hasInoutResult() const { return getSubstCalleeConv().hasInoutResult(); }
 };
 
@@ -10960,7 +10977,9 @@ class ReturnBorrowInst final
                                   SILModule &M);
 
 public:
-  SILValue getReturnValue() const { return getAllOperands()[0].get(); }
+  const Operand &getReturnValueOperand() const { return getAllOperands()[0]; }
+
+  SILValue getReturnValue() const { return getReturnValueOperand().get(); }
 
   ArrayRef<Operand> getEnclosingValueOperands() const {
     return getAllOperands().drop_front();

@@ -5865,6 +5865,9 @@ ManagedValue SILGenFunction::applyBorrowMutateAccessor(
   auto rawResult = rawResults[0];
 
   if (rawResult->getType().isAddress()) {
+    // The address result is a scope, ended by an end_borrow like the address of
+    // a store_borrow.
+    emitFormalEvaluationEndBorrowOfAccessorAddressResult(loc, rawResult);
     if (rawResult->getType().isMoveOnly()) {
       SILFunctionConventions substFnConv(substFnType,
                                          SILAddressConventions::forFunction(F));

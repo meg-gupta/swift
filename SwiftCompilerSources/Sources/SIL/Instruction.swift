@@ -1821,6 +1821,30 @@ final public class ApplyInst : SingleValueInstruction, FullApplySite {
     }
     return selfAddress
   }
+
+  /// The object-typed self of a borrow or mutate accessor with an address result.
+  public var selfObjectOfBorrowMutateAccessorAddressResult: Value? {
+    guard functionConvention.hasAddressResult,
+          let selfObject = selfArgument, !selfObject.type.isAddress else {
+      return nil
+    }
+    return selfObject
+  }
+
+  /// The operands that end the scope of the address result of a borrow or mutate accessor, like
+  /// `ScopedAddressValue` in C++: the end_borrows of the result and the enclosing operands of a return_borrow.
+  public var addressResultScopeEndingOperands: LazyFilterSequence<UseList> {
+    uses.lazy.filter {
+      switch $0.instruction {
+      case is EndBorrowInst:
+        return true
+      case let returnBorrow as ReturnBorrowInst:
+        return $0 != returnBorrow.returnedValueOperand
+      default:
+        return false
+      }
+    }
+  }
 }
 
 final public class FunctionExtractIsolationInst : SingleValueInstruction {}
@@ -2522,7 +2546,8 @@ final public class ReturnInst : TermInst, UnaryInstruction, ReturnInstruction {
 }
 
 final public class ReturnBorrowInst : TermInst, ReturnInstruction {
-  public var returnedValue: Value { operands[0].value }
+  public var returnedValueOperand: Operand { operands[0] }
+  public var returnedValue: Value { returnedValueOperand.value }
   public var enclosingOperands: OperandArray {
     let ops = operands
     return ops[1..<ops.count]

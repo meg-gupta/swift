@@ -391,13 +391,11 @@ bool SILValueOwnershipChecker::gatherUsers(
         scopedOperand.visitScopeEndingUses(addLeafUse, addUnknownUse);
       }
 
-      if (auto *svi = dyn_cast<SingleValueInstruction>(op->getUser())) {
-        if (auto scopedAddress = ScopedAddressValue(svi)) {
-          scopedAddress.visitScopeEndingUses([&](Operand *endOp) {
-            nonLifetimeEndingUsers.push_back(endOp);
-            return true;
-          });
-        }
+      if (auto scopedAddress = ScopedAddressValue::forUse(op)) {
+        scopedAddress.visitScopeEndingUses([&](Operand *endOp) {
+          nonLifetimeEndingUsers.push_back(endOp);
+          return true;
+        });
       }
       // Next see if our use is an interior pointer operand. If we have an
       // interior pointer, we need to add all of its address uses as "implicit

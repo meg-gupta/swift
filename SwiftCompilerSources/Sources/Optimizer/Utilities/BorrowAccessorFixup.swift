@@ -30,9 +30,25 @@ import OptimizerBridging
 /// ```
 /// A trivial result has no enclosing scope, so only the `unchecked_ownership` instructions are removed.
 ///
+/// The address result of an accessor with a borrowed object self is handled the same way. The address result is a
+/// scope within the borrow scope of self:
+/// ```
+///   %ld = load_borrow %self
+///   %fwd = unchecked_ownership %ld
+///   %addr = apply %borrowAccessor(%fwd)
+///   end_borrow %ld
+///   return %addr
+/// ```
+/// ->
+/// ```
+///   %ld = load_borrow %self
+///   %addr = apply %borrowAccessor(%ld)
+///   return_borrow %addr from_scopes (%ld, %addr)
+/// ```
+///
 /// Returns true if the function changed.
 func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext) -> Bool {
-  guard function.convention.hasGuaranteedResult else {
+  guard function.convention.hasGuaranteedResult || function.convention.hasAddressResult else {
     return false
   }
 
@@ -54,24 +70,45 @@ func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext)
     return changed
   }
   for scope in enclosingScopes {
-    assert(!scope.scopeEndingOperands.isEmpty)
-    for scopeEnd in scope.scopeEndingOperands {
+    let scopeEnds = scopeEndingInstructions(of: scope)
+    assert(!scopeEnds.isEmpty)
+    for scopeEnd in scopeEnds {
       // SILGen does not emit reborrows, so every scope ends with an end_borrow.
-      assert(scopeEnd.instruction is EndBorrowInst)
-      context.erase(instruction: scopeEnd.instruction)
+      assert(scopeEnd is EndBorrowInst)
+      context.erase(instruction: scopeEnd)
     }
   }
 
   // The scopes are ordered from outer to inner.
   let builder = Builder(before: returnInst, context)
-  builder.createReturnBorrow(of: returnInst.returnedValue, fromScopes: enclosingScopes.map { $0.value })
+  builder.createReturnBorrow(of: returnInst.returnedValue, fromScopes: enclosingScopes)
   context.erase(instruction: returnInst)
   return true
 }
 
-/// Returns the local borrow scopes that enclose `value`, ordered from outer to inner.
-private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassContext) -> [BeginBorrowValue] {
-  var scopes = [BeginBorrowValue]()
+/// The scope ending instructions of a borrow scope or of the address result of an accessor.
+private func scopeEndingInstructions(of scope: Value) -> [Instruction] {
+  if let apply = scope as? ApplyInst, apply.functionConvention.hasAddressResult {
+    return apply.addressResultScopeEndingOperands.map { $0.instruction }
+  }
+  return BeginBorrowValue(scope)!.scopeEndingOperands.map { $0.instruction }
+}
+
+/// Returns the local scopes that enclose `value`, ordered from outer to inner: borrow scopes and the
+/// address results of borrow and mutate accessors.
+private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassContext) -> [Value] {
+  var scopes = [Value]()
+  collectEnclosingLocalScopes(of: value, &scopes, context)
+  // Walking up visits inner scopes before outer scopes.
+  return scopes.reversed()
+}
+
+private func collectEnclosingLocalScopes(of value: Value, _ scopes: inout [Value],
+                                         _ context: FunctionPassContext) {
+  if value.type.isAddress {
+    collectEnclosingLocalScopes(ofAddress: value, &scopes, context)
+    return
+  }
   var worklist = ValueWorklist(context)
   defer { worklist.deinitialize() }
 
@@ -79,12 +116,48 @@ private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassCon
   while let current = worklist.pop() {
     // A trivial value, such as the dereference_borrow of a trivial type, has no scope.
     if current.ownership == .guaranteed, let scope = BeginBorrowValue(current), scope.hasLocalScope {
-      scopes.append(scope)
+      scopes.append(current)
+      if let loadBorrow = current as? LoadBorrowInst {
+        collectEnclosingLocalScopes(ofAddress: loadBorrow.address, &scopes, context)
+      }
+      if let apply = current as? ApplyInst, let selfAddress = apply.selfAddressOfGuaranteedBorrowAccessorResult {
+        collectEnclosingLocalScopes(ofAddress: selfAddress, &scopes, context)
+      }
     }
     worklist.pushIfNotVisited(contentsOf: current.getEnclosingValues(context))
   }
-  // Walking up visits inner scopes before outer scopes.
-  return scopes.reversed()
+}
+
+/// Collects the local scopes that `address` is only valid within: the accessor address results that it is
+/// derived from, and the local scopes of the objects that it depends on, e.g. the self of an unsafe addressor:
+/// ```
+///   %ld = load_borrow %selfField
+///   %ptr = apply %unsafeAddressor(%ld)
+///   %addr = pointer_to_address %ptr
+///   %md = mark_dependence [unresolved] %addr on %ld
+/// ```
+private func collectEnclosingLocalScopes(ofAddress address: Value, _ scopes: inout [Value],
+                                         _ context: FunctionPassContext) {
+  let accessBaseAndScopes = address.accessBaseWithScopes
+  // The scopes are ordered from inner to outer.
+  for case let .dependence(markDep) in accessBaseAndScopes.scopes {
+    collectEnclosingLocalScopes(of: markDep.base, &scopes, context)
+  }
+  switch accessBaseAndScopes.base {
+  case let .borrowMutateAccessor(apply):
+    scopes.append(apply)
+    if let selfArgument = apply.selfArgument {
+      collectEnclosingLocalScopes(of: selfArgument, &scopes, context)
+    }
+  case let .box(projectBox):
+    collectEnclosingLocalScopes(of: projectBox.box, &scopes, context)
+  case let .class(refElementAddr):
+    collectEnclosingLocalScopes(of: refElementAddr.instance, &scopes, context)
+  case let .tail(refTailAddr):
+    collectEnclosingLocalScopes(of: refTailAddr.instance, &scopes, context)
+  case .stack, .global, .argument, .yield, .storeBorrow, .pointer, .index, .unidentified:
+    break
+  }
 }
 
 func registerBorrowAccessorFixup() {

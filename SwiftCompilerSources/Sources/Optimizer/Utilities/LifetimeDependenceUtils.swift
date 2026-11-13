@@ -1125,6 +1125,8 @@ extension LifetimeDependenceDefUseWalker {
       return walkDownUses(of: bfi, using: operand)
     case let .storeBorrow(sbi):
       return walkDownAddressUses(of: sbi)
+    case let .borrowMutateAccessor(apply):
+      return walkDownAddressUses(of: apply)
     case let .beginApply(bai):
       // First, visit the uses of any non-Escapable yields. The yielded value may be copied and used outside the
       // coroutine scope.  Now, visit the uses of the begin_apply token. This adds the coroutine scope itself to the

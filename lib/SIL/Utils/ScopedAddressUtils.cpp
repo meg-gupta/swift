@@ -30,6 +30,9 @@ void ScopedAddressValueKind::print(llvm::raw_ostream &os) const {
   case ScopedAddressValueKind::BeginAccess:
     os << "BeginAccess";
     return;
+  case ScopedAddressValueKind::BorrowMutateAccessor:
+    os << "BorrowMutateAccessor";
+    return;
   }
   llvm_unreachable("Covered switch isn't covered?!");
 }
@@ -56,6 +59,16 @@ bool ScopedAddressValue::isScopeEndingUse(Operand *op) const {
     }
     return false;
   }
+  case ScopedAddressValueKind::BorrowMutateAccessor: {
+    if (auto *endBorrow = dyn_cast<EndBorrowInst>(op->getUser())) {
+      return endBorrow->getOperand() == value;
+    }
+    if (auto *returnBorrow = dyn_cast<ReturnBorrowInst>(op->getUser())) {
+      return op != &returnBorrow->getReturnValueOperand() &&
+             op->get() == value;
+    }
+    return false;
+  }
   }
 }
 
@@ -76,6 +89,15 @@ bool ScopedAddressValue::visitScopeEndingUses(
   case ScopedAddressValueKind::BeginAccess: {
     for (auto *use : value->getUses()) {
       if (isa<EndAccessInst>(use->getUser())) {
+        if (!visitor(use))
+          return false;
+      }
+    }
+    return true;
+  }
+  case ScopedAddressValueKind::BorrowMutateAccessor: {
+    for (auto *use : value->getUses()) {
+      if (isScopeEndingUse(use)) {
         if (!visitor(use))
           return false;
       }
@@ -152,7 +174,8 @@ SILInstruction *
 ScopedAddressValue::createScopeEnd(SILBasicBlock::iterator insertPt,
                                    SILLocation loc) const {
   switch (kind) {
-  case ScopedAddressValueKind::StoreBorrow: {
+  case ScopedAddressValueKind::StoreBorrow:
+  case ScopedAddressValueKind::BorrowMutateAccessor: {
     return SILBuilderWithScope(insertPt).createEndBorrow(loc, value);
   }
   case ScopedAddressValueKind::BeginAccess: {

@@ -2208,6 +2208,11 @@ public:
   ManagedValue emitFormalEvaluationManagedBorrowedRValueWithCleanup(
       SILLocation loc, SILValue original, SILValue borrowedValue,
       const TypeLowering &lowering);
+  /// End the scope of the address result of a borrow or mutate accessor with
+  /// an end_borrow at the end of the formal evaluation, even for a trivial
+  /// result type.
+  void emitFormalEvaluationEndBorrowOfAccessorAddressResult(SILLocation loc,
+                                                            SILValue address);
 
   ManagedValue emitFormalEvaluationManagedBeginBorrow(SILLocation loc,
                                                       SILValue v);

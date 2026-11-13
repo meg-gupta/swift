@@ -3029,6 +3029,25 @@ forwardFunctionArguments(SILGenFunction &SGF, SILLocation loc,
 static SILValue prepareGuaranteedResultForReturn(SILGenFunction &SGF,
                                                  SILLocation loc,
                                                  SILValue result) {
+  // The address result of an accessor with an object self is a scope within
+  // the borrow scope of self. Emit unchecked_ownership for self, which
+  // SILGenCleanup fixes up.
+  auto *apply = dyn_cast<ApplyInst>(result);
+  if (apply && apply->hasAddressResult()) {
+    if (auto *selfOperand = apply->getSelfObjectOfBorrowMutateAccessorResult()) {
+      SILBuilderWithScope builder(apply);
+      selfOperand->set(
+          builder.createUncheckedOwnership(loc, selfOperand->get()));
+    }
+    // Like the borrow scope of a @guaranteed result, the scope of the address
+    // result ends with an end_borrow. SILGenCleanup replaces the end_borrow and
+    // the return with a return_borrow. With opaque values, the result is an
+    // object until AddressLowering, and is handled like a @guaranteed result.
+    if (result->getType().isAddress()) {
+      SGF.Cleanups.pushCleanup<EndBorrowCleanup>(apply);
+      return result;
+    }
+  }
   if (!result->isBorrowAccessorResult() ||
       result->getOwnershipKind() != OwnershipKind::Guaranteed) {
     return result;

@@ -678,14 +678,12 @@ void SILInlineCloner::cloneInline(ArrayRef<SILValue> AppliedArgs) {
   // Then insert end_borrow in our end borrow block and in the throw
   // block if we have one.
   if (borrowedArgs.any()) {
-    // The scope of a borrow accessor's result is nested in the borrow scope of
-    // its self argument, so self is ended with the result, as the outermost
-    // enclosing scope.
+    // The scope of a borrow or mutate accessor's result is nested in the
+    // borrow scope of its self argument, so self is ended with the result, as
+    // the outermost enclosing scope.
     std::optional<unsigned> selfIndex;
-    auto *ai = dyn_cast<ApplyInst>(Apply.getInstruction());
-    if (ai && BorrowedValue(ai)) {
-      if (auto *selfOperand =
-              ai->getSelfObjectOfGuaranteedBorrowAccessorResult()) {
+    if (auto *ai = dyn_cast<ApplyInst>(Apply.getInstruction())) {
+      if (auto *selfOperand = ai->getSelfObjectOfBorrowMutateAccessorResult()) {
         selfIndex = Apply.getAppliedArgIndex(*selfOperand);
       }
     }
@@ -830,7 +828,7 @@ void SILInlineCloner::preFixUp(SILFunction *calleeFunction) {
     BeginApply->complete(valuesToComplete, &FuncBuilder.getPassManager());
 
   auto *ai = dyn_cast<ApplyInst>(Apply.getInstruction());
-  if (ai && BorrowedValue(ai)) {
+  if (ai && (BorrowedValue(ai) || ai->hasAddressResult())) {
     fixupBorrowAccessorResult();
   }
 }
@@ -856,14 +854,18 @@ void SILInlineCloner::fixupBorrowAccessorResult() {
 
   SmallVector<EndBorrowInst *, 4> callerEndBorrows;
   ReturnBorrowInst *callerReturnBorrow = nullptr;
-  for (auto *use : resultArg->getConsumingUses()) {
+  for (auto *use : resultArg->getUses()) {
     auto *user = use->getUser();
     if (auto *endBorrow = dyn_cast<EndBorrowInst>(user)) {
       callerEndBorrows.push_back(endBorrow);
       continue;
     }
-    ASSERT(!callerReturnBorrow);
-    callerReturnBorrow = cast<ReturnBorrowInst>(user);
+    if (auto *rbi = dyn_cast<ReturnBorrowInst>(user)) {
+      if (use != &rbi->getReturnValueOperand()) {
+        ASSERT(!callerReturnBorrow);
+        callerReturnBorrow = rbi;
+      }
+    }
   }
 
   // End the callee's enclosing scopes at the caller's end_borrows of the
@@ -952,10 +954,11 @@ Scope scopeForArgument(Scope nonlexicalScope, SILValue callArg, unsigned index,
     return nonlexicalScope;
   }
 
-  // Use non-lexical scope for functions returning @guaranteed results.
-  // TODO: Represent the SILFunctionArgument of borrow accessors as non-lexical
-  // during SILGen.
-  if (callee->getConventions().hasGuaranteedResult()) {
+  // The @guaranteed or address result of a borrow or mutate accessor is used
+  // after the inlined body, so a lexical scope that ends with the body would
+  // not enclose it.
+  if (callee->getConventions().hasGuaranteedResult() ||
+      callee->getConventions().hasAddressResult()) {
     return nonlexicalScope;
   }
 
