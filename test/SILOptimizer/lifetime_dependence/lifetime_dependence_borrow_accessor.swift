@@ -417,6 +417,29 @@ struct PointerBoxWrapper: ~Copyable {
   }
 }
 
+// MARK: - Nonescapable self
+
+// The address result of a mutate accessor of a nonescapable self is escapable.
+struct NonescapableView: ~Escapable {
+  var _span: Span<Int>
+  var _base: Int
+
+  @_lifetime(copy span)
+  init(_ span: Span<Int>, _ base: Int) {
+    _span = span
+    _base = base
+  }
+
+  var base: Int {
+    borrow { return _base }
+    mutate { return &_base }
+  }
+}
+
+func bumpBase(_ v: inout NonescapableView) {
+  v.base += 1
+}
+
 // MARK: - Rejected
 
 // The base is a local: the accessor's result is only valid while that local is,

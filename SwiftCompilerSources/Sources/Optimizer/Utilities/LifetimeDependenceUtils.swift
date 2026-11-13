@@ -1289,7 +1289,7 @@ extension LifetimeDependenceDefUseWalker {
       assert(arg.type.isAddress || arg.type.isBox, "returned local must be allocated with an indirect argument")
       return inoutDependence(argument: arg, functionExit: localAccess.instruction!)
     case .inoutYield:
-      return yieldedDependence(result: localAccess.operand!)
+      return yieldedAddressUse(of: localAccess.operand!)
     case .incomingArgument:
       fatalError("Incoming arguments are never reachable")
     case .deadEnd:
