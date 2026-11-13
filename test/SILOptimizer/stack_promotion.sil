@@ -1349,6 +1349,7 @@ bb0(%0 : $Int):
   %5 = function_ref @borrow_accessor_s_i_escaping_c : $@convention(method) (@in_guaranteed AccessorS) -> @guaranteed_address Int
   %6 = apply %5(%3) : $@convention(method) (@in_guaranteed AccessorS) -> @guaranteed_address Int
   %7 = load [trivial] %6
+  end_borrow %6
   destroy_addr %3
   dealloc_stack %3
   return %7

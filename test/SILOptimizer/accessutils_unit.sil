@@ -828,9 +828,14 @@ bb0(%0 : @guaranteed $S, %1 : $*S, %2 : $*S):
   store %l2 to [trivial] %a5
   %isNotDistinct = function_ref @_isNotDistinct : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
   %8 = apply %isNotDistinct<TwoInts, S>(%r3, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
+  end_borrow %r3
   %9 = apply %isNotDistinct<TwoInts, S>(%r4, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
   %10 = apply %isNotDistinct<TwoInts, TwoInts>(%r5, %r2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
+  end_borrow %r5
+  end_borrow %r2
   %11 = apply %isNotDistinct<TwoInts, TwoInts>(%r1, %r4) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
+  end_borrow %r4
+  end_borrow %r1
   %12 = tuple ()
   return %12 : $()
 }

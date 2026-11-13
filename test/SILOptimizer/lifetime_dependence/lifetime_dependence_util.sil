@@ -580,6 +580,7 @@ entry(%0 : @guaranteed $PairCWrapper, %1 : @owned $C):
 // CHECK-NEXT: root:   %{{.*}} = apply %{{.*}}(%{{.*}}) : $@convention(method) (@guaranteed PairC) -> @guaranteed_address C
 // CHECK-NEXT: dependence_borrow_accessor_address_of_struct_extract: lifetime_dependence_root with: %addr
   destroy_value %m : $C
+  end_borrow %addr
   end_borrow %borrow : $PairCWrapper
   destroy_value %copy : $PairCWrapper
   %99 = tuple ()
@@ -625,6 +626,7 @@ entry(%0 : $*PairC, %1 : @owned $C):
 // CHECK-NEXT: ends:       end_access %{{.*}} : $*PairC
 // CHECK: dependence_scope_address_accessor_result_in_access: lifetime_dependence_scope with: %m
   destroy_value %m : $C
+  end_borrow %first
   end_access %access : $*PairC
   %99 = tuple ()
   return %99

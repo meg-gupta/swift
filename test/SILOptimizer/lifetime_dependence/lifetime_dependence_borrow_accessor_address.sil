@@ -33,6 +33,7 @@ bb0(%0 : $Int, %1 : @guaranteed $Composite):
   %11 = apply %10<Int>(%9) : $@convention(method) <τ_0_0 where τ_0_0 : ~Copyable> (@guaranteed UniqueArray<τ_0_0>) -> @lifetime(borrow 0) @owned Span<τ_0_0>
   %12 = mark_dependence [unresolved] %11 on %7
   end_borrow %9
+  end_borrow %7
   return %12
 }
 
@@ -46,6 +47,7 @@ bb0(%0 : $Int, %1 : $*Composite):
   %10 = function_ref @$ss11UniqueArrayVsRi_zrlE11mutableSpans07MutableD0VyxGvg : $@convention(method) <τ_0_0 where τ_0_0 : ~Copyable> (@inout UniqueArray<τ_0_0>) -> @lifetime(borrow 0) @owned MutableSpan<τ_0_0>
   %11 = apply %10<Int>(%7) : $@convention(method) <τ_0_0 where τ_0_0 : ~Copyable> (@inout UniqueArray<τ_0_0>) -> @lifetime(borrow 0) @owned MutableSpan<τ_0_0>
   %12 = mark_dependence [unresolved] %11 on %7
+  end_borrow %7
   return %12
 }
 
@@ -81,6 +83,8 @@ bb0(%0 : @guaranteed $Root):
   %7 = apply %6(%5) : $@convention(method) (@guaranteed Leaf) -> @lifetime(borrow 0) @owned Span<Int>
   %8 = mark_dependence [unresolved] %7 on %4
   end_borrow %5
+  end_borrow %4
+  end_borrow %2
   return %8
 }
 
@@ -94,6 +98,7 @@ bb0(%0 : @guaranteed $Root):
   %6 = apply %5(%4) : $@convention(method) (@guaranteed Leaf) -> @lifetime(borrow 0) @owned Span<Int>
   %7 = mark_dependence [unresolved] %6 on %4
   end_borrow %4
+  end_borrow %2
   return %7
 }
 
@@ -108,6 +113,7 @@ bb0(%0 : @guaranteed $Root):
   %7 = apply %6(%5) : $@convention(method) (@guaranteed Leaf) -> @lifetime(borrow 0) @owned Span<Int>
   %8 = mark_dependence [unresolved] %7 on %4
   end_borrow %5
+  end_borrow %4
   end_borrow %2
   return %8
 }

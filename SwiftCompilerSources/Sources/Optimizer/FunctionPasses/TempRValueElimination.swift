@@ -405,6 +405,13 @@ private struct Liverange {
       if inst.mayWriteToSource(address: copy.sourceAddress, aliasAnalysis) {
         return false
       }
+      // The source is not valid after the end of the scope of an accessor's address result, even if the memory
+      // is immutable.
+      if let endBorrow = inst as? EndBorrowInst, endBorrow.borrow is ApplyInst, endBorrow.borrow.type.isAddress,
+         aliasAnalysis.mayAlias(copy.sourceAddress, endBorrow.borrow)
+      {
+        return false
+      }
       if let endAccess = inst as? EndAccessInst,
          aliasAnalysis.mayAlias(copy.sourceAddress, endAccess.beginAccess.address),
          // There cannot be any aliasing modifying accesses within the liverange of the `alloc_stack`,

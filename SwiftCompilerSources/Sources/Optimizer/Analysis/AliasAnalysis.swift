@@ -394,6 +394,9 @@ struct AliasAnalysis {
       case let storeBorrow as StoreBorrowInst:
         precondition(endBorrow.borrow.type.isAddress)
         return memLoc.mayAlias(with: storeBorrow, self) ? .worstEffects : .noEffects
+      case let apply as ApplyInst where apply.type.isAddress:
+        // The address result of a borrow or mutate accessor is a scope, like the address of a store_borrow.
+        return memLoc.mayAlias(with: apply, self) ? .worstEffects : .noEffects
       case let beginBorrow as BeginBorrowInst where !beginBorrow.hasPointerEscape:
         return getBorrowEffects(of: endBorrow, on: memLoc)
       case let loadBorrow as LoadBorrowInst:

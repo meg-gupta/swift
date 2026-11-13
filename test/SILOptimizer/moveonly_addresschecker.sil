@@ -1133,6 +1133,7 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %6 = apply %5(%4) : $@convention(method) (@inout Inner) -> @inout Token
   %7 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %6
   store %1 to [assign] %7
+  end_borrow %6
   end_access %3
   %9 = tuple ()
   return %9
@@ -1156,6 +1157,8 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %8 = apply %7(%6) : $@convention(method) (@inout Inner) -> @inout Token
   %9 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %8
   store %1 to [assign] %9
+  end_borrow %8
+  end_borrow %5
   end_access %3
   %11 = tuple ()
   return %11
@@ -1179,6 +1182,7 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %10 = apply %9(%8) : $@convention(method) (@inout Inner) -> @inout Token
   %11 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %10
   store %1 to [assign] %11
+  end_borrow %10
   %13 = end_apply %6 as $()
   end_access %3
   dealloc_stack %7
@@ -1200,6 +1204,7 @@ bb0(%0 : $*Inner, %1 : @owned $Token):
   %4 = apply %3(%2) : $@convention(method) (@inout Inner) -> @inout Token
   %5 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %4
   store %1 to [assign] %5
+  end_borrow %4
   %7 = tuple ()
   return %7
 }
@@ -1219,6 +1224,7 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %5 = apply %4(%3) : $@convention(method) (@inout Inner) -> @inout Token
   %6 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %5
   store %1 to [assign] %6
+  end_borrow %5
   %8 = tuple ()
   return %8
 }
@@ -1244,6 +1250,8 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %13 = apply %12(%11) : $@convention(method) (@inout Inner) -> @inout Token
   %14 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %13
   store %1 to [assign] %14
+  end_borrow %13
+  end_borrow %10
   %16 = end_apply %6 as $()
   end_access %3
   dealloc_stack %7
@@ -1268,6 +1276,8 @@ bb0(%0 : $*Outer, %1 : @owned $Token):
   %7 = apply %6(%5) : $@convention(method) (@inout Inner) -> @inout Token
   %8 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %7
   store %1 to [assign] %8
+  end_borrow %7
+  end_borrow %4
   %10 = tuple ()
   return %10
 }
@@ -1313,6 +1323,7 @@ bb3:
   %12 = apply %11(%10) : $@convention(method) (@inout Inner) -> @inout Token
   %13 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %12
   store %1 to [assign] %13
+  end_borrow %12
   end_access %5
   br bb5
 
@@ -1355,6 +1366,7 @@ bb1:
   %7 = apply %6(%5) : $@convention(method) (@inout Inner) -> @inout Token
   %8 = mark_unresolved_non_copyable_value [assignable_but_not_consumable] %7
   store %1 to [assign] %8
+  end_borrow %7
   end_access %3
   br bb3
 

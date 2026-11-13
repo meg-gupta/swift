@@ -2127,6 +2127,7 @@ bb0(%0 : $*AccessorS, %1 : $Int):
   %6 = struct_element_addr %0, #AccessorS.i
   store %1 to [trivial] %6
   %8 = load [trivial] %5
+  end_borrow %5
   destroy_addr %2
   dealloc_stack %2
   return %8
@@ -2145,6 +2146,7 @@ bb0(%0 : $*AccessorS, %1 : $Int):
   %4 = function_ref @nonmutatingMutateAccessor : $@convention(method) (@in_guaranteed AccessorS) -> @inout Int
   %5 = apply %4(%2) : $@convention(method) (@in_guaranteed AccessorS) -> @inout Int
   store %1 to [trivial] %5
+  end_borrow %5
   destroy_addr %2
   dealloc_stack %2
   %9 = struct_element_addr %0, #AccessorS.i
@@ -2169,6 +2171,7 @@ bb0(%0 : @owned $AccessorK):
   end_borrow %1
   destroy_value %0
   %9 = load [trivial] %6
+  end_borrow %6
   destroy_addr %3
   dealloc_stack %3
   return %9
@@ -2192,6 +2195,7 @@ bb0(%0 : @guaranteed $AccessorK):
   %7 = load [trivial] %6
   end_borrow %1
   %9 = struct_element_addr %6, #Int._value
+  end_borrow %6
   destroy_addr %3
   dealloc_stack %3
   return %7

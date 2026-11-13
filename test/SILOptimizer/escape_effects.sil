@@ -422,6 +422,7 @@ bb0(%0 : $*Wrapper, %1 : @owned $Klass):
   %func = function_ref @mutate_accessor : $@convention(thin) (@inout Wrapper) -> @inout Klass
   %addr = apply %func(%0) : $@convention(thin) (@inout Wrapper) -> @inout Klass
   store %1 to [assign] %addr
+  end_borrow %addr
   %r = tuple ()
   return %r
 }

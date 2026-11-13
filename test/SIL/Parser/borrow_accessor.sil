@@ -66,6 +66,7 @@ bb0(%0 : $*GenWrapper<T>):
   %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   %3 = function_ref @use_T : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   %4 = apply %3<T>(%2) : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
+  end_borrow %2
   destroy_addr %0
   %6 = tuple ()
   return %6

@@ -221,6 +221,7 @@ bb0(%0 : @guaranteed $T):
 
 bb1:
   %10 = load [copy] %8
+  end_borrow %8
   destroy_value %10
   destroy_addr %1
   inject_enum_addr %1, #Optional.none!enumelt

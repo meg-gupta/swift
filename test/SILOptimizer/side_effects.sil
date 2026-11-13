@@ -1470,6 +1470,7 @@ bb0(%0 : $*WrapperSE, %1 : @owned $X):
   %func = function_ref @mutate_accessor_se : $@convention(method) (@inout WrapperSE) -> @inout X
   %addr = apply %func(%0) : $@convention(method) (@inout WrapperSE) -> @inout X
   store %1 to [assign] %addr
+  end_borrow %addr
   %r = tuple ()
   return %r
 }
@@ -1498,6 +1499,7 @@ bb0(%0 : $*WrapperWithIntSE):
   %1 = function_ref @mutate_accessor_int_se : $@convention(method) (@inout WrapperWithIntSE) -> @inout Int
   %2 = apply %1(%0) : $@convention(method) (@inout WrapperWithIntSE) -> @inout Int
   %3 = address_to_pointer %2 : $*Int to $Builtin.RawPointer
+  end_borrow %2
   %4 = function_ref @write_through_pointer_se : $@convention(thin) (Builtin.RawPointer) -> ()
   %5 = apply %4(%3) : $@convention(thin) (Builtin.RawPointer) -> ()
   %6 = tuple ()
@@ -1519,7 +1521,7 @@ sil [ossa] @borrow_accessor_thunk_no_self_se : $@convention(method) (Int, @guara
 bb0(%0 : $Int, %1 : @guaranteed $WrapperSE):
   %2 = function_ref @borrow_accessor_no_self_se : $@convention(thin) () -> @guaranteed_address Int
   %3 = apply %2() : $@convention(thin) () -> @guaranteed_address Int
-  return %3
+  return_borrow %3 : $*Int from_scopes (%3 : $*Int)
 }
 
 // Only 'self' is dead. The remaining 'index' argument must not be taken as the base of the result.
@@ -1531,7 +1533,7 @@ sil [ossa] @borrow_accessor_thunk_no_self_live_index_se : $@convention(method) (
 bb0(%0 : $Int, %1 : @guaranteed $WrapperSE):
   %2 = function_ref @borrow_accessor_no_self_live_index_se : $@convention(thin) (Int) -> @guaranteed_address Int
   %3 = apply %2(%0) : $@convention(thin) (Int) -> @guaranteed_address Int
-  return %3
+  return_borrow %3 : $*Int from_scopes (%3 : $*Int)
 }
 
 // CHECK-LABEL: sil [ossa] @load_from_borrow_accessor_no_self_se
@@ -1542,5 +1544,6 @@ bb0:
   %0 = function_ref @borrow_accessor_no_self_se : $@convention(thin) () -> @guaranteed_address Int
   %1 = apply %0() : $@convention(thin) () -> @guaranteed_address Int
   %2 = load [trivial] %1
+  end_borrow %1
   return %2
 }

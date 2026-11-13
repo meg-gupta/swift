@@ -1140,6 +1140,7 @@ bb0(%0 : @guaranteed $Outer):
   %get_fn = function_ref @get_inner_addr : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Inner
   %addr = apply %get_fn(%sb) : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Inner
   fix_lifetime %addr : $*Inner
+  end_borrow %addr
   fix_lifetime %sb : $*Outer
   end_borrow %sb : $*Outer
   dealloc_stack %1 : $*Outer

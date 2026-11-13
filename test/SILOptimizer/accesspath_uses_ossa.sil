@@ -1030,7 +1030,7 @@ sil @nonmutatingMutate : $@convention(method) (@in_guaranteed MyStruct) -> @inou
 // CHECK-NEXT:   Path: ()
 // CHECK-NEXT:   %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
 // CHECK-NEXT:   Path: ()
-// CHECK-NEXT:   %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+// CHECK-NEXT:   %9 = apply %8(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
 // CHECK-NEXT:   Path: ()
 // CHECK-NEXT: }
 // CHECK: Overlapping Uses {
@@ -1038,20 +1038,20 @@ sil @nonmutatingMutate : $@convention(method) (@in_guaranteed MyStruct) -> @inou
 // CHECK-NEXT:   Path: ()
 // CHECK-NEXT:   %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
 // CHECK-NEXT:   Path: ()
-// CHECK-NEXT:   %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+// CHECK-NEXT:   %9 = apply %8(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
 // CHECK-NEXT:   Path: ()
 // CHECK-NEXT: }
 // CHECK: ###For MemOp:   %6 = load [trivial] %5 : $*Int64
 // CHECK: Storage: BorrowMutateAccessor   %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
 // CHECK: Path: ()
-// CHECK: ###For MemOp:   store %2 to [trivial] %8 : $*Int64
-// CHECK: Storage: BorrowMutateAccessor   %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
+// CHECK: ###For MemOp:   store %2 to [trivial] %9 : $*Int64
+// CHECK: Storage: BorrowMutateAccessor   %9 = apply %8(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
 // CHECK: Path: ()
-// CHECK: ###For MemOp:   %12 = load [trivial] %11 : $*Int64
-// CHECK: Storage: BorrowMutateAccessor   %11 = apply %10(%1) : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
+// CHECK: ###For MemOp:   %14 = load [trivial] %13 : $*Int64
+// CHECK: Storage: BorrowMutateAccessor   %13 = apply %12(%1) : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
 // CHECK: Path: ()
 // CHECK: Exact Uses {
-// CHECK-NEXT:   %12 = load [trivial] %11 : $*Int64
+// CHECK-NEXT:   %14 = load [trivial] %13 : $*Int64
 // CHECK-NEXT:   Path: ()
 // CHECK-NEXT: }
 sil [ossa] @testBorrowMutateAccessorUses : $@convention(thin) (@in_guaranteed MyStruct, MyStruct, Int64) -> () {
@@ -1060,12 +1060,15 @@ bb0(%0 : $*MyStruct, %1 : $MyStruct, %2 : $Int64):
   %4 = function_ref @borrowAddressSelf : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
   %5 = apply %4(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @guaranteed_address Int64
   %6 = load [trivial] %5
+  end_borrow %5
   %7 = function_ref @nonmutatingMutate : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
   %8 = apply %7(%0) : $@convention(method) (@in_guaranteed MyStruct) -> @inout Int64
   store %2 to [trivial] %8
+  end_borrow %8
   %10 = function_ref @borrowObjectSelf : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
   %11 = apply %10(%1) : $@convention(method) (@guaranteed MyStruct) -> @guaranteed_address Int64
   %12 = load [trivial] %11
+  end_borrow %11
   %13 = tuple ()
   return %13
 }
@@ -1095,13 +1098,13 @@ sil @borrowInner : $@convention(method) (@in_guaranteed AccessorResultOuter) -> 
 // CHECK-NEXT:   %5 = load [trivial] %4 : $*Int64
 // CHECK-NEXT:   Path: (#1)
 // CHECK-NEXT: }
-// CHECK: ###For MemOp:   store %1 to [trivial] %7 : $*Int64
+// CHECK: ###For MemOp:   store %1 to [trivial] %8 : $*Int64
 // CHECK: Storage: Argument %0 = argument of bb0 : $*AccessorResultOuter
 // CHECK: Path: (#0,#1)
 // CHECK: Overlapping Uses {
 // CHECK-NEXT:   %3 = apply %2(%0) : $@convention(method) (@in_guaranteed AccessorResultOuter) -> @guaranteed_address AccessorResultInner
 // CHECK-NEXT:   Path: ()
-// CHECK-NEXT:   store %1 to [trivial] %7 : $*Int64
+// CHECK-NEXT:   store %1 to [trivial] %8 : $*Int64
 // CHECK-NEXT:   Path: (#0,#1)
 // CHECK-NEXT: }
 sil [ossa] @testBorrowAccessorResultProjectionUses : $@convention(thin) (@inout AccessorResultOuter, Int64) -> Int64 {
@@ -1110,6 +1113,7 @@ bb0(%0 : $*AccessorResultOuter, %1 : $Int64):
   %3 = apply %2(%0) : $@convention(method) (@in_guaranteed AccessorResultOuter) -> @guaranteed_address AccessorResultInner
   %4 = struct_element_addr %3, #AccessorResultInner.q
   %5 = load [trivial] %4
+  end_borrow %3
   %6 = struct_element_addr %0, #AccessorResultOuter.t
   %7 = struct_element_addr %6, #AccessorResultInner.q
   store %1 to [trivial] %7

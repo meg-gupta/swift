@@ -2536,6 +2536,7 @@ bb0(%0 : @guaranteed $Outer):
   %get_fn = function_ref @get_inner_addr : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Inner
   %addr = apply %get_fn(%sb) : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Inner
   %loaded = load [copy] %addr : $*Inner
+  end_borrow %addr
   end_borrow %sb : $*Outer
   %use_fn = function_ref @use_inner : $@convention(thin) (@guaranteed Inner) -> ()
   apply %use_fn(%loaded) : $@convention(thin) (@guaranteed Inner) -> ()
@@ -3083,6 +3084,7 @@ bb0(%0 : $*AccessorNT, %1 : @owned $C):
   %5 = function_ref @nonmutatingMutateAccessorNT : $@convention(method) (@in_guaranteed AccessorNT) -> @inout C
   %6 = apply %5(%3) : $@convention(method) (@in_guaranteed AccessorNT) -> @inout C
   store %1 to [assign] %6
+  end_borrow %6
   destroy_addr %3
   dealloc_stack %3
   %10 = tuple ()

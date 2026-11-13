@@ -659,6 +659,7 @@ bb0(%0 : $*NonTrivialStruct, %1 : $*NonTrivialStructPair):
   // expected-error @-1 {{'self.nontrivialstruct_borrow' is borrowed and cannot be consumed}}
   copy_addr %7 to [init] %0 : $*NonTrivialStruct
   // expected-note @-1 {{consumed here}}
+  end_borrow %6
   %9 = tuple ()
   return %9 : $()
 }

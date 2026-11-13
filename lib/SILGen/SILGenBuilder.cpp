@@ -13,6 +13,7 @@
 #include "SILGenBuilder.h"
 #include "ArgumentSource.h"
 #include "Cleanup.h"
+#include "FormalEvaluation.h"
 #include "RValue.h"
 #include "SILGenFunction.h"
 #include "Scope.h"
@@ -1204,6 +1205,58 @@ SILGenBuilder::createOpaqueBorrowBeginAccess(SILLocation loc,
                                   SILAccessEnforcement::Static,
                                   /*no nested conflict*/ true, false);
   SGF.Cleanups.pushCleanup<EndAccessCleanup>(access);
+  return ManagedValue::forBorrowedAddressRValue(access);
+}
+
+namespace {
+/// Ends an access at the end of a formal evaluation scope.
+class EndAccessFormalAccess : public FormalAccess {
+  SILValue access;
+
+public:
+  EndAccessFormalAccess(SILLocation loc, SILValue access,
+                        CleanupHandle cleanup)
+      : FormalAccess(sizeof(*this), FormalAccess::Unenforced, loc, cleanup),
+        access(access) {}
+
+private:
+  void finishImpl(SILGenFunction &SGF) override {
+    SGF.B.createEndAccess(CleanupLocation(loc), access, /*aborted*/ false);
+  }
+};
+
+class FormalEvaluationEndAccessCleanup : public Cleanup {
+public:
+  FormalEvaluationContext::stable_iterator depth;
+
+  void emit(SILGenFunction &SGF, CleanupLocation l,
+            ForUnwind_t forUnwind) override {
+    SGF.FormalEvalContext.find(depth)->finish(SGF);
+  }
+
+  void dump(SILGenFunction &SGF) const override {
+#ifndef NDEBUG
+    llvm::errs() << "FormalEvaluationEndAccessCleanup "
+                 << "State:" << getState() << "\n";
+#endif
+  }
+};
+} // end anonymous namespace
+
+ManagedValue
+SILGenBuilder::createFormalAccessOpaqueBorrowBeginAccess(SILLocation loc,
+                                                         ManagedValue address) {
+  assert(SGF.isInFormalEvaluationScope() &&
+         "Must be in formal evaluation scope");
+  auto access = createBeginAccess(loc, address.getValue(),
+                                  SILAccessKind::Read,
+                                  SILAccessEnforcement::Static,
+                                  /*no nested conflict*/ true, false);
+  auto &cleanup =
+      SGF.Cleanups.pushCleanup<FormalEvaluationEndAccessCleanup>();
+  CleanupHandle handle = SGF.Cleanups.getTopCleanup();
+  SGF.FormalEvalContext.push<EndAccessFormalAccess>(loc, access, handle);
+  cleanup.depth = SGF.FormalEvalContext.stable_begin();
   return ManagedValue::forBorrowedAddressRValue(access);
 }
 

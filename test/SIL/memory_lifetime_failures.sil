@@ -952,6 +952,7 @@ bb0(%0 : $*GenWrapper<T>):
   %3 = function_ref @use_T : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
   destroy_addr %0
   %5 = apply %3<T>(%2) : $@convention(thin) <τ_0_0> (@in_guaranteed τ_0_0) -> ()
+  end_borrow %2
   %6 = tuple ()
   return %6
 }
@@ -967,6 +968,7 @@ bb0(%0 : $*GenWrapper<T>):
   %3 = function_ref @mutate_T : $@convention(thin) <τ_0_0> (@inout τ_0_0) -> ()
   destroy_addr %0
   %5 = apply %3<T>(%2) : $@convention(thin) <τ_0_0> (@inout τ_0_0) -> ()
+  end_borrow %2
   %6 = tuple ()
   return %6
 }
@@ -979,6 +981,7 @@ bb0(%0 : $*GenWrapper<T>):
   %1 = function_ref @borrow_addressonly_prop : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   destroy_addr %2
+  end_borrow %2
   %4 = tuple ()
   return %4
 }
@@ -992,6 +995,7 @@ bb0(%0 : $*GenWrapper<T>):
   %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address InnerWrapper<τ_0_0>
   %3 = struct_element_addr %2, #InnerWrapper._prop
   destroy_addr %3
+  end_borrow %2
   %4 = tuple ()
   return %4
 }

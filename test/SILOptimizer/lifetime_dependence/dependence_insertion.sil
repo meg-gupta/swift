@@ -435,6 +435,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %5 = function_ref @borrowAddressAccessor : $@convention(method) (@guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %6 = apply %5(%4) : $@convention(method) (@guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %7 = load [trivial] %6
+  end_borrow %6
   %8 = alloc_stack $TrivialHolder
   store %7 to [trivial] %8
   %10 = function_ref @getNEFromTrivial : $@convention(thin) (@in_guaranteed TrivialHolder) -> @lifetime(borrow address_for_deps 0) @owned NE
@@ -460,6 +461,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %6 = apply %5(%4) : $@convention(method) (@guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %7 = struct_element_addr %6, #TrivialHolder.pointer
   %8 = load [trivial] %7
+  end_borrow %6
   %9 = alloc_stack $UnsafeRawPointer
   store %8 to [trivial] %9
   %11 = function_ref @getNEFromPointer : $@convention(thin) (@in_guaranteed UnsafeRawPointer) -> @lifetime(borrow address_for_deps 0) @owned NE
@@ -511,6 +513,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %7 = function_ref @borrowAddressAccessorIndirect : $@convention(method) (@in_guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %8 = apply %7(%6) : $@convention(method) (@in_guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %9 = load [trivial] %8
+  end_borrow %8
   end_borrow %6
   %11 = alloc_stack $TrivialHolder
   store %9 to [trivial] %11
@@ -540,6 +543,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %8 = apply %7(%6) : $@convention(method) (@in_guaranteed NCItems) -> @guaranteed_address TrivialHolder
   %9 = struct_element_addr %8, #TrivialHolder.pointer
   %10 = load [trivial] %9
+  end_borrow %8
   end_borrow %6
   %12 = alloc_stack $UnsafeRawPointer
   store %10 to [trivial] %12
@@ -595,6 +599,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %5 = function_ref @nonmutatingMutateAccessor : $@convention(method) (@guaranteed NCItems) -> @inout TrivialHolder
   %6 = apply %5(%4) : $@convention(method) (@guaranteed NCItems) -> @inout TrivialHolder
   %7 = load [trivial] %6
+  end_borrow %6
   %8 = alloc_stack $TrivialHolder
   store %7 to [trivial] %8
   %10 = function_ref @getNEFromTrivial : $@convention(thin) (@in_guaranteed TrivialHolder) -> @lifetime(borrow address_for_deps 0) @owned NE
@@ -623,6 +628,7 @@ bb0(%0 : @guaranteed $NCWrapper):
   %7 = function_ref @nonmutatingMutateAccessorIndirect : $@convention(method) (@in_guaranteed NCItems) -> @inout TrivialHolder
   %8 = apply %7(%6) : $@convention(method) (@in_guaranteed NCItems) -> @inout TrivialHolder
   %9 = load [trivial] %8
+  end_borrow %8
   end_borrow %6
   %11 = alloc_stack $TrivialHolder
   store %9 to [trivial] %11

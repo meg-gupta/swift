@@ -165,6 +165,7 @@ bb0(%0 : @guaranteed $ClassC):
   %5 = function_ref @borrow_self_addr : $@convention(method) (@in_guaranteed any ClassP) -> @guaranteed_address any ClassP
   %6 = apply %5(%3) : $@convention(method) (@in_guaranteed any ClassP) -> @guaranteed_address any ClassP
   %7 = load [copy] %6
+  end_borrow %6
   %8 = function_ref @owned_self : $@convention(method) (@in_guaranteed any ClassP) -> @owned any ClassP
   %9 = apply %8(%3) : $@convention(method) (@in_guaranteed any ClassP) -> @owned any ClassP
   destroy_addr %3

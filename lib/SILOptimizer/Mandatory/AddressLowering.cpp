@@ -150,6 +150,7 @@
 #include "swift/SIL/PrunedLiveness.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBuilder.h"
+#include "swift/SIL/ScopedAddressUtils.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILValue.h"
 #include "swift/SIL/SILVisitor.h"
@@ -3097,6 +3098,14 @@ void ApplyRewriter::rewriteApply(ArrayRef<SILValue> newCallArgs) {
   // address returned by the apply after lowering.
   if (guaranteedResult) {
     SILValue newResult = apply.getResult();
+    // The address result is a scope, which ends where the borrow scope of the
+    // old result ends.
+    for (auto *use : guaranteedResult->getUses()) {
+      if (auto *endBorrow = dyn_cast<EndBorrowInst>(use->getUser())) {
+        pass.getBuilder(endBorrow->getIterator())
+            .createEndBorrow(endBorrow->getLoc(), newResult);
+      }
+    }
     pass.valueStorageMap.setStorageAddress(guaranteedResult, newResult);
     pass.valueStorageMap.getStorage(guaranteedResult).markRewritten();
   }
@@ -3785,8 +3794,28 @@ void ReturnRewriter::rewriteReturnBorrow(ReturnBorrowInst *returnBorrowInst) {
   SILValue oldResult = returnBorrowInst->getReturnValue();
   SILValue resultAddr = getGuaranteedAddressResultAddress(oldResult, pass);
 
+  // The address result of an accessor is a scope, so keep returning from it.
+  // An opaque borrow scope is removed by lowering.
+  SmallVector<SILValue, 4> addressScopes;
+  for (SILValue scope : returnBorrowInst->getEnclosingValues()) {
+    if (!pass.valueStorageMap.contains(scope)) {
+      continue;
+    }
+    SILValue scopeAddr = pass.valueStorageMap.getStorage(scope).storageAddress;
+    auto *accessorApply = dyn_cast_or_null<ApplyInst>(scopeAddr);
+    if (accessorApply &&
+        getLoweredCallConv(ApplySite(accessorApply)).hasAddressResult()) {
+      addressScopes.push_back(scopeAddr);
+    }
+  }
+
   auto returnBuilder = pass.getBuilder(returnBorrowInst->getIterator());
-  returnBuilder.createReturn(returnBorrowInst->getLoc(), resultAddr);
+  if (addressScopes.empty()) {
+    returnBuilder.createReturn(returnBorrowInst->getLoc(), resultAddr);
+  } else {
+    returnBuilder.createReturnBorrow(returnBorrowInst->getLoc(), resultAddr,
+                                     addressScopes);
+  }
   pass.deleter.forceDelete(returnBorrowInst);
 }
 

@@ -1794,6 +1794,7 @@ bb0(%0 : $*T):
   %2 = function_ref @get_value_addr : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed_address String
   %3 = apply %2(%1) : $@convention(thin) (@in_guaranteed Wrapper) -> @guaranteed_address String
   %4 = load [copy] %3 : $*String
+  end_borrow %3
   return %4 : $String
 }
 

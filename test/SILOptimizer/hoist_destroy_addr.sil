@@ -1602,6 +1602,7 @@ bb0(%0 : $*S):
   %2 = function_ref @borrow_data2 : $@convention(method) (@in_guaranteed S) -> @guaranteed_address X
   %3 = apply %2(%0) : $@convention(method) (@in_guaranteed S) -> @guaranteed_address X
   %4 = load [copy] %3 : $*X
+  end_borrow %3
   store %4 to [init] %1 : $*X
   %6 = load [take] %1 : $*X
   %7 = struct $S (%6 : $X)

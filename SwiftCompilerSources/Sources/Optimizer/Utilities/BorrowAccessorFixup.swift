@@ -114,6 +114,11 @@ private func collectEnclosingLocalScopes(of value: Value, _ scopes: inout [Value
 
   worklist.pushIfNotVisited(value)
   while let current = worklist.pop() {
+    // With opaque values, the address result of an accessor is an object until AddressLowering.
+    if isOpaqueAddressResult(current) {
+      scopes.append(current)
+      continue
+    }
     // A trivial value, such as the dereference_borrow of a trivial type, has no scope.
     if current.ownership == .guaranteed, let scope = BeginBorrowValue(current), scope.hasLocalScope {
       scopes.append(current)
@@ -158,6 +163,14 @@ private func collectEnclosingLocalScopes(ofAddress address: Value, _ scopes: ino
   case .stack, .global, .argument, .yield, .storeBorrow, .pointer, .index, .unidentified:
     break
   }
+}
+
+/// With opaque values, the @guaranteed_address result of an accessor is an object.
+private func isOpaqueAddressResult(_ value: Value) -> Bool {
+  guard let apply = value as? ApplyInst else {
+    return false
+  }
+  return apply.functionConvention.hasAddressResult && !apply.type.isAddress
 }
 
 func registerBorrowAccessorFixup() {

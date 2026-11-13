@@ -1231,6 +1231,7 @@ bb0(%0 : $*T, %1 : @guaranteed $Inner):
   destroy_addr %0
   %5 = function_ref @use_guaranteed_T : $@convention(thin) (@in_guaranteed T) -> ()
   %6 = apply %5(%3) : $@convention(thin) (@in_guaranteed T) -> ()
+  end_borrow %3
   %7 = tuple ()
   return %7
 }

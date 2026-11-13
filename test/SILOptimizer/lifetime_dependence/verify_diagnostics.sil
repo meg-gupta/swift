@@ -536,6 +536,7 @@ bb0(%0 : $*NEPairForAccessor, %1 : @guaranteed $NE):
   store %9 to [assign] %7
   // expected-error @-1{{lifetime-dependent value escapes its scope}}
   // expected-note @-2{{this use causes the lifetime-dependent value to escape}}
+  end_borrow %7
   %11 = end_apply %4 as $()
   %12 = tuple ()
   return %12

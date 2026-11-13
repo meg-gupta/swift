@@ -1876,6 +1876,7 @@ bb0(%0 : $*AccessorOuter, %1 : $Int):
   %6 = apply %5(%0) : $@convention(method) (@inout AccessorOuter) -> @inout AccessorInner
   %7 = struct_element_addr %6, #AccessorInner.q
   store %1 to [trivial] %7
+  end_borrow %6
   %9 = struct_element_addr %0, #AccessorOuter.t
   %10 = struct_element_addr %9, #AccessorInner.q
   %11 = load [trivial] %10

@@ -3913,8 +3913,13 @@ void SILGenFunction::emitSwitchStmt(SwitchStmt *S) {
         if (subjectMV.getType().isAddress()) {
           // Initiate a read access on the memory, to ensure that even
           // if the underlying memory is mutable or consumable, the pattern
-          // match is not allowed to modify it.
-          subjectMV = B.createOpaqueBorrowBeginAccess(S, subjectMV);
+          // match is not allowed to modify it. Under a formal access, end the
+          // access before the formal accesses that produced the subject, such
+          // as the scope of the address result of a borrow accessor.
+          subjectMV = subjectUndergoesFormalAccess
+                          ? B.createFormalAccessOpaqueBorrowBeginAccess(
+                                S, subjectMV)
+                          : B.createOpaqueBorrowBeginAccess(S, subjectMV);
           if (subjectMV.getType().isLoadable(F)) {
             // Load a borrow if the type is loadable.
             subjectMV = subjectUndergoesFormalAccess

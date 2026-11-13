@@ -508,6 +508,11 @@ public:
 
   ManagedValue createOpaqueBorrowBeginAccess(SILLocation loc,
                                              ManagedValue address);
+  /// Like createOpaqueBorrowBeginAccess, but ends the access at the end of the
+  /// formal evaluation scope, so that it is nested in the formal accesses
+  /// that produced \p address.
+  ManagedValue createFormalAccessOpaqueBorrowBeginAccess(SILLocation loc,
+                                                         ManagedValue address);
   ManagedValue createOpaqueConsumeBeginAccess(SILLocation loc,
                                               ManagedValue address);
 
