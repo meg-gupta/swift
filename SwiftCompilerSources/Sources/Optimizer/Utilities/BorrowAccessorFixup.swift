@@ -30,7 +30,8 @@ import OptimizerBridging
 /// ```
 /// A trivial result has no enclosing scope, so only the `unchecked_ownership` instructions are removed.
 ///
-/// A `@guaranteed_address` result that is an interior pointer of a borrowed object is handled the same way:
+/// A `@guaranteed_address` result that is an interior pointer of, or depends on, a borrowed object is handled the same
+/// way:
 /// ```
 ///   %ld = load_borrow %self
 ///   %fwd = unchecked_ownership %ld
@@ -87,10 +88,14 @@ func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext)
 /// Returns the local borrow scopes that enclose `value`, ordered from outer to inner.
 private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassContext) -> [BeginBorrowValue] {
   if value.type.isAddress {
-    guard let object = interiorPointerBase(of: value) else {
-      return []
+    var scopes = [BeginBorrowValue]()
+    for object in enclosingObjects(of: value) {
+      for scope in getEnclosingLocalScopes(of: object, context)
+        where !scopes.contains(where: { $0.value == scope.value }) {
+        scopes.append(scope)
+      }
     }
-    return getEnclosingLocalScopes(of: object, context)
+    return scopes
   }
   var scopes = [BeginBorrowValue]()
   var worklist = ValueWorklist(context)
@@ -108,13 +113,33 @@ private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassCon
   return scopes.reversed()
 }
 
-/// The object which `address` is an interior pointer of.
-private func interiorPointerBase(of address: Value) -> Value? {
-  let accessBase = address.accessBase
-  if case let .borrowMutateAccessor(apply) = accessBase {
-    return apply.selfArgument
+/// The objects which `address` is only valid within, ordered from outer to inner: the object which it is an interior
+/// pointer of, and the bases of its mark_dependence scopes, e.g. the self of an unsafe addressor:
+/// ```
+///   %ld = load_borrow %selfField
+///   %ptr = apply %unsafeAddressor(%ld)
+///   %addr = pointer_to_address %ptr
+///   %md = mark_dependence [unresolved] %addr on %ld
+/// ```
+private func enclosingObjects(of address: Value) -> [Value] {
+  let accessBaseAndScopes = address.accessBaseWithScopes
+  var objects = [Value]()
+  if case let .borrowMutateAccessor(apply) = accessBaseAndScopes.base {
+    if let selfArgument = apply.selfArgument {
+      objects.append(selfArgument)
+    }
+  } else if let reference = accessBaseAndScopes.base.reference {
+    objects.append(reference)
   }
-  return accessBase.reference
+  // The scopes are ordered from inner to outer.
+  for case let .dependence(markDep) in accessBaseAndScopes.scopes.reversed() {
+    if markDep.base.type.isAddress {
+      objects.append(contentsOf: enclosingObjects(of: markDep.base))
+    } else {
+      objects.append(markDep.base)
+    }
+  }
+  return objects
 }
 
 func registerBorrowAccessorFixup() {

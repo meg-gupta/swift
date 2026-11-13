@@ -104,6 +104,29 @@ public struct Projecting {
   }
 }
 
+public struct PointerInner<Element: ~Copyable> {
+  var _ptr: UnsafeMutablePointer<Element>
+  var _k: Klass
+
+  public var value: Element {
+    unsafeAddress {
+      return UnsafePointer(_ptr)
+    }
+  }
+}
+
+public struct PointerOuter<Element: ~Copyable>: ~Copyable {
+  var _inner: PointerInner<Element>
+  var _extra: Element?
+
+  public var value: Element {
+    @_unsafeSelfDependentResult
+    borrow {
+      return _inner.value
+    }
+  }
+}
+
 // CHECK-LABEL: sil [ossa] @$s29borrow_accessor_nested_result8LoadableV0C1KAA5KlassCvb : $@convention(method) (@guaranteed Loadable) -> @guaranteed Klass {
 // CHECK:   [[INNER:%.*]] = apply {{%.*}}(%0) : $@convention(method) (@guaranteed Loadable) -> @guaranteed Inner
 // CHECK-NOT: unchecked_ownership
@@ -168,6 +191,17 @@ public struct Projecting {
 // CHECK-NEXT: [[K:%.*]] = struct_extract [[I]], #Inner._k
 // CHECK-NEXT: return [[K]]
 // CHECK: } // end sil function '$s29borrow_accessor_nested_result10ProjectingV7directKAA5KlassCvb'
+
+// The address result of an unsafe addressor depends on the addressor's self,
+// which is borrowed within the borrow accessor.
+// CHECK-LABEL: sil [ossa] @$s29borrow_accessor_nested_result12PointerOuterVAARi_zrlE5valuexvb : $@convention(method) <Element where Element : ~Copyable> (@in_guaranteed PointerOuter<Element>) -> @guaranteed_address Element {
+// CHECK:   [[LB:%.*]] = load_borrow
+// CHECK:   [[MD:%.*]] = mark_dependence [unresolved] {{%.*}} on [[LB]]
+// CHECK-NEXT: [[A:%.*]] = begin_access [read] [unsafe] [[MD]]
+// CHECK-NEXT: [[R:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[A]]
+// CHECK-NEXT: end_access [[A]]
+// CHECK-NEXT: return_borrow [[R]] from_scopes ([[LB]])
+// CHECK: } // end sil function '$s29borrow_accessor_nested_result12PointerOuterVAARi_zrlE5valuexvb'
 
 // SILGen marks the result of a borrow accessor called in a borrow accessor
 // with unchecked_ownership, unless the result is trivial.
