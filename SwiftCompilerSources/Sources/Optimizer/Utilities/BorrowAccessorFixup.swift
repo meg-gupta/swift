@@ -110,16 +110,11 @@ private func getEnclosingLocalScopes(of value: Value, _ context: FunctionPassCon
 
 /// The object which `address` is an interior pointer of.
 private func interiorPointerBase(of address: Value) -> Value? {
-  switch address.accessBase {
-  case let .borrowMutateAccessor(apply):
+  let accessBase = address.accessBase
+  if case let .borrowMutateAccessor(apply) = accessBase {
     return apply.selfArgument
-  case let .class(refElementAddr):
-    return refElementAddr.instance
-  case let .tail(refTailAddr):
-    return refTailAddr.instance
-  default:
-    return nil
   }
+  return accessBase.reference
 }
 
 func registerBorrowAccessorFixup() {
