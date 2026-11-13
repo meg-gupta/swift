@@ -707,7 +707,7 @@ extension InteriorUseWalker: AddressUseVisitor {
     // Like a load_borrow, a borrow accessor borrows the memory location of an @in_guaranteed self over the scope of
     // its result.
     if let apply = apply as? ApplyInst, let borrow = BeginBorrowValue(apply),
-       let selfAddress = apply.selfAddressOfGuaranteedBorrowAccessorResult, selfAddress == operand.value {
+       apply.selfAddressOfGuaranteedBorrowAccessorResult != nil, operand == apply.selfArgumentOperand {
       if handleInner(borrowed: apply) == .abortWalk {
         return .abortWalk
       }
