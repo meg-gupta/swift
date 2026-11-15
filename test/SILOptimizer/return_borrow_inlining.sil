@@ -812,3 +812,76 @@ bb0(%0 : @owned $ContainerBox):
   %9 = tuple ()
   return %9 : $()
 }
+
+sil [transparent] [ossa] @klass_address_borrow_accessor_dead_end : $@convention(method) (Builtin.Int1, @guaranteed Klass) -> @guaranteed_address Int {
+bb0(%0 : $Builtin.Int1, %1 : @guaranteed $Klass):
+  %2 = begin_borrow %1 : $Klass
+  %3 = ref_element_addr %2 : $Klass, #Klass.id
+  cond_br %0, bb1, bb2
+
+bb1:
+  %5 = function_ref @fatal_error : $@convention(thin) () -> Never
+  %6 = apply %5() : $@convention(thin) () -> Never
+  end_borrow %2 : $Klass
+  unreachable
+
+bb2:
+  return_borrow %3 : $*Int from_scopes (%2 : $Klass)
+}
+
+// A return_borrow scope which the callee ends on a dead-end path is not ended
+// again there.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_callee_dead_end : $@convention(thin) (@owned Klass, Builtin.Int1) -> Int {
+// CHECK-NOT:   function_ref @klass_address_borrow_accessor_dead_end
+// CHECK:       [[B:%.*]] = begin_borrow %0
+// CHECK:       [[IB:%.*]] = begin_borrow [[B]]
+// CHECK:       [[A:%.*]] = ref_element_addr [[IB]]
+// CHECK:       apply {{%[0-9]+}}() : $@convention(thin) () -> Never
+// CHECK-NEXT:  end_borrow [[IB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NOT:   end_borrow
+// CHECK:       unreachable
+// CHECK:       load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[IB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  destroy_value %0
+// CHECK: } // end sil function 'test_address_result_callee_dead_end'
+sil [ossa] @test_address_result_callee_dead_end : $@convention(thin) (@owned Klass, Builtin.Int1) -> Int {
+bb0(%0 : @owned $Klass, %1 : $Builtin.Int1):
+  %2 = function_ref @klass_address_borrow_accessor_dead_end : $@convention(method) (Builtin.Int1, @guaranteed Klass) -> @guaranteed_address Int
+  %3 = apply %2(%1, %0) : $@convention(method) (Builtin.Int1, @guaranteed Klass) -> @guaranteed_address Int
+  %4 = load [trivial] %3 : $*Int
+  destroy_value %0 : $Klass
+  return %4 : $Int
+}
+
+sil [transparent] [ossa] @klass_address_borrow_accessor_use_after_projection : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int {
+bb0(%0 : @guaranteed $Klass):
+  %1 = begin_borrow %0 : $Klass
+  %2 = ref_element_addr %1 : $Klass, #Klass.id
+  %3 = function_ref @use_klass : $@convention(thin) (@guaranteed Klass) -> ()
+  %4 = apply %3(%1) : $@convention(thin) (@guaranteed Klass) -> ()
+  return_borrow %2 : $*Int from_scopes (%1 : $Klass)
+}
+
+// The scopes of an unused address result end after the inlined body.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_unused : $@convention(thin) (@owned Klass) -> () {
+// CHECK-NOT:   function_ref @klass_address_borrow_accessor_use_after_projection
+// CHECK:       [[B:%.*]] = begin_borrow %0
+// CHECK:       [[IB:%.*]] = begin_borrow [[B]]
+// CHECK:       ref_element_addr [[IB]]
+// CHECK:       apply {{%[0-9]+}}([[IB]])
+// CHECK:       end_borrow [[IB]]
+// CHECK-NEXT:  end_borrow [[B]]
+// CHECK-NEXT:  destroy_value %0
+// CHECK: } // end sil function 'test_address_result_unused'
+sil [ossa] @test_address_result_unused : $@convention(thin) (@owned Klass) -> () {
+bb0(%0 : @owned $Klass):
+  %1 = function_ref @klass_address_borrow_accessor_use_after_projection : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Int
+  destroy_value %0 : $Klass
+  %4 = tuple ()
+  return %4 : $()
+}
