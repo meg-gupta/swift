@@ -912,6 +912,13 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
           if (!lbi->isUnchecked()) {
             requireBitsSet(bits, lbi->getAddress(), &I);
           }
+        } else if (auto *ai = dyn_cast<ApplyInst>(ebi->getOperand())) {
+          // The address self of an accessor must be initialized for the scope
+          // of its address result.
+          if (auto *self =
+                  ai->getSelfAddressOfAddressBorrowMutateAccessorResult()) {
+            requireBitsSet(bits, self->get(), &I);
+          }
         }
         break;
       }
