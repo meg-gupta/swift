@@ -3789,9 +3789,13 @@ void ReturnRewriter::rewriteReturn(ReturnInst *returnInst) {
 // borrowed address, so replace the return_borrow with a return of the operand's
 // storage address.
 void ReturnRewriter::rewriteReturnBorrow(ReturnBorrowInst *returnBorrowInst) {
-  assert(pass.loweredFnConv.hasGuaranteedAddressResult() &&
-         "return_borrow requires a @guaranteed_address result");
+  assert(pass.loweredFnConv.hasAddressResult() &&
+         "return_borrow requires an address result");
   SILValue oldResult = returnBorrowInst->getReturnValue();
+  // The @inout result of a mutate accessor is already an address.
+  if (oldResult->getType().isAddress()) {
+    return;
+  }
   SILValue resultAddr = getGuaranteedAddressResultAddress(oldResult, pass);
 
   // The address result of an accessor is a scope, so keep returning from it.

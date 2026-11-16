@@ -547,6 +547,21 @@ bb0(%0 : $Builtin.RawPointer):
   return_borrow %3 from_scopes (%3)
 }
 
+// A mutate accessor which returns the @inout result of another mutate accessor
+// already returns an address, from the scope of that result.
+// CHECK-LABEL: sil [ossa] @f067_return_borrow_inout_result : $@convention(method) <T> (@inout Box<T>) -> @inout T {
+// CHECK: bb0(%0 : $*Box<T>):
+// CHECK:   [[FN:%.*]] = function_ref @f063_mutate_accessor
+// CHECK:   [[RESULT:%.*]] = apply [[FN]]<T>(%0)
+// CHECK:   return_borrow [[RESULT]] : $*T from_scopes ([[RESULT]] : $*T)
+// CHECK-LABEL: } // end sil function 'f067_return_borrow_inout_result'
+sil [ossa] @f067_return_borrow_inout_result : $@convention(method) <T> (@inout Box<T>) -> @inout T {
+bb0(%0 : $*Box<T>):
+  %1 = function_ref @f063_mutate_accessor : $@convention(method) <T> (@inout Box<T>) -> @inout T
+  %2 = apply %1<T>(%0) : $@convention(method) <T> (@inout Box<T>) -> @inout T
+  return_borrow %2 : $*T from_scopes (%2 : $*T)
+}
+
 // CHECK-LABEL: sil [ossa] @f070_mixedResult1 : $@convention(thin) <T> (@in T, @owned any C) -> (@out T, @owned any C) {
 // CHECK: bb0(%0 : $*T, %1 : $*T, %2 : @owned $any C):
 // CHECK:   copy_addr [take] %1 to [init] %0 : $*T
