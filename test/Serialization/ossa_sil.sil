@@ -1,6 +1,9 @@
 // RUN: %empty-directory(%t)
 // RUN: %target-build-swift -emit-module -module-name ossa -o %t/ossa.swiftmodule %s
 // RUN: %target-sil-opt -sil-print-types %t/ossa.swiftmodule | %FileCheck %s
+// RUN: %llvm-bcanalyzer %t/ossa.swiftmodule | %FileCheck %s --check-prefix=BCANALYZER
+
+// BCANALYZER-NOT: UnknownCode
 
 sil_stage canonical
 
