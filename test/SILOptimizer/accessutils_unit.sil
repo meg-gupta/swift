@@ -474,6 +474,8 @@ sil @coro : $@yield_once @convention(thin) () -> @yields @inout Int64
 
 sil @_isDistinct : $@convention(thin) <T1, T2> (@inout T1, @inout T2) -> ()
 sil @_isNotDistinct : $@convention(thin) <T1, T2> (@inout T1, @inout T2) -> ()
+sil @_isDistinctGuaranteed : $@convention(thin) <T1, T2> (@in_guaranteed T1, @in_guaranteed T2) -> ()
+sil @_isNotDistinctGuaranteed : $@convention(thin) <T1, T2> (@in_guaranteed T1, @in_guaranteed T2) -> ()
 
 // CHECK-LABEL: Accesses for testAccessBaseAliasing
 // CHECK-NEXT: End accesses for testAccessBaseAliasing
@@ -826,11 +828,11 @@ bb0(%0 : @guaranteed $S, %1 : $*S, %2 : $*S):
   %r5 = apply %nonmutatingMutateAddressSelf(%1) : $@convention(method) (@in_guaranteed S) -> @inout TwoInts
   %a5 = struct_element_addr %r5, #TwoInts.a
   store %l2 to [trivial] %a5
-  %isNotDistinct = function_ref @_isNotDistinct : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
-  %8 = apply %isNotDistinct<TwoInts, S>(%r3, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
-  %9 = apply %isNotDistinct<TwoInts, S>(%r4, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
-  %10 = apply %isNotDistinct<TwoInts, TwoInts>(%r5, %r2) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
-  %11 = apply %isNotDistinct<TwoInts, TwoInts>(%r1, %r4) : $@convention(thin) <τ_0_0, τ_0_1> (@inout τ_0_0, @inout τ_0_1) -> ()
+  %isNotDistinct = function_ref @_isNotDistinctGuaranteed : $@convention(thin) <τ_0_0, τ_0_1> (@in_guaranteed τ_0_0, @in_guaranteed τ_0_1) -> ()
+  %8 = apply %isNotDistinct<TwoInts, S>(%r3, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@in_guaranteed τ_0_0, @in_guaranteed τ_0_1) -> ()
+  %9 = apply %isNotDistinct<TwoInts, S>(%r4, %2) : $@convention(thin) <τ_0_0, τ_0_1> (@in_guaranteed τ_0_0, @in_guaranteed τ_0_1) -> ()
+  %10 = apply %isNotDistinct<TwoInts, TwoInts>(%r5, %r2) : $@convention(thin) <τ_0_0, τ_0_1> (@in_guaranteed τ_0_0, @in_guaranteed τ_0_1) -> ()
+  %11 = apply %isNotDistinct<TwoInts, TwoInts>(%r1, %r4) : $@convention(thin) <τ_0_0, τ_0_1> (@in_guaranteed τ_0_0, @in_guaranteed τ_0_1) -> ()
   %12 = tuple ()
   return %12 : $()
 }

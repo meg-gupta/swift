@@ -50,6 +50,11 @@ class MemoryLifetimeVerifier {
   /// alloc_stack memory locations which are used for store_borrow.
   Bits storeBorrowLocations;
 
+  /// The @guaranteed_address results of accessors and their projections. Unlike
+  /// storeBorrowLocations, this doesn't include the parent locations, e.g. the
+  /// address self of the accessor.
+  Bits borrowAccessorResultLocations;
+
   /// Returns true if the location \p locIdx can be proven to hold a
   /// hold a trivial value (e.g. non-payload case or thin function) at
   /// \p atInst.
@@ -110,14 +115,20 @@ class MemoryLifetimeVerifier {
     return loc && storeBorrowLocations.anyCommon(loc->subLocations);
   }
 
-  /// Require that the location of addr is not an alloc_stack used for a
-  /// store_borrow.
-  void requireNoStoreBorrowLocation(SILValue addr, SILInstruction *where);
+  /// Require that the location of addr is neither an alloc_stack used for a
+  /// store_borrow nor (a projection of) the @guaranteed_address result of an
+  /// accessor.
+  void requireWritableLocation(SILValue addr, SILInstruction *where);
 
   /// Register the destination address of a store_borrow as borrowed location.
   void registerStoreBorrowLocation(SILValue addr);
 
-  /// Registers all store_borrow instructions in a block.
+  /// Register the @guaranteed_address result of an accessor and its
+  /// projections as borrowed locations.
+  void registerBorrowAccessorResultLocation(ApplyInst *apply);
+
+  /// Registers all store_borrow instructions and @guaranteed_address results of
+  /// accessors in a block.
   void registerStoreBorrowsInBlock(SILBasicBlock *block);
 
   /// Handles locations of the predecessor's terminator, which are only valid
@@ -428,11 +439,16 @@ bool MemoryLifetimeVerifier::applyMayNotWrite(Operand *argOp, SILValue addr) {
       });
 }
 
-void MemoryLifetimeVerifier::requireNoStoreBorrowLocation(
-    SILValue addr, SILInstruction *where) {
+void MemoryLifetimeVerifier::requireWritableLocation(SILValue addr,
+                                                     SILInstruction *where) {
   if (isStoreBorrowLocation(addr)) {
     reportError("store-borrow location cannot be written",
                 locations.getLocationIdx(addr), where);
+  }
+  int locIdx = locations.getLocationIdx(addr);
+  if (locIdx >= 0 && (unsigned)locIdx < borrowAccessorResultLocations.size() &&
+      borrowAccessorResultLocations.test(locIdx)) {
+    reportError("borrow accessor result cannot be written", locIdx, where);
   }
 }
 
@@ -443,10 +459,24 @@ void MemoryLifetimeVerifier::registerStoreBorrowLocation(SILValue addr) {
   }
 }
 
+void MemoryLifetimeVerifier::registerBorrowAccessorResultLocation(
+    ApplyInst *apply) {
+  if (!apply->hasGuaranteedAddressResult()) {
+    return;
+  }
+  if (auto *loc = locations.getLocation(apply)) {
+    borrowAccessorResultLocations.resize(locations.getNumLocations());
+    borrowAccessorResultLocations |= loc->subLocations;
+  }
+}
+
 void MemoryLifetimeVerifier::registerStoreBorrowsInBlock(SILBasicBlock *block) {
   for (SILInstruction &inst : *block) {
-    if (auto *sbi = dyn_cast<StoreBorrowInst>(&inst))
+    if (auto *sbi = dyn_cast<StoreBorrowInst>(&inst)) {
       registerStoreBorrowLocation(sbi->getDest());
+    } else if (auto *apply = dyn_cast<ApplyInst>(&inst)) {
+      registerBorrowAccessorResultLocation(apply);
+    }
   }
 }
 
@@ -569,6 +599,9 @@ void MemoryLifetimeVerifier::initDataflowInBlock(SILBasicBlock *block,
           if (AS.isArgumentOperand(op)) {
             setFuncOperandBits(state, op, AS.getCaptureConvention(op), &I);
           }
+        }
+        if (auto *apply = dyn_cast<ApplyInst>(&I)) {
+          registerBorrowAccessorResultLocation(apply);
         }
         break;
       }
@@ -802,7 +835,7 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
         switch (LI->getOwnershipQualifier()) {
           case LoadOwnershipQualifier::Take:
             locations.clearBits(bits, LI->getOperand());
-            requireNoStoreBorrowLocation(LI->getOperand(), &I);
+            requireWritableLocation(LI->getOperand(), &I);
             break;
           case LoadOwnershipQualifier::Copy:
           case LoadOwnershipQualifier::Trivial:
@@ -829,7 +862,7 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
           case StoreOwnershipQualifier::Unqualified:
             llvm_unreachable("unqualified store shouldn't be in ownership SIL");
         }
-        requireNoStoreBorrowLocation(SI->getDest(), &I);
+        requireWritableLocation(SI->getDest(), &I);
         break;
       }
       case SILInstructionKind::StoreBorrowInst: {
@@ -842,7 +875,7 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
         requireBitsSet(bits, CAI->getSrc(), &I);
         if (CAI->isTakeOfSrc()) {
           locations.clearBits(bits, CAI->getSrc());
-          requireNoStoreBorrowLocation(CAI->getSrc(), &I);
+          requireWritableLocation(CAI->getSrc(), &I);
         }
         if (CAI->isInitializationOfDest()) {
           requireBitsClear(bits & nonTrivialLocations, CAI->getDest(), &I);
@@ -850,7 +883,7 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
           requireBitsSet(bits | ~nonTrivialLocations, CAI->getDest(), &I);
         }
         locations.setBits(bits, CAI->getDest());
-        requireNoStoreBorrowLocation(CAI->getDest(), &I);
+        requireWritableLocation(CAI->getDest(), &I);
         break;
       }
       case SILInstructionKind::InjectEnumAddrInst: {
@@ -864,17 +897,17 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
             locations.setBits(bits, IEAI->getOperand());
           }
         }
-        requireNoStoreBorrowLocation(IEAI->getOperand(), &I);
+        requireWritableLocation(IEAI->getOperand(), &I);
         break;
       }
       case SILInstructionKind::InitExistentialAddrInst: {
         SILValue addr = I.getOperand(0);
         requireBitsClear(bits & nonTrivialLocations, addr, &I);
-        requireNoStoreBorrowLocation(addr, &I);
+        requireWritableLocation(addr, &I);
         break;
       }
       case SILInstructionKind::InitEnumDataAddrInst: {
-        requireNoStoreBorrowLocation(I.getOperand(0), &I);
+        requireWritableLocation(I.getOperand(0), &I);
         break;
       }
       case SILInstructionKind::OpenExistentialAddrInst:
@@ -893,14 +926,14 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
         int enumIdx = locations.getLocationIdx(enumAddr);
         if (enumIdx >= 0)
           requireBitsSet(bits, enumAddr, &I);
-        requireNoStoreBorrowLocation(enumAddr, &I);
+        requireWritableLocation(enumAddr, &I);
         break;
       }
       case SILInstructionKind::DestroyAddrInst: {
         SILValue opVal = cast<DestroyAddrInst>(&I)->getOperand();
         requireBitsSet(bits | ~nonTrivialLocations, opVal, &I);
         locations.clearBits(bits, opVal);
-        requireNoStoreBorrowLocation(opVal, &I);
+        requireWritableLocation(opVal, &I);
         break;
       }
       case SILInstructionKind::EndBorrowInst: {
@@ -925,7 +958,7 @@ void MemoryLifetimeVerifier::checkBlock(SILBasicBlock *block, Bits &bits) {
           locations.clearBits(bits, src);
         requireBitsClear(bits & nonTrivialLocations, dest, &I);
         locations.setBits(bits, dest);
-        requireNoStoreBorrowLocation(dest, &I);
+        requireWritableLocation(dest, &I);
         break;
       }
       case SILInstructionKind::CheckedCastAddrBranchInst: {
@@ -1033,7 +1066,7 @@ void MemoryLifetimeVerifier::checkFuncArgument(Bits &bits, Operand &argumentOp,
                          SILArgumentConvention argumentConvention,
                          SILInstruction *applyInst) {
   if (argumentConvention != SILArgumentConvention::Indirect_In_Guaranteed)
-    requireNoStoreBorrowLocation(argumentOp.get(), applyInst);
+    requireWritableLocation(argumentOp.get(), applyInst);
   
   switch (argumentConvention) {
     case SILArgumentConvention::Indirect_In_CXX:
@@ -1089,6 +1122,7 @@ void MemoryLifetimeVerifier::verify() {
   // Second step: handle single-block locations.
   locations.handleSingleBlockLocations([this](SILBasicBlock *block) {
     storeBorrowLocations.clear();
+    borrowAccessorResultLocations.clear();
     Bits bits(locations.getNumLocations());
     registerStoreBorrowsInBlock(block);
     checkBlock(block, bits);

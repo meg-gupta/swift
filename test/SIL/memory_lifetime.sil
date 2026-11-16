@@ -1256,3 +1256,23 @@ bb0(%0 : $*Outer):
   %12 = tuple ()
   return %12
 }
+
+sil @nonmutating_mutate_outer_z : $@convention(method) (@in_guaranteed Outer) -> @inout T
+sil @mutate_outer_z : $@convention(method) (@inout Outer) -> @inout T
+sil @mutate_T_arg : $@convention(thin) (@inout T) -> ()
+
+// The result of a nonmutating mutate accessor can be written, even though self
+// is @in_guaranteed. The result of a mutate accessor can be passed @inout.
+sil [ossa] @test_write_through_mutate_accessor_results : $@convention(thin) (@in Outer, @owned T) -> () {
+bb0(%0 : $*Outer, %1 : @owned $T):
+  %2 = function_ref @nonmutating_mutate_outer_z : $@convention(method) (@in_guaranteed Outer) -> @inout T
+  %3 = apply %2(%0) : $@convention(method) (@in_guaranteed Outer) -> @inout T
+  store %1 to [assign] %3
+  %5 = function_ref @mutate_outer_z : $@convention(method) (@inout Outer) -> @inout T
+  %6 = apply %5(%0) : $@convention(method) (@inout Outer) -> @inout T
+  %7 = function_ref @mutate_T_arg : $@convention(thin) (@inout T) -> ()
+  %8 = apply %7(%6) : $@convention(thin) (@inout T) -> ()
+  destroy_addr %0
+  %10 = tuple ()
+  return %10
+}

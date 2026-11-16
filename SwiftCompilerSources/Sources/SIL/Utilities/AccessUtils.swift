@@ -908,9 +908,9 @@ let accessPathTest = Test("access_path") {
         guard let callee = apply.referencedFunction else {
           break
         }
-        if callee.name == "_isDistinct" {
+        if callee.name == "_isDistinct" || callee.name == "_isDistinctGuaranteed" {
           checkAliasInfo(forArgumentsOf: apply, expectDistinct: true)
-        } else if callee.name == "_isNotDistinct" {
+        } else if callee.name == "_isNotDistinct" || callee.name == "_isNotDistinctGuaranteed" {
           checkAliasInfo(forArgumentsOf: apply, expectDistinct: false)
         }
       default:
