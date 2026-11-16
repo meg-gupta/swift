@@ -1097,6 +1097,69 @@ static void checkAddressWalkerCanVisitAllTransitiveUses(SILValue address) {
   llvm::report_fatal_error("invoking standard assertion failure");
 }
 
+static bool isReturnableAddress(SILValue address);
+
+/// Returns true if the address result of an accessor with the object self
+/// \p self can be returned from its function. The address is only valid
+/// within the borrow of self, so the caller must borrow self.
+static bool isReturnableAccessorSelf(SILValue self) {
+  switch (self->getOwnershipKind()) {
+  case OwnershipKind::None:
+    // A trivial self, e.g. a wrapper of an unsafe pointer, isn't checked.
+    return true;
+  case OwnershipKind::Guaranteed:
+    break;
+  default:
+    // An owned self is destroyed in this function.
+    return false;
+  }
+  SmallVector<SILValue, 4> roots;
+  findGuaranteedReferenceRoots(self, /*lookThroughNestedBorrows=*/true, roots);
+  return llvm::all_of(roots, [](SILValue root) {
+    // The caller borrows a @guaranteed argument.
+    if (isa<SILFunctionArgument>(root))
+      return true;
+    // A guaranteed phi isn't checked.
+    if (SILArgument::asPhi(root))
+      return true;
+    // A load_borrow borrows its memory.
+    if (auto *lbi = dyn_cast<LoadBorrowInst>(root))
+      return isReturnableAddress(lbi->getAddress());
+    // A borrow accessor result borrows the memory of its address self.
+    if (auto *apply = dyn_cast<ApplyInst>(root)) {
+      if (auto *selfOp =
+              apply->getSelfAddressOfGuaranteedBorrowAccessorResult()) {
+        return isReturnableAddress(selfOp->get());
+      }
+    }
+    // Any other borrow scope ends in this function.
+    return false;
+  });
+}
+
+/// Returns true if \p address can be returned from its function: its base
+/// must be a function argument, a global or Builtin.Borrow.
+static bool isReturnableAddress(SILValue address) {
+  auto base = AccessBase::compute(address);
+  if (!base || base.isReference())
+    return true;
+  SILValue root = base.getBaseAddress();
+  if (!root || !root->getType().isAddress())
+    return true;
+  if (isa<SILFunctionArgument>(root) || isa<GlobalAddrInst>(root))
+    return true;
+  auto *apply = dyn_cast<ApplyInst>(root);
+  if (!apply || !apply->hasAddressResult())
+    return false;
+  // The address result of an accessor is valid as long as its self is.
+  if (!apply->hasSelfArgument())
+    return true;
+  SILValue self = apply->getSelfArgument();
+  if (self->getType().isAddress())
+    return isReturnableAddress(self);
+  return isReturnableAccessorSelf(self);
+}
+
 /// The SIL verifier walks over a SIL function / basic block / instruction,
 /// checking and enforcing its invariants.
 class SILVerifier : public SILVerifierBase<SILVerifier> {
@@ -5907,15 +5970,7 @@ public:
     // function argument or Builtin.Borrow.
     if (F.getFunctionStage() >= SILStage::Canonical &&
         functionResultType.isAddress()) {
-      auto base = AccessBase::compute(RI->getOperand());
-      auto root = base ? base.isReference() ? base.getOwnershipReferenceRoot()
-                                            : base.getBaseAddress()
-                       : SILValue();
-      require(!root || !root->getType().isAddress() ||
-                  isa<SILFunctionArgument>(root) ||
-                  (isa<ApplyInst>(root) &&
-                       cast<ApplyInst>(root)->hasAddressResult() ||
-                   isa<GlobalAddrInst>(root)),
+      require(isReturnableAddress(RI->getOperand()),
               "unidentified address return");
     }
   }

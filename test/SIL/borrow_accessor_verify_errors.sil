@@ -1,6 +1,17 @@
 // RUN: %target-sil-opt -dont-abort-on-memory-lifetime-errors -verify-continue-on-failure -enable-sil-verify-all=0 %s 2>&1 | %FileCheck %s
+// RUN: %target-sil-opt -dont-abort-on-memory-lifetime-errors -verify-continue-on-failure -enable-sil-verify-all=0 %s 2>&1 | %FileCheck %s --check-prefix=NOERR
+
+// NOERR-NOT: Begin Error in function test_nested_address_of_argument
+// NOERR-NOT: Begin Error in function test_guaranteed_argument
+// NOERR-NOT: Begin Error in function test_projection_of_guaranteed_argument
+// NOERR-NOT: Begin Error in function test_load_borrow_of_argument
+// NOERR-NOT: Begin Error in function test_borrow_accessor_result_of_argument
+// NOERR-NOT: Begin Error in function test_borrow_accessor_result_of_address_argument
+// NOERR-NOT: Begin Error in function test_load_borrow_of_accessor_address_of_argument
 
 sil_stage canonical
+
+import Builtin
 
 public struct GenWrapper<T> {
   @_hasStorage var _prop: T { get set }
@@ -30,3 +41,220 @@ bb0(%0 : $*GenWrapper<T>):
   return %2
 }
 
+
+public struct GenWrapper2<T> {
+  @_hasStorage var _inner: GenWrapper<T> { get set }
+}
+
+sil [ossa] @borrow_inner : $@convention(method) <T> (@in_guaranteed GenWrapper2<T>) -> @guaranteed_address GenWrapper<T> {
+bb0(%0 : $*GenWrapper2<T>):
+  %1 = struct_element_addr %0, #GenWrapper2._inner
+  return %1
+}
+
+// CHECK: Begin Error in function test_nested_address_of_temp
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: ->   return %{{[0-9]+}} : $*T
+// CHECK: End Error in function test_nested_address_of_temp
+sil [ossa] @test_nested_address_of_temp : $@convention(thin) <T> (@in_guaranteed GenWrapper2<T>) -> @guaranteed_address T {
+bb0(%0 : $*GenWrapper2<T>):
+  %stk = alloc_stack $GenWrapper2<T>
+  copy_addr %0 to [init] %stk
+  %1 = function_ref @borrow_inner : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper2<τ_0_0>) -> @guaranteed_address GenWrapper<τ_0_0>
+  %2 = apply %1<T>(%stk) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper2<τ_0_0>) -> @guaranteed_address GenWrapper<τ_0_0>
+  %3 = function_ref @borrow_addressonly_prop : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
+  %4 = apply %3<T>(%2) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
+  destroy_addr %stk
+  dealloc_stack %stk
+  return %4
+}
+
+sil [ossa] @test_nested_address_of_argument : $@convention(thin) <T> (@in_guaranteed GenWrapper2<T>) -> @guaranteed_address T {
+bb0(%0 : $*GenWrapper2<T>):
+  %1 = function_ref @borrow_inner : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper2<τ_0_0>) -> @guaranteed_address GenWrapper<τ_0_0>
+  %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper2<τ_0_0>) -> @guaranteed_address GenWrapper<τ_0_0>
+  %3 = function_ref @borrow_addressonly_prop : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
+  %4 = apply %3<T>(%2) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
+  return %4
+}
+
+class Klass {}
+
+struct Pair {
+  @_hasStorage var k: Klass { get set }
+  @_hasStorage var i: Builtin.Int64 { get set }
+}
+
+struct Outer {
+  @_hasStorage var pair: Pair { get set }
+}
+
+// An accessor with an object self and an address result.
+sil @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+
+// Borrow accessors with a @guaranteed result.
+sil @borrow_pair : $@convention(method) (@guaranteed Outer) -> @guaranteed Pair
+sil @borrow_pair_of_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed Pair
+
+// A borrow accessor with an address self and an address result.
+sil @borrow_pair_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Pair
+
+// CHECK: Begin Error in function test_owned_argument
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_owned_argument
+sil [ossa] @test_owned_argument : $@convention(thin) (@owned Pair) -> @guaranteed_address Klass {
+bb0(%0 : @owned $Pair):
+  %1 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  destroy_value %0
+  return %2
+}
+
+// CHECK: Begin Error in function test_borrowed_owned_argument
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_borrowed_owned_argument
+sil [ossa] @test_borrowed_owned_argument : $@convention(thin) (@owned Pair) -> @guaranteed_address Klass {
+bb0(%0 : @owned $Pair):
+  %1 = begin_borrow %0
+  %2 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %1
+  destroy_value %0
+  return %3
+}
+
+// CHECK: Begin Error in function test_local_owned_value
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_local_owned_value
+sil [ossa] @test_local_owned_value : $@convention(thin) (@in_guaranteed Pair) -> @guaranteed_address Klass {
+bb0(%0 : $*Pair):
+  %1 = load [copy] %0
+  %2 = begin_borrow %1
+  %3 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %4 = apply %3(%2) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %2
+  destroy_value %1
+  return %4
+}
+
+sil [ossa] @test_guaranteed_argument : $@convention(thin) (@guaranteed Pair) -> @guaranteed_address Klass {
+bb0(%0 : @guaranteed $Pair):
+  %1 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  return %2
+}
+
+sil [ossa] @test_projection_of_guaranteed_argument : $@convention(thin) (@guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : @guaranteed $Outer):
+  %1 = struct_extract %0, #Outer.pair
+  %2 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  return %3
+}
+
+sil [ossa] @test_load_borrow_of_argument : $@convention(thin) (@in_guaranteed Pair) -> @guaranteed_address Klass {
+bb0(%0 : $*Pair):
+  %1 = load_borrow %0
+  %2 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %1
+  return %3
+}
+
+// CHECK: Begin Error in function test_load_borrow_of_temp
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_load_borrow_of_temp
+sil [ossa] @test_load_borrow_of_temp : $@convention(thin) (@in_guaranteed Pair) -> @guaranteed_address Klass {
+bb0(%0 : $*Pair):
+  %1 = alloc_stack $Pair
+  copy_addr %0 to [init] %1
+  %3 = load_borrow %1
+  %4 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %5 = apply %4(%3) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %3
+  destroy_addr %1
+  dealloc_stack %1
+  return %5
+}
+
+sil [ossa] @test_borrow_accessor_result_of_argument : $@convention(thin) (@guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : @guaranteed $Outer):
+  %1 = function_ref @borrow_pair : $@convention(method) (@guaranteed Outer) -> @guaranteed Pair
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Outer) -> @guaranteed Pair
+  %3 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %4 = apply %3(%2) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %2
+  return %4
+}
+
+// CHECK: Begin Error in function test_borrow_accessor_result_of_owned_argument
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_borrow_accessor_result_of_owned_argument
+sil [ossa] @test_borrow_accessor_result_of_owned_argument : $@convention(thin) (@owned Outer) -> @guaranteed_address Klass {
+bb0(%0 : @owned $Outer):
+  %1 = begin_borrow %0
+  %2 = function_ref @borrow_pair : $@convention(method) (@guaranteed Outer) -> @guaranteed Pair
+  %3 = apply %2(%1) : $@convention(method) (@guaranteed Outer) -> @guaranteed Pair
+  %4 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %5 = apply %4(%3) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %3
+  end_borrow %1
+  destroy_value %0
+  return %5
+}
+
+sil [ossa] @test_borrow_accessor_result_of_address_argument : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : $*Outer):
+  %1 = function_ref @borrow_pair_of_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed Pair
+  %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed Pair
+  %3 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %4 = apply %3(%2) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %2
+  return %4
+}
+
+// CHECK: Begin Error in function test_borrow_accessor_result_of_temp
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_borrow_accessor_result_of_temp
+sil [ossa] @test_borrow_accessor_result_of_temp : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : $*Outer):
+  %1 = alloc_stack $Outer
+  copy_addr %0 to [init] %1
+  %3 = function_ref @borrow_pair_of_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed Pair
+  %4 = apply %3(%1) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed Pair
+  %5 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %6 = apply %5(%4) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %4
+  destroy_addr %1
+  dealloc_stack %1
+  return %6
+}
+
+sil [ossa] @test_load_borrow_of_accessor_address_of_argument : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : $*Outer):
+  %1 = function_ref @borrow_pair_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Pair
+  %2 = apply %1(%0) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Pair
+  %3 = load_borrow %2
+  %4 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %5 = apply %4(%3) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %3
+  return %5
+}
+
+// CHECK: Begin Error in function test_load_borrow_of_accessor_address_of_temp
+// CHECK: SIL verification failed: unidentified address return:
+// CHECK: End Error in function test_load_borrow_of_accessor_address_of_temp
+sil [ossa] @test_load_borrow_of_accessor_address_of_temp : $@convention(thin) (@in_guaranteed Outer) -> @guaranteed_address Klass {
+bb0(%0 : $*Outer):
+  %1 = alloc_stack $Outer
+  copy_addr %0 to [init] %1
+  %3 = function_ref @borrow_pair_address : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Pair
+  %4 = apply %3(%1) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Pair
+  %5 = load_borrow %4
+  %6 = function_ref @borrow_k : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  %7 = apply %6(%5) : $@convention(method) (@guaranteed Pair) -> @guaranteed_address Klass
+  end_borrow %5
+  destroy_addr %1
+  dealloc_stack %1
+  return %7
+}
