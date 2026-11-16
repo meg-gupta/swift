@@ -496,6 +496,10 @@ extension LocalVariableAccessWalker: AddressUseVisitor {
         return .continueWalk
       }
     }
+    if value is ApplyInst {
+      // A borrow or mutate accessor may access self during the call.
+      visit(LocalVariableAccess(.apply, operand))
+    }
     return walkDownAddressUses(address: value)
   }
 

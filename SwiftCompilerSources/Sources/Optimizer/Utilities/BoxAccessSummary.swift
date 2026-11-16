@@ -482,6 +482,10 @@ private struct BoxProjectionAccessVisitor: AddressUseVisitor {
 
   // An access to a part of the variable counts as an access to the whole variable.
   mutating func projectedAddressUse(of operand: Operand, into value: Value) -> WalkResult {
+    if let apply = value as? ApplyInst {
+      // A borrow or mutate accessor may access the box during the call.
+      reachedCalls.append(apply)
+    }
     push(value)
     return .continueWalk
   }

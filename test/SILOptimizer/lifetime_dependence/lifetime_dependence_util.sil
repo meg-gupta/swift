@@ -629,3 +629,21 @@ entry(%0 : $*PairC, %1 : @owned $C):
   %99 = tuple ()
   return %99
 }
+
+sil @borrowIntAddressFromNE : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Builtin.Int64
+
+// The address result of a borrow accessor with an address-typed 'self' is a projection of 'self'. The call and the
+// uses of the result are uses of 'self'.
+// CHECK-LABEL: dependence_address_accessor_result: lifetime_dependence_use with: %0
+// CHECK: LifetimeDependence uses of: %0 = argument of bb0 : $*NE
+// CHECK-NEXT: Leaf use: operand #1 of   %2 = apply %1(%0) : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Builtin.Int64
+// CHECK-NEXT: Leaf use: operand #0 of   %3 = load [trivial] %2 : $*Builtin.Int64
+// CHECK-NEXT: dependence_address_accessor_result: lifetime_dependence_use with: %0
+sil [ossa] @dependence_address_accessor_result : $@convention(thin) (@in_guaranteed NE) -> Builtin.Int64 {
+bb0(%0 : $*NE):
+  specify_test "lifetime_dependence_use %0"
+  %1 = function_ref @borrowIntAddressFromNE : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Builtin.Int64
+  %2 = apply %1(%0) : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Builtin.Int64
+  %3 = load [trivial] %2 : $*Builtin.Int64
+  return %3 : $Builtin.Int64
+}

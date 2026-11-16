@@ -172,3 +172,32 @@ bb0(%0 : $*AONE):
   %9 = tuple ()
   return %9
 }
+
+sil @borrowIntAddressFromNE : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Int
+
+// The address result of a borrow accessor with an address-typed 'self' is a projection of 'self'. A load from the result
+// is an access of the local.
+// CHECK-LABEL: testAccessorAddressResult: local_variable_reachable_uses with: %1, @instruction
+// CHECK: ### Access map:
+// CHECK-NEXT: Access map for:   %{{.*}} = alloc_stack [lexical] [var_decl] $NE, let, name "ne"
+// CHECK-NEXT: assign: value, hasEscaped: false, store,   destroy_addr %{{.*}} : $*NE
+// CHECK-NEXT: assign: no, hasEscaped: false, apply,   %{{.*}} = apply %{{.*}}(%{{.*}}) : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Int
+// CHECK-NEXT: assign: no, hasEscaped: false, load,   %{{.*}} = load [trivial] %{{.*}} : $*Int
+// CHECK-NEXT: assign: value, hasEscaped: false, store,   store %0 to [init] %{{.*}} : $*NE
+// CHECK-NEXT: ### Modify:   store %0 to [init] %{{.*}} : $*NE
+// CHECK-NEXT: ### Reachable access:
+// CHECK-NEXT: apply,   %{{.*}} = apply %{{.*}}(%{{.*}}) : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Int
+// CHECK-NEXT: load,   %{{.*}} = load [trivial] %{{.*}} : $*Int
+// CHECK-NEXT: testAccessorAddressResult: local_variable_reachable_uses with: %1, @instruction
+sil [ossa] @testAccessorAddressResult : $@convention(thin) (@owned NE) -> Int {
+bb0(%0 : @owned $NE):
+  %1 = alloc_stack [lexical] [var_decl] $NE, let, name "ne"
+  specify_test "local_variable_reachable_uses %1 @instruction"
+  store %0 to [init] %1
+  %3 = function_ref @borrowIntAddressFromNE : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Int
+  %4 = apply %3(%1) : $@convention(method) (@in_guaranteed NE) -> @guaranteed_address Int
+  %5 = load [trivial] %4
+  destroy_addr %1
+  dealloc_stack %1
+  return %5
+}

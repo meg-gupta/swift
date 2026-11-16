@@ -1020,6 +1020,10 @@ extension LifetimeDependenceDefUseWalker {
   /// escape its address operand in any other way.
   mutating func projectedAddressUse(of operand: Operand, into value: Value)
     -> WalkResult {
+    // A borrow or mutate accessor uses self for the duration of the call.
+    if value is ApplyInst, leafUse(of: operand) == .abortWalk {
+      return .abortWalk
+    }
     return walkDownAddressUses(of: value)
   }
 

@@ -885,3 +885,56 @@ bb0(%0 : @owned $Klass):
   %4 = tuple ()
   return %4 : $()
 }
+
+sil [transparent] [ossa] @klass_address_self_borrow_accessor : $@convention(method) (@in_guaranteed Klass) -> @guaranteed_address Int {
+bb0(%0 : $*Klass):
+  %1 = load_borrow %0 : $*Klass
+  %2 = ref_element_addr %1 : $Klass, #Klass.id
+  return_borrow %2 : $*Int from_scopes (%1 : $Klass)
+}
+
+sil @use_int : $@convention(thin) (Int) -> ()
+
+// The load_borrow of an address self ends after the uses of the result on both
+// sides of a branch, including the dead-end side, where self is not destroyed.
+//
+// CHECK-LABEL: sil [ossa] @test_address_result_address_self_dead_end : $@convention(thin) (@in Klass, Builtin.Int1) -> Int {
+// CHECK-NOT:   function_ref @klass_address_self_borrow_accessor
+// CHECK:       [[LB:%.*]] = load_borrow %0
+// CHECK:       [[A:%.*]] = ref_element_addr [[LB]]
+// CHECK:       cond_br %1, [[DEAD:bb[0-9]+]], [[RET:bb[0-9]+]]
+// CHECK:     [[DEAD]]:
+// CHECK-NEXT:  [[V1:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[LB]]
+// CHECK-NEXT:  // function_ref use_int
+// CHECK-NEXT:  [[U:%.*]] = function_ref @use_int
+// CHECK-NEXT:  apply [[U]]([[V1]])
+// CHECK-NEXT:  // function_ref fatal_error
+// CHECK-NEXT:  [[F:%.*]] = function_ref @fatal_error
+// CHECK-NEXT:  apply [[F]]()
+// CHECK-NEXT:  unreachable
+// CHECK:     [[RET]]:
+// CHECK-NEXT:  [[V2:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:  end_borrow [[LB]]
+// CHECK-NEXT:  destroy_addr %0
+// CHECK-NEXT:  return [[V2]]
+// CHECK: } // end sil function 'test_address_result_address_self_dead_end'
+sil [ossa] @test_address_result_address_self_dead_end : $@convention(thin) (@in Klass, Builtin.Int1) -> Int {
+bb0(%0 : $*Klass, %1 : $Builtin.Int1):
+  %2 = function_ref @klass_address_self_borrow_accessor : $@convention(method) (@in_guaranteed Klass) -> @guaranteed_address Int
+  %3 = apply %2(%0) : $@convention(method) (@in_guaranteed Klass) -> @guaranteed_address Int
+  cond_br %1, bb1, bb2
+
+bb1:
+  %5 = load [trivial] %3 : $*Int
+  %6 = function_ref @use_int : $@convention(thin) (Int) -> ()
+  %7 = apply %6(%5) : $@convention(thin) (Int) -> ()
+  %8 = function_ref @fatal_error : $@convention(thin) () -> Never
+  %9 = apply %8() : $@convention(thin) () -> Never
+  unreachable
+
+bb2:
+  %11 = load [trivial] %3 : $*Int
+  destroy_addr %0 : $*Klass
+  return %11 : $Int
+}

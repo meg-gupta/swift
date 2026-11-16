@@ -36,6 +36,9 @@ protocol AddressUseVisitor {
 
   /// An address projection produces a single address result and does not
   /// escape its address operand in any other way.
+  ///
+  /// This includes the address result of a borrow or mutate accessor with an address self. Unlike other projections,
+  /// the accessor is a call, which may read or modify self.
   mutating func projectedAddressUse(of operand: Operand, into value: Value)
     -> WalkResult
 
@@ -130,6 +133,11 @@ extension AddressUseVisitor {
 
     case let ueda as UncheckedEnumDataAddrInstBase where ueda.enum == operand.value:
       return projectedAddressUse(of: operand, into: ueda)
+
+    case let apply as ApplyInst
+      where apply.selfAddressOfBorrowMutateAccessorResult != nil && operand == apply.selfArgumentOperand:
+      // The address result of a borrow or mutate accessor with an address self is a projection of self.
+      return projectedAddressUse(of: operand, into: apply)
 
     case let apply as FullApplySite:
       return appliedAddressUse(of: operand, by: apply)
@@ -389,6 +397,9 @@ extension AddressInitializationWalker {
   /// escape its address operand in any other way.
   mutating func projectedAddressUse(of operand: Operand, into value: Value)
     -> WalkResult {
+    if let apply = value as? FullApplySite {
+      return appliedAddressUse(of: operand, by: apply)
+    }
     // AddressDefUseWalker should catch most of these.
     return .abortWalk
   }
