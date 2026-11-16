@@ -73,7 +73,9 @@ private func eliminateTrivialOwnership(in function: Function, _ context: Functio
       case let bb as BeginBorrowInst where bb.borrowedValue.type.isTrivial(in: function):
         bb.replace(with: bb.borrowedValue, context)
       
-      case let eb as EndBorrowInst where eb.borrow.type.isTrivial(in: function):
+      // The address result of a borrow or mutate accessor is a scope even for a trivial type.
+      case let eb as EndBorrowInst
+             where eb.borrow.type.isTrivial(in: function) && !(eb.borrow is ApplyInst && eb.borrow.type.isAddress):
         context.erase(instruction: eb)
 
       // Leave other instructions alone.

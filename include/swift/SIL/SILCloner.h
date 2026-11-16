@@ -1712,8 +1712,11 @@ void SILCloner<ImplClass>::visitEndBorrowInst(EndBorrowInst *Inst) {
     return;
 
   SILValue v = getOpValue(Inst->getOperand());
+  // The address result of a borrow or mutate accessor is a scope even for a
+  // trivial type, unlike a cloned borrow of a trivial value.
+  auto *ai = dyn_cast<ApplyInst>(v);
   if (v->getType().isTrivial(getBuilder().getFunction()) &&
-      !v->isBeginApplyToken()) {
+      !v->isBeginApplyToken() && !(ai && ai->hasAddressResult())) {
     return;
   }
 

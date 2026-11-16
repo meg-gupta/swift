@@ -1,5 +1,6 @@
 // RUN: %target-sil-opt -trivial-ownership-elimination %s | %FileCheck %s
 
+import Builtin
 import Swift
 
 // CHECK-LABEL: sil [ossa] @eliminate_copies_and_destroys :
@@ -97,4 +98,23 @@ entry(%0 : @owned $Int):
   
   // CHECK-NEXT: return
   return undef : $()
+}
+
+sil @int_address_accessor : $@convention(method) (@guaranteed Builtin.NativeObject) -> @guaranteed_address Int
+
+// The scope of an accessor's address result of a trivial type is kept.
+//
+// CHECK-LABEL: sil [ossa] @keep_accessor_address_result_scope :
+// CHECK:         [[A:%.*]] = apply {{%.*}}(%0)
+// CHECK-NEXT:    [[V:%.*]] = load [trivial] [[A]]
+// CHECK-NEXT:    end_borrow [[A]]
+// CHECK-NEXT:    return [[V]]
+// CHECK-LABEL: } // end sil function 'keep_accessor_address_result_scope'
+sil [ownership_for_trivial] [ossa] @keep_accessor_address_result_scope : $@convention(thin) (@guaranteed Builtin.NativeObject) -> Int {
+entry(%0 : @guaranteed $Builtin.NativeObject):
+  %1 = function_ref @int_address_accessor : $@convention(method) (@guaranteed Builtin.NativeObject) -> @guaranteed_address Int
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Builtin.NativeObject) -> @guaranteed_address Int
+  %3 = load [copy] %2
+  end_borrow %2
+  return %3
 }
