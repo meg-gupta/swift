@@ -277,3 +277,44 @@ bb3:
   return %1 : $()
 }
 
+
+sil @klass_address_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+
+// The address result of an accessor is a scope like a store_borrow.
+//
+// CHECK: Begin Error in function test_missing_accessor_address_result_end_borrow
+// CHECK: SIL verification failed: return with operations still active
+// CHECK: current active operation set: [
+// CHECK:      %2 = apply %1(%0)
+// CHECK: ]
+// CHECK: End Error in function test_missing_accessor_address_result_end_borrow
+sil [ossa] @test_missing_accessor_address_result_end_borrow : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = function_ref @klass_address_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  %3 = tuple ()
+  return %3 : $()
+}
+
+// CHECK: Begin Error in function test_accessor_address_result_ended_twice
+// CHECK: SIL verification failed: operation has already been ended
+// CHECK: End Error in function test_accessor_address_result_ended_twice
+sil [ossa] @test_accessor_address_result_ended_twice : $@convention(thin) (@guaranteed Klass) -> () {
+bb0(%0 : @guaranteed $Klass):
+  %1 = function_ref @klass_address_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  end_borrow %2 : $*Klass
+  end_borrow %2 : $*Klass
+  %3 = tuple ()
+  return %3 : $()
+}
+
+// A return_borrow ends the scope of an accessor address result.
+//
+// CHECK-NOT: Begin Error in function test_accessor_address_result_return_borrow
+sil [ossa] @test_accessor_address_result_return_borrow : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass {
+bb0(%0 : @guaranteed $Klass):
+  %1 = function_ref @klass_address_accessor : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  %2 = apply %1(%0) : $@convention(method) (@guaranteed Klass) -> @guaranteed_address Klass
+  return_borrow %2 : $*Klass from_scopes (%2 : $*Klass)
+}

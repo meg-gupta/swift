@@ -229,6 +229,13 @@ struct DeadEndRegionState {
 };
 } // namespace
 
+/// The address result of a borrow or mutate accessor is a scope, ended by
+/// end_borrow or return_borrow, like the address of a store_borrow.
+static bool isAccessorAddressResultScope(SILValue value) {
+  auto *ai = dyn_cast<ApplyInst>(value);
+  return ai && ai->getFunction()->hasOwnership() && ai->hasAddressResult();
+}
+
 /// If this is a scope ending inst, return the result from the instruction
 /// that provides the scoped value whose lifetime must be ended by some other
 /// scope ending instruction.
@@ -239,6 +246,11 @@ static SILValue getScopeEndingValueOfScopeInst(SILInstruction *i) {
     return bai->getTokenResult();
   if (auto *sbi = dyn_cast<StoreBorrowInst>(i))
     return sbi;
+  if (auto *ai = dyn_cast<ApplyInst>(i)) {
+    if (isAccessorAddressResultScope(ai)) {
+      return ai;
+    }
+  }
 
   if (auto bi = dyn_cast<BuiltinInst>(i)) {
     if (auto bk = bi->getBuiltinKind()) {
@@ -404,7 +416,8 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
       }
 
       if (auto *endBorrow = dyn_cast<EndBorrowInst>(&i)) {
-        if (isa<StoreBorrowInst>(endBorrow->getOperand())) {
+        if (isa<StoreBorrowInst>(endBorrow->getOperand()) ||
+            isAccessorAddressResultScope(endBorrow->getOperand())) {
           state.handleScopeEndingInst(i);
         }
         continue;
@@ -422,6 +435,13 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
       if (!term)
         continue;
 
+      if (auto *returnBorrow = dyn_cast<ReturnBorrowInst>(term)) {
+        for (SILValue scope : returnBorrow->getEnclosingValues()) {
+          if (isAccessorAddressResultScope(scope)) {
+            state.handleScopeEndingUse(scope, term);
+          }
+        }
+      }
       if (term->isFunctionExiting()) {
         if (!state.Stack.empty()) {
           verificationFailure("return with stack allocs that haven't been deallocated",

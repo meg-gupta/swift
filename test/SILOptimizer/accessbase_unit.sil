@@ -113,6 +113,7 @@ bb0(%0 : $*GenWrapper<T>):
   %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   specify_test "get_access_base %2"
   specify_test "swift_get_access_base %2"
+  end_borrow %2
   return %2
 }
 

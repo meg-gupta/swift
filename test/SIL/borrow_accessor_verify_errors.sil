@@ -65,5 +65,5 @@ bb0(%0 : $*GenWrapper2<T>):
   %2 = apply %1<T>(%0) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper2<τ_0_0>) -> @guaranteed_address GenWrapper<τ_0_0>
   %3 = function_ref @borrow_addressonly_prop : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   %4 = apply %3<T>(%2) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
-  return %4
+  return_borrow %4 : $*T from_scopes (%2 : $*GenWrapper<T>, %4 : $*T)
 }
