@@ -127,6 +127,42 @@ public struct PointerOuter<Element: ~Copyable>: ~Copyable {
   }
 }
 
+public struct MutablePointer {
+  var _ptr: UnsafeMutablePointer<Klass>
+  var _k: Klass
+
+  public var value: Klass {
+    @_unsafeSelfDependentResult
+    borrow {
+      return _ptr.pointee
+    }
+    @_unsafeSelfDependentResult
+    nonmutating mutate {
+      return &_ptr.pointee
+    }
+  }
+}
+
+public protocol NonmutatingMutate {
+  var value: Klass { borrow nonmutating mutate }
+}
+
+extension MutablePointer: NonmutatingMutate {}
+
+public struct AddressOnlyMutablePointer<T> {
+  var _pointer: MutablePointer
+  var _t: T
+
+  public var value: Klass {
+    borrow {
+      return _pointer.value
+    }
+    nonmutating mutate {
+      return &_pointer.value
+    }
+  }
+}
+
 // CHECK-LABEL: sil [ossa] @$s29borrow_accessor_nested_result8LoadableV0C1KAA5KlassCvb : $@convention(method) (@guaranteed Loadable) -> @guaranteed Klass {
 // CHECK:   [[INNER:%.*]] = apply {{%.*}}(%0) : $@convention(method) (@guaranteed Loadable) -> @guaranteed Inner
 // CHECK-NOT: unchecked_ownership
@@ -202,6 +238,21 @@ public struct PointerOuter<Element: ~Copyable>: ~Copyable {
 // CHECK-NEXT: end_access [[A]]
 // CHECK-NEXT: return_borrow [[R]] from_scopes ([[LB]])
 // CHECK: } // end sil function '$s29borrow_accessor_nested_result12PointerOuterVAARi_zrlE5valuexvb'
+
+// The @inout result of a mutate accessor with an object self is returned from
+// the borrow scope of self, in a witness thunk and in a mutate accessor.
+// CHECK-LABEL: sil shared [transparent] [serialized] [thunk] [ossa] @$s29borrow_accessor_nested_result14MutablePointerVAA17NonmutatingMutateA2aDP5valueAA5KlassCvzTW : $@convention(witness_method: NonmutatingMutate) (@in_guaranteed MutablePointer) -> @inout Klass {
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   [[R:%.*]] = apply {{%.*}}([[LB]]) : $@convention(method) (@guaranteed MutablePointer) -> @inout Klass
+// CHECK-NEXT: return_borrow [[R]] from_scopes ([[LB]])
+// CHECK: } // end sil function '$s29borrow_accessor_nested_result14MutablePointerVAA17NonmutatingMutateA2aDP5valueAA5KlassCvzTW'
+
+// CHECK-LABEL: sil [ossa] @$s29borrow_accessor_nested_result25AddressOnlyMutablePointerV5valueAA5KlassCvz : $@convention(method) <T> (@in_guaranteed AddressOnlyMutablePointer<T>) -> @inout Klass {
+// CHECK:   [[LB:%.*]] = load_borrow
+// CHECK:   [[R:%.*]] = apply {{%.*}}([[LB]]) : $@convention(method) (@guaranteed MutablePointer) -> @inout Klass
+// CHECK-NOT: end_borrow
+// CHECK:   return_borrow [[R]] from_scopes ([[LB]])
+// CHECK: } // end sil function '$s29borrow_accessor_nested_result25AddressOnlyMutablePointerV5valueAA5KlassCvz'
 
 // SILGen marks the result of a borrow accessor called in a borrow accessor
 // with unchecked_ownership, unless the result is trivial.

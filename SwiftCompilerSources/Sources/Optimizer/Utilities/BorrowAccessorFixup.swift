@@ -30,8 +30,8 @@ import OptimizerBridging
 /// ```
 /// A trivial result has no enclosing scope, so only the `unchecked_ownership` instructions are removed.
 ///
-/// A `@guaranteed_address` result that is an interior pointer of, or depends on, a borrowed object is handled the same
-/// way:
+/// A `@guaranteed_address` or `@inout` address result that is an interior pointer of, or depends on, a borrowed object
+/// is handled the same way:
 /// ```
 ///   %ld = load_borrow %self
 ///   %fwd = unchecked_ownership %ld
@@ -48,7 +48,7 @@ import OptimizerBridging
 ///
 /// Returns true if the function changed.
 func fixupBorrowAccessors(in function: Function, _ context: FunctionPassContext) -> Bool {
-  guard function.convention.hasGuaranteedResult || function.convention.hasGuaranteedAddressResult else {
+  guard function.convention.hasGuaranteedResult || function.convention.hasAddressResult else {
     return false
   }
 
