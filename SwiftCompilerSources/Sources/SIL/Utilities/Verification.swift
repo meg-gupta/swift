@@ -242,6 +242,46 @@ extension LoadBorrowInst : VerifiableInstruction {
   }
 }
 
+extension ApplyInst : VerifiableInstruction {
+  func verify(_ context: VerificationContext) {
+    // Like a load_borrow, an accessor with an address result borrows the memory location of an @in_guaranteed self
+    // over the uses of its result.
+    guard let selfAddress = selfAddressOfBorrowMutateAccessorAddressResult,
+          let selfOperand = selfArgumentOperand,
+          convention(of: selfOperand) == .indirectInGuaranteed else {
+      return
+    }
+    var resultUsers = AccessorResultUsersWalker(context)
+    _ = resultUsers.walkDownUses(ofAddress: self, path: UnusedWalkingPath())
+
+    var mutatingInstructions = MutatingUsesWalker(context)
+    defer { mutatingInstructions.deinitialize() }
+
+    mutatingInstructions.findMutatingUses(of: selfAddress)
+    mutatingInstructions.verifyNoMutatingUses(after: self, before: resultUsers.users)
+  }
+}
+
+/// Collects the users of the address result of an accessor, including the users of its projections and of the
+/// address results of nested accessors.
+private struct AccessorResultUsersWalker : AddressDefUseWalker {
+  let context: VerificationContext
+  var users: [Instruction] = []
+
+  init(_ context: VerificationContext) {
+    self.context = context
+  }
+
+  mutating func leafUse(address: Operand, path: UnusedWalkingPath) -> WalkResult {
+    users.append(address.instruction)
+    if let apply = address.instruction as? ApplyInst, apply.functionConvention.hasAddressResult,
+       address == apply.selfArgumentOperand {
+      return walkDownUses(ofAddress: apply, path: path)
+    }
+    return .continueWalk
+  }
+}
+
 extension BeginAccessInst : VerifiableInstruction {
   func verify(_ context: VerificationContext) {
     // Catch violations like
@@ -336,12 +376,19 @@ private struct MutatingUsesWalker : AddressDefUseWalker {
   }
 
   mutating func verifyNoMutatingUsesInLinearLiverange(of startInst: SingleValueInstruction) {
+    // It would be good enough to only consider `end_borrow`s (and branches), but adding all users doesn't harm.
+    verifyNoMutatingUses(after: startInst, before: startInst.uses.lazy.map { $0.instruction })
+  }
+
+  /// Requires that no mutating instruction is on a path from `startInst` to one of `users`.
+  mutating func verifyNoMutatingUses<Users: Sequence>(after startInst: Instruction, before users: Users)
+    where Users.Element == Instruction
+  {
     var instWorklist = InstructionWorklist(context)
     defer { instWorklist.deinitialize() }
 
-    // It would be good enough to only consider `end_borrow`s (and branches), but adding all users doesn't harm.
-    for use in startInst.uses {
-      instWorklist.pushPredecessors(of: use.instruction, ignoring: startInst)
+    for user in users {
+      instWorklist.pushPredecessors(of: user, ignoring: startInst)
     }
 
     while let inst = instWorklist.pop() {

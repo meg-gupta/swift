@@ -67,3 +67,76 @@ bb0(%0 : $*GenWrapper2<T>):
   %4 = apply %3<T>(%2) : $@convention(method) <τ_0_0> (@in_guaranteed GenWrapper<τ_0_0>) -> @guaranteed_address τ_0_0
   return %4
 }
+
+class T {}
+
+struct Inner {
+  var a: T
+  var b: T
+}
+
+struct Outer {
+  var x: T
+  var y: Inner
+  var z: T
+}
+
+sil @borrow_outer_y : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Inner
+sil @borrow_outer_z : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address T
+sil @borrow_inner_a : $@convention(method) (@in_guaranteed Inner) -> @guaranteed_address T
+
+// Like a load_borrow, an accessor borrows its @in_guaranteed self over the uses
+// of its address result.
+// CHECK: Begin Error in function test_write_self_during_borrow_accessor_result
+// CHECK: SIL verification failed: read-only scope invalidated by a local write
+// CHECK: Verifying instruction:
+// CHECK: ->   destroy_addr %4 : $*T
+// CHECK: End Error in function test_write_self_during_borrow_accessor_result
+sil [ossa] @test_write_self_during_borrow_accessor_result : $@convention(thin) (@in Outer, @owned T) -> @owned T {
+bb0(%0 : $*Outer, %1 : @owned $T):
+  %2 = function_ref @borrow_outer_z : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address T
+  %3 = apply %2(%0) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address T
+  %4 = struct_element_addr %0, #Outer.z
+  destroy_addr %4
+  %5 = load [copy] %3
+  store %1 to [init] %4
+  destroy_addr %0
+  return %5
+}
+
+// The scope of the result includes the uses of its projections.
+// CHECK: Begin Error in function test_write_self_before_use_of_result_projection
+// CHECK: SIL verification failed: read-only scope invalidated by a local write
+// CHECK: Verifying instruction:
+// CHECK: ->   store %1 to [assign] %5 : $*T
+// CHECK: End Error in function test_write_self_before_use_of_result_projection
+sil [ossa] @test_write_self_before_use_of_result_projection : $@convention(thin) (@in Outer, @owned T) -> @owned T {
+bb0(%0 : $*Outer, %1 : @owned $T):
+  %2 = function_ref @borrow_outer_y : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Inner
+  %3 = apply %2(%0) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Inner
+  %4 = struct_element_addr %3, #Inner.a
+  %5 = struct_element_addr %0, #Outer.x
+  store %1 to [assign] %5
+  %6 = load [copy] %4
+  destroy_addr %0
+  return %6
+}
+
+// The scope of the result includes the uses of a nested accessor result.
+// CHECK: Begin Error in function test_write_self_before_use_of_nested_result
+// CHECK: SIL verification failed: read-only scope invalidated by a local write
+// CHECK: Verifying instruction:
+// CHECK: ->   store %1 to [assign] %6 : $*T
+// CHECK: End Error in function test_write_self_before_use_of_nested_result
+sil [ossa] @test_write_self_before_use_of_nested_result : $@convention(thin) (@in Outer, @owned T) -> @owned T {
+bb0(%0 : $*Outer, %1 : @owned $T):
+  %2 = function_ref @borrow_outer_y : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Inner
+  %3 = apply %2(%0) : $@convention(method) (@in_guaranteed Outer) -> @guaranteed_address Inner
+  %4 = function_ref @borrow_inner_a : $@convention(method) (@in_guaranteed Inner) -> @guaranteed_address T
+  %5 = apply %4(%3) : $@convention(method) (@in_guaranteed Inner) -> @guaranteed_address T
+  %6 = struct_element_addr %0, #Outer.x
+  store %1 to [assign] %6
+  %7 = load [copy] %5
+  destroy_addr %0
+  return %7
+}
