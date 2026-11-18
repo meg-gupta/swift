@@ -585,6 +585,11 @@ struct AddressLoweringState {
   // arguments.
   SmallVector<SILValue, 2> guaranteedIndirectArgs;
 
+  // The borrow scopes of guaranteed arguments which became addresses, which
+  // enclose the scope of an accessor result returned by a return_borrow.
+  llvm::SmallDenseMap<ReturnBorrowInst *, SmallVector<SILValue, 2>, 2>
+      returnBorrowArgumentScopes;
+
   // All function-exiting terminators (return or throw instructions).
   SmallVector<TermInst *, 8> exitingInsts;
   
@@ -789,6 +794,29 @@ static void forwardArgAddressToAddressableBuffers(AddressLoweringState &pass,
   }
 }
 
+/// Returns true if \p returnBorrow ends the scope of the result of an accessor
+/// whose object self is borrowed from \p value.
+static bool returnsAccessorResultBorrowedFrom(ReturnBorrowInst *returnBorrow,
+                                              SILValue value) {
+  for (SILValue scope : returnBorrow->getEnclosingValues()) {
+    auto *apply = dyn_cast<ApplyInst>(scope);
+    auto *selfOperand =
+        apply ? apply->getSelfObjectOfBorrowMutateAccessorResult() : nullptr;
+    if (!selfOperand) {
+      continue;
+    }
+    bool borrowsValue = false;
+    visitBorrowIntroducers(selfOperand->get(), [&](SILValue introducer) {
+      borrowsValue = introducer == value;
+      return !borrowsValue;
+    });
+    if (borrowsValue) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Before populating the ValueStorageMap, replace each value-typed argument to
 /// the current function with an address-typed argument by inserting a temporary
 /// load instruction.
@@ -817,6 +845,15 @@ static void convertDirectToIndirectFunctionArgs(AddressLoweringState &pass) {
       } else {
         load = argBuilder.createLoadBorrow(loc, undefAddress);
         for (SILInstruction *termInst : pass.exitingInsts) {
+          // The scope of a returned accessor result whose self is borrowed
+          // from a loadable argument is within the borrow scope of the
+          // argument. rewriteReturnBorrow returns from it.
+          auto *returnBorrow = dyn_cast<ReturnBorrowInst>(termInst);
+          if (returnBorrow && !addrType.isAddressOnly(*pass.function) &&
+              returnsAccessorResultBorrowedFrom(returnBorrow, arg)) {
+            pass.returnBorrowArgumentScopes[returnBorrow].push_back(load);
+            continue;
+          }
           pass.getBuilder(termInst->getIterator())
               .createEndBorrow(pass.genLoc(), load);
         }
@@ -3791,34 +3828,46 @@ void ReturnRewriter::rewriteReturn(ReturnInst *returnInst) {
 void ReturnRewriter::rewriteReturnBorrow(ReturnBorrowInst *returnBorrowInst) {
   assert(pass.loweredFnConv.hasAddressResult() &&
          "return_borrow requires an address result");
+  // The borrow scopes of arguments which became addresses are the outermost
+  // scopes.
+  auto argumentScopes =
+      pass.returnBorrowArgumentScopes.lookup(returnBorrowInst);
+  SmallVector<SILValue, 4> scopes(argumentScopes.begin(), argumentScopes.end());
   SILValue oldResult = returnBorrowInst->getReturnValue();
+  SILValue resultAddr;
   // The @inout result of a mutate accessor is already an address.
   if (oldResult->getType().isAddress()) {
-    return;
-  }
-  SILValue resultAddr = getGuaranteedAddressResultAddress(oldResult, pass);
-
-  // The address result of an accessor is a scope, so keep returning from it.
-  // An opaque borrow scope is removed by lowering.
-  SmallVector<SILValue, 4> addressScopes;
-  for (SILValue scope : returnBorrowInst->getEnclosingValues()) {
-    if (!pass.valueStorageMap.contains(scope)) {
-      continue;
+    if (scopes.empty()) {
+      return;
     }
-    SILValue scopeAddr = pass.valueStorageMap.getStorage(scope).storageAddress;
-    auto *accessorApply = dyn_cast_or_null<ApplyInst>(scopeAddr);
-    if (accessorApply &&
-        getLoweredCallConv(ApplySite(accessorApply)).hasAddressResult()) {
-      addressScopes.push_back(scopeAddr);
+    resultAddr = oldResult;
+    scopes.append(returnBorrowInst->getEnclosingValues().begin(),
+                  returnBorrowInst->getEnclosingValues().end());
+  } else {
+    resultAddr = getGuaranteedAddressResultAddress(oldResult, pass);
+    // The address result of an accessor is a scope, so keep returning from it.
+    // An opaque borrow scope is removed by lowering.
+    for (SILValue scope : returnBorrowInst->getEnclosingValues()) {
+      if (!pass.valueStorageMap.contains(scope)) {
+        scopes.push_back(scope);
+        continue;
+      }
+      SILValue scopeAddr =
+          pass.valueStorageMap.getStorage(scope).storageAddress;
+      auto *accessorApply = dyn_cast_or_null<ApplyInst>(scopeAddr);
+      if (accessorApply &&
+          getLoweredCallConv(ApplySite(accessorApply)).hasAddressResult()) {
+        scopes.push_back(scopeAddr);
+      }
     }
   }
 
   auto returnBuilder = pass.getBuilder(returnBorrowInst->getIterator());
-  if (addressScopes.empty()) {
+  if (scopes.empty()) {
     returnBuilder.createReturn(returnBorrowInst->getLoc(), resultAddr);
   } else {
     returnBuilder.createReturnBorrow(returnBorrowInst->getLoc(), resultAddr,
-                                     addressScopes);
+                                     scopes);
   }
   pass.deleter.forceDelete(returnBorrowInst);
 }

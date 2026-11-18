@@ -562,6 +562,39 @@ bb0(%0 : $*Box<T>):
   return_borrow %2 : $*T from_scopes (%2 : $*T)
 }
 
+sil @f068_borrow_address_of_object_self : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @guaranteed_address T
+sil @f069_mutate_address_of_object_self : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @inout T
+
+// The address result of an accessor whose object self is loaded from an
+// @in_guaranteed argument is returned from the borrow scope of the argument.
+// CHECK-LABEL: sil [ossa] @f068_return_borrow_object_self_address_result : $@convention(method) <T> (@in_guaranteed LoadableNontrivialGeneric<T>) -> @guaranteed_address T {
+// CHECK: bb0(%0 : $*LoadableNontrivialGeneric<T>):
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   [[RESULT:%.*]] = apply {{%.*}}<T>([[LB]])
+// CHECK-NOT: end_borrow
+// CHECK:   return_borrow [[RESULT]] : $*T from_scopes ([[LB]] : $LoadableNontrivialGeneric<T>, [[RESULT]] : $*T)
+// CHECK-LABEL: } // end sil function 'f068_return_borrow_object_self_address_result'
+sil [ossa] @f068_return_borrow_object_self_address_result : $@convention(method) <T> (@in_guaranteed LoadableNontrivialGeneric<T>) -> @guaranteed_address T {
+bb0(%0 : @guaranteed $LoadableNontrivialGeneric<T>):
+  %1 = function_ref @f068_borrow_address_of_object_self : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @guaranteed_address T
+  %2 = apply %1<T>(%0) : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @guaranteed_address T
+  return_borrow %2 from_scopes (%2)
+}
+
+// CHECK-LABEL: sil [ossa] @f069_return_borrow_object_self_inout_result : $@convention(method) <T> (@in_guaranteed LoadableNontrivialGeneric<T>) -> @inout T {
+// CHECK: bb0(%0 : $*LoadableNontrivialGeneric<T>):
+// CHECK:   [[LB:%.*]] = load_borrow %0
+// CHECK:   [[RESULT:%.*]] = apply {{%.*}}<T>([[LB]])
+// CHECK-NOT: end_borrow
+// CHECK:   return_borrow [[RESULT]] : $*T from_scopes ([[LB]] : $LoadableNontrivialGeneric<T>, [[RESULT]] : $*T)
+// CHECK-LABEL: } // end sil function 'f069_return_borrow_object_self_inout_result'
+sil [ossa] @f069_return_borrow_object_self_inout_result : $@convention(method) <T> (@in_guaranteed LoadableNontrivialGeneric<T>) -> @inout T {
+bb0(%0 : @guaranteed $LoadableNontrivialGeneric<T>):
+  %1 = function_ref @f069_mutate_address_of_object_self : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @inout T
+  %2 = apply %1<T>(%0) : $@convention(method) <T> (@guaranteed LoadableNontrivialGeneric<T>) -> @inout T
+  return_borrow %2 : $*T from_scopes (%2 : $*T)
+}
+
 // CHECK-LABEL: sil [ossa] @f070_mixedResult1 : $@convention(thin) <T> (@in T, @owned any C) -> (@out T, @owned any C) {
 // CHECK: bb0(%0 : $*T, %1 : $*T, %2 : @owned $any C):
 // CHECK:   copy_addr [take] %1 to [init] %0 : $*T
