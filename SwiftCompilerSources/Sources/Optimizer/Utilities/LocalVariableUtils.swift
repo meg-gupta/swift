@@ -504,7 +504,7 @@ extension LocalVariableAccessWalker: AddressUseVisitor {
     case is BeginAccessInst:
       visit(LocalVariableAccess(.beginAccess, operand))
       return .continueWalk
-    case is BeginApplyInst:
+    case is BeginApplyInst, is ApplyInst:
       visit(LocalVariableAccess(.apply, operand))
       return .continueWalk
     case is LoadBorrowInst:
@@ -592,6 +592,11 @@ extension LocalVariableAccessWalker: AddressUseVisitor {
   }
 
   mutating func dependentAddressUse(of operand: Operand, dependentAddress address: Value) -> WalkResult {
+    if operand.instruction is FullApplySite {
+      // A borrow or mutate accessor may access the local during the call.
+      visit(LocalVariableAccess(.apply, operand))
+      return .continueWalk
+    }
     // No other dependent uses can access to memory at this address.
     return .continueWalk
   }

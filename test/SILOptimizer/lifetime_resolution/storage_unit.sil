@@ -2590,3 +2590,40 @@ bb3:
   %t = tuple ()
   return %t
 }
+
+sil @borrowK_addr : $@convention(method) (@in_guaranteed C) -> @guaranteed K
+sil @consumeC : $@convention(thin) (@owned C) -> ()
+
+// Like a load_borrow, a borrow accessor with an address self borrows the memory of self until the end of the result's
+// scope, so a copy within that scope does not become a take.
+// CHECK-LABEL: sil [ossa] @borrow_accessor_address_self_before_consume :
+// CHECK:          [[ROOT:%.*]] = mark_uninitialized [var]
+// CHECK:          [[R:%.*]] = apply {{%.*}}([[ROOT]]) : $@convention(method) (@in_guaranteed C) -> @guaranteed K
+// CHECK-NEXT:     [[L:%.*]] = load [copy] [[ROOT]] : $*C
+// CHECK:          apply {{%.*}}([[L]]) : $@convention(thin) (@owned C) -> ()
+// CHECK:          apply {{%.*}}([[R]]) : $@convention(thin) (@guaranteed K) -> ()
+// CHECK-NEXT:     end_borrow [[R]] : $K
+// CHECK-NEXT:     destroy_addr [[ROOT]] : $*C
+// CHECK:       } // end sil function
+sil [ossa] [unresolved] @borrow_accessor_address_self_before_consume : $@convention(thin) () -> () {
+bb0:
+  %0 = alloc_stack [lexical] [var_decl] $C, var, name "c", type $C
+  %root = mark_uninitialized [var] %0
+  specify_test "lifetime_resolution_resolve %0"
+  %getFn = function_ref @getK : $@convention(thin) () -> @owned K
+  %k = apply %getFn() : $@convention(thin) () -> @owned K
+  %c = struct $C (%k : $K)
+  assign %c to %root
+  %borrowFn = function_ref @borrowK_addr : $@convention(method) (@in_guaranteed C) -> @guaranteed K
+  %r = apply %borrowFn(%root) : $@convention(method) (@in_guaranteed C) -> @guaranteed K
+  %l = load [copy] %root : $*C
+  %consFn = function_ref @consumeC : $@convention(thin) (@owned C) -> ()
+  apply %consFn(%l) : $@convention(thin) (@owned C) -> ()
+  %useFn = function_ref @useK : $@convention(thin) (@guaranteed K) -> ()
+  apply %useFn(%r) : $@convention(thin) (@guaranteed K) -> ()
+  end_borrow %r : $K
+  destroy_addr %root : $*C
+  dealloc_stack %0 : $*C
+  %t = tuple ()
+  return %t
+}

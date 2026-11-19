@@ -39,7 +39,8 @@ protocol AddressUseVisitor {
   mutating func projectedAddressUse(of operand: Operand, into value: Value)
     -> WalkResult
 
-  /// An access scope: begin_access, begin_apply, load_borrow.
+  /// An access scope: begin_access, begin_apply, load_borrow, store_borrow, or the address self of a borrow accessor
+  /// with a guaranteed result.
   mutating func scopedAddressUse(of operand: Operand) -> WalkResult
 
   /// end_access, end_apply, abort_apply, end_borrow.
@@ -74,7 +75,8 @@ protocol AddressUseVisitor {
   mutating func dependentAddressUse(of operand: Operand, dependentValue value: Value) -> WalkResult
 
   /// A dependent `address` whose lifetime depends on the in-memory value at `address`.
-  /// e.g. `mark_dependence_addr %address on %operand`
+  /// e.g. `mark_dependence_addr %address on %operand`, or the address result of a borrow or mutate accessor with an
+  /// address self `%operand`.
   mutating func dependentAddressUse(of operand: Operand, dependentAddress address: Value) -> WalkResult
 
   /// A pointer escape may propagate the address beyond the current instruction.
@@ -132,6 +134,15 @@ extension AddressUseVisitor {
       return projectedAddressUse(of: operand, into: ueda)
 
     case let apply as FullApplySite:
+      if let apply = apply as? ApplyInst {
+        if let selfAddress = apply.selfAddressOfGuaranteedBorrowAccessorResult, selfAddress == operand.value {
+          // Like a load_borrow, a borrow accessor borrows the memory location of self over the scope of its result.
+          return scopedAddressUse(of: operand)
+        }
+        if let selfAddress = apply.selfAddressOfBorrowMutateAccessorAddressResult, selfAddress == operand.value {
+          return dependentAddressUse(of: operand, dependentAddress: apply)
+        }
+      }
       return appliedAddressUse(of: operand, by: apply)
 
     case is SwitchEnumAddrInst, is CheckedCastAddrBranchInst,
@@ -459,6 +470,9 @@ extension AddressInitializationWalker {
   }
 
   mutating func dependentAddressUse(of operand: Operand, dependentAddress address: Value) -> WalkResult {
+    if operand.instruction is FullApplySite {
+      return .abortWalk
+    }
     return onRead
   }
 

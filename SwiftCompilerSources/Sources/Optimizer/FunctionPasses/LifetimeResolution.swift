@@ -1059,10 +1059,12 @@ private struct MultiDefResolver {
     mutating func scopedAddressUse(of operand: Operand) -> WalkResult {
       let range = self.range(of: operand)
       switch operand.instruction {
-      case let loadBorrow as LoadBorrowInst:
-        // The borrowed value aliases the memory until the end of its scope.
-        addUse(.liveness(loadBorrow), range)
-        for use in loadBorrow.uses {
+      case is LoadBorrowInst, is ApplyInst:
+        // The borrowed value, either loaded or the result of a borrow accessor with an address self, aliases the
+        // memory until the end of its scope.
+        let borrow = operand.instruction as! SingleValueInstruction
+        addUse(.liveness(borrow), range)
+        for use in borrow.uses {
           if use.instruction is EndBorrowInst {
             addUse(.liveness(use.instruction), range)
           } else if let markDep = use.instruction as? MarkDependenceInstruction, use == markDep.baseOperand {

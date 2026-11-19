@@ -487,6 +487,9 @@ private struct BoxProjectionAccessVisitor: AddressUseVisitor {
   }
 
   mutating func scopedAddressUse(of operand: Operand) -> WalkResult {
+    if operand.instruction is FullApplySite {
+      return .abortWalk
+    }
     // The address within an access, such as an inout argument, is the access in progress, not a capture, so don't
     // follow it.
     if let access = operand.instruction as? BeginAccessInst, access.enforcement != .unsafe {

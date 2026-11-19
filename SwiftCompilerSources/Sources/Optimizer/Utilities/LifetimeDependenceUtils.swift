@@ -1047,6 +1047,12 @@ extension LifetimeDependenceDefUseWalker {
       return leafUse(of: operand)
     case let load as LoadBorrowInst:
       return walkDownUses(of: load, using: operand)
+    case let apply as ApplyInst:
+      // A borrow accessor with an address self. The call uses self even if its result is Escapable.
+      if leafUse(of: operand) == .abortWalk {
+        return .abortWalk
+      }
+      return walkDownUses(of: apply, using: operand)
     default:
       fatalError("Unrecognized scoped address use: \(operand.instruction)")
     }
@@ -1094,9 +1100,16 @@ extension LifetimeDependenceDefUseWalker {
     dependentUse(of: operand, dependentValue: value)
   }    
 
-  // mark_dependence_addr
+  // mark_dependence_addr, init_borrow_addr, or the address result of an accessor
   mutating func dependentAddressUse(of operand: Operand, dependentAddress address: Value) -> WalkResult {
-    dependentUse(of: operand, dependentAddress: address)
+    if operand.instruction is FullApplySite {
+      // The address result of a borrow or mutate accessor is within the memory location of self.
+      if leafUse(of: operand) == .abortWalk {
+        return .abortWalk
+      }
+      return walkDownAddressUses(of: address)
+    }
+    return dependentUse(of: operand, dependentAddress: address)
   }
 
   mutating func escapingAddressUse(of operand: Operand) -> WalkResult {
@@ -1296,7 +1309,8 @@ extension LifetimeDependenceDefUseWalker {
       // A store does not use the previous in-memory value.
       return .continueWalk
     case .apply:
-      return visitAppliedUse(of: localAccess.operand!, by: localAccess.instruction as! FullApplySite)
+      // Classify the operand again, so a borrow or mutate accessor with an address self is handled like a direct use.
+      return classifyAddress(operand: localAccess.operand!)
     case .escape:
       log("Local variable: \(allocation)\n    escapes at: \(localAccess.instruction!)")
       return escapingDependence(on: localAccess.operand!)

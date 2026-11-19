@@ -704,17 +704,6 @@ extension InteriorUseWalker: AddressUseVisitor {
     if apply is BeginApplyInst {
       return scopedAddressUse(of: operand)
     }
-    // Like a load_borrow, a borrow accessor borrows the memory location of an @in_guaranteed self over the scope of
-    // its result.
-    if let apply = apply as? ApplyInst, let borrow = BeginBorrowValue(apply),
-       let selfAddress = apply.selfAddressOfGuaranteedBorrowAccessorResult, selfAddress == operand.value {
-      if handleInner(borrowed: apply) == .abortWalk {
-        return .abortWalk
-      }
-      return borrow.scopeEndingOperands.walk {
-        useVisitor($0)
-      }
-    }
     return leafAddressUse(of: operand)
   }
 
@@ -730,6 +719,14 @@ extension InteriorUseWalker: AddressUseVisitor {
         return .abortWalk
       }
       return ba.token.uses.walk {
+        useVisitor($0)
+      }
+    case let apply as ApplyInst:
+      // A borrow accessor with an address self.
+      if handleInner(borrowed: apply) == .abortWalk {
+        return .abortWalk
+      }
+      return apply.uses.endingLifetime.walk {
         useVisitor($0)
       }
     case let sb as StoreBorrowInst:
@@ -788,9 +785,13 @@ extension InteriorUseWalker: AddressUseVisitor {
   }
 
   mutating func dependentAddressUse(of operand: Operand, dependentAddress address: Value) -> WalkResult {
+    // The address result of a borrow or mutate accessor is used within the memory location of self.
+    if operand.instruction is FullApplySite {
+      return walkDownAddressUses(of: address)
+    }
     // TODO: consider data flow that finds reachable uses of `dependentAddress`.
     return escapingAddressUse(of: operand)
-  }    
+  }
 
   mutating func escapingAddressUse(of operand: Operand) -> WalkResult {
     pointerStatus.setEscaping(operand: operand)
